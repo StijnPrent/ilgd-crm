@@ -7,6 +7,8 @@ export default function HomePage() {
   const router = useRouter()
 
   useEffect(() => {
+    if (typeof window === "undefined") return
+
     const isLoggedIn = localStorage.getItem("isLoggedIn")
     const userRole = localStorage.getItem("userRole")
 

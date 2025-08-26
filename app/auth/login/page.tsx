@@ -30,7 +30,8 @@ export default function LoginPage() {
       document.cookie = "user-session=logged-in; path=/; max-age=86400; samesite=lax"
 
       // Use returned user (preferred) or fall back to what ApiClient stored
-      const user = result?.user ?? JSON.parse(localStorage.getItem("user") || "null")
+      const stored = typeof window !== "undefined" ? localStorage.getItem("user") : null
+      const user = result?.user ?? (stored ? JSON.parse(stored) : null)
 
       if (user?.role === "manager") {
         router.push("/manager")

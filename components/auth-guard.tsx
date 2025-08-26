@@ -17,6 +17,8 @@ export function AuthGuard({ children, requiredRole }: AuthGuardProps) {
   useEffect(() => {
     const checkAuth = () => {
       try {
+        if (typeof window === "undefined") return
+
         const isLoggedIn = localStorage.getItem("user-session") === "logged-in"
         const userRole = localStorage.getItem("user-role") || "chatter"
 

@@ -59,6 +59,26 @@ export function ShiftManager() {
 
   const fetchData = async () => {
     try {
+      const [shiftsData, chattersData, usersData] = await Promise.all([
+        api.getShifts(),
+        api.getChatters(),
+        api.getUsers(),
+      ])
+
+      const userMap = new Map(
+        (usersData || []).map((u: any) => [
+          String(u.id),
+          u.fullName || u.full_name || "",
+        ]),
+      )
+
+      const chattersWithNames = (chattersData || []).map((c: any) => ({
+        ...c,
+        full_name: userMap.get(String(c.user_id || c.userId)) || "",
+      }))
+
+      const chatterMap = new Map(
+        (chattersWithNames || []).map((c: any) => [String(c.id), c.full_name])
       )
 
       const formattedShifts = (shiftsData || []).map((shift: any) => ({
@@ -73,6 +93,10 @@ export function ShiftManager() {
 
       setShifts(formattedShifts)
       setChatters(
+        (chattersWithNames || []).map((c: any) => ({
+          id: String(c.id),
+          full_name: c.full_name,
+        }))
       )
     } catch (error) {
       console.error("Error fetching shifts:", error)

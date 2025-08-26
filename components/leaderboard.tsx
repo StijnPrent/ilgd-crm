@@ -30,6 +30,25 @@ export function Leaderboard({ limit, refreshTrigger }: LeaderboardProps) {
 
   const fetchLeaderboard = async () => {
     try {
+      const [earningsData, chattersData, usersData] = await Promise.all([
+        api.getEmployeeEarnings(),
+        api.getChatters(),
+        api.getUsers(),
+      ])
+
+      const userMap = new Map(
+        (usersData || []).map((u: any) => [
+          String(u.id),
+          u.fullName || u.full_name || "",
+        ]),
+      )
+
+      const chattersWithNames = (chattersData || []).map((ch: any) => ({
+        ...ch,
+        full_name: userMap.get(String(ch.user_id || ch.userId)) || "",
+      }))
+
+      const leaderboardData = (chattersWithNames || []).map((chatter: any) => {
         const chatterEarnings = (earningsData || []).filter(
           (earning: any) => String(earning.chatter_id) === String(chatter.id),
         )
@@ -54,6 +73,7 @@ export function Leaderboard({ limit, refreshTrigger }: LeaderboardProps) {
 
         return {
           id: String(chatter.id),
+          full_name: chatter.full_name,
           total_earnings: totalEarnings,
           week_earnings: weekEarnings,
           month_earnings: monthEarnings,

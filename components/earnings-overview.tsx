@@ -33,7 +33,24 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
 
   const fetchEarnings = async () => {
     try {
-      })
+      const [earningsData, chattersData, usersData] = await Promise.all([
+        api.getEmployeeEarnings(),
+        api.getChatters(),
+        api.getUsers(),
+      ])
+
+      const userMap = new Map(
+        (usersData || []).map((u: any) => [
+          String(u.id),
+          u.fullName || u.full_name || "",
+        ]),
+      )
+
+      const activeChattersMap = new Map(
+        (chattersData || [])
+          .filter((ch: any) => ch.status !== "inactive")
+          .map((ch: any) => [String(ch.id), userMap.get(String(ch.user_id || ch.userId))]),
+      )
 
       const validEarnings = (earningsData || []).filter((earning: any) =>
         activeChattersMap.has(String(earning.chatter_id)),
