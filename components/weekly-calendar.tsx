@@ -51,20 +51,6 @@ export function WeeklyCalendar({
 
   const fetchShifts = async () => {
     try {
-      const [shiftsData, chattersData, usersData] = await Promise.all([
-        api.getShifts(),
-        api.getChatters(),
-        api.getUsers(),
-      ])
-
-      const usersMap = new Map(
-        (usersData || []).map((u: any) => [String(u.id), u]),
-      )
-      const chatterMap: Record<string, string> = {}
-      ;(chattersData || []).forEach((chatter: any) => {
-        const user = usersMap.get(String(chatter.id)) || {}
-        const fullName = user.fullName || user.username || "Unknown"
-        chatterMap[String(chatter.id)] = fullName
       })
 
       const formattedShifts = (shiftsData || []).map((shift: any) => ({

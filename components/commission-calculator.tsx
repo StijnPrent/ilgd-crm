@@ -57,16 +57,6 @@ export function CommissionCalculator() {
 
   const fetchCommissions = async () => {
     try {
-      const [earningsData, chattersData, usersData] = await Promise.all([
-        api.getEmployeeEarnings(),
-        api.getChatters(),
-        api.getUsers(),
-      ])
-
-      const usersMap = new Map(
-        (usersData || []).map((u: any) => [String(u.id), u]),
-      )
-
       const currentDate = new Date()
       const start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
       const end = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
@@ -76,8 +66,6 @@ export function CommissionCalculator() {
       const calculated: Commission[] = []
 
       ;(chattersData || []).forEach((chatter: any) => {
-        const user = usersMap.get(String(chatter.id)) || {}
-        const fullName = user.fullName || user.username || "Unknown"
         const chatterEarnings = (earningsData || []).filter(
           (e: any) => String(e.chatter_id) === String(chatter.id),
         )
@@ -99,7 +87,6 @@ export function CommissionCalculator() {
             status: "calculated",
             created_at: new Date().toISOString(),
             chatter: {
-              full_name: fullName,
               currency: chatter.currency || "€",
             },
           })
@@ -154,21 +141,6 @@ export function CommissionCalculator() {
     setCalculating(true)
     try {
       const [startDate, endDate] = selectedPeriod.split("_")
-      const [earningsData, chattersData, usersData] = await Promise.all([
-        api.getEmployeeEarnings(),
-        api.getChatters(),
-        api.getUsers(),
-      ])
-
-      const usersMap = new Map(
-        (usersData || []).map((u: any) => [String(u.id), u]),
-      )
-
-      const calculations: ChatterEarnings[] = []
-
-      ;(chattersData || []).forEach((chatter: any) => {
-        const user = usersMap.get(String(chatter.id)) || {}
-        const fullName = user.fullName || user.username || "Unknown"
         const chatterEarnings = (earningsData || []).filter(
           (e: any) =>
             String(e.chatter_id) === String(chatter.id) &&
@@ -187,7 +159,6 @@ export function CommissionCalculator() {
           const commissionAmount = netEarnings * (commissionRate / 100)
           calculations.push({
             chatter_id: String(chatter.id),
-            full_name: fullName,
             currency: chatter.currency || "€",
             commission_rate: commissionRate,
             platform_fee_rate: platformFeeRate,

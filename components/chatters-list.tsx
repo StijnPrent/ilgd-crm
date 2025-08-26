@@ -77,23 +77,10 @@ export function ChattersList() {
 
   const fetchChatters = async () => {
     try {
-      const [chattersData, earningsData, usersData] = await Promise.all([
-        api.getChatters(),
-        api.getEmployeeEarnings(),
-        api.getUsers(),
-      ])
-
-      const usersMap = new Map(
-        (usersData || []).map((u: any) => [String(u.id), u]),
-      )
-
       const today = new Date().toISOString().split("T")[0]
       const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
 
       const chattersWithRealEarnings = (chattersData || []).map((chatter: any) => {
-        const user = usersMap.get(String(chatter.id)) || {}
-        const fullName = user.fullName || user.username || "Unknown"
-        const email = chatter.email || user.username || ""
         const chatterEarnings = (earningsData || []).filter((e: any) => String(e.chatter_id) === String(chatter.id))
 
         const todayEarnings = chatterEarnings
@@ -106,8 +93,6 @@ export function ChattersList() {
 
         return {
           id: String(chatter.id),
-          full_name: fullName,
-          email,
           created_at: chatter.created_at,
           isOnline: Math.random() > 0.6,
           todayEarnings,
