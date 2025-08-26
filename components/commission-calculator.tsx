@@ -257,11 +257,23 @@ export function CommissionCalculator() {
 
   const updateCommissionStatus = async (commissionId: string, newStatus: string) => {
     try {
+      await api.updateCommission(commissionId, { status: newStatus })
       setCommissions((prev) =>
-        prev.map((commission) => (commission.id === commissionId ? { ...commission, status: newStatus } : commission)),
+        prev.map((commission) =>
+          commission.id === commissionId ? { ...commission, status: newStatus } : commission,
+        ),
       )
     } catch (error) {
       console.error("Error updating commission status:", error)
+    }
+  }
+
+  const deleteCommission = async (commissionId: string) => {
+    try {
+      await api.deleteCommission(commissionId)
+      setCommissions((prev) => prev.filter((commission) => commission.id !== commissionId))
+    } catch (error) {
+      console.error("Error deleting commission:", error)
     }
   }
 
@@ -467,7 +479,7 @@ export function CommissionCalculator() {
                         <Button
                           size="sm"
                           variant="destructive"
-                          onClick={() => updateCommissionStatus(commission.id, "cancelled")}
+                          onClick={() => deleteCommission(commission.id)}
                         >
                           Cancel
                         </Button>

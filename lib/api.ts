@@ -141,7 +141,17 @@ class ApiClient {
     })
   }
 
-  /* ---------- Shifts ---------- */
+  updateCommission(id: string, data: any) {
+    return this.request(`/commissions/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    })
+  }
+
+  deleteCommission(id: string) {
+    return this.request(`/commissions/${id}`, { method: "DELETE" })
+  }
+
   getShifts() {
     return this.request("/shifts")
   }
