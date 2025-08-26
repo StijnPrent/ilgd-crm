@@ -152,7 +152,6 @@ class ApiClient {
     return this.request(`/commissions/${id}`, { method: "DELETE" })
   }
 
-  /* ---------- Shifts ---------- */
   getShifts() {
     return this.request("/shifts")
   }

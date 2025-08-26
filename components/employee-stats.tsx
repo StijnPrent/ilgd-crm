@@ -51,7 +51,7 @@ export function EmployeeStats({ userId, refreshTrigger }: EmployeeStatsProps) {
         )
 
         const userEarnings = (earningsData || []).filter(
-          (e: any) => String(e.chatter_id) === String(userId),
+          (e: any) => String(e.chatterId) === String(userId),
         )
 
         const toISODate = (d: Date) => d.toISOString().split("T")[0]
@@ -81,10 +81,8 @@ export function EmployeeStats({ userId, refreshTrigger }: EmployeeStatsProps) {
         )
 
         const currency = currentChatter?.currency || "EUR"
-        const commissionRate =
-          currentChatter?.commission_rate || currentChatter?.commissionRate || 0
-        const platformFee =
-          currentChatter?.platform_fee || currentChatter?.platformFee || 0
+        const commissionRate = currentChatter?.commissionRate || 0
+        const platformFee = currentChatter?.platformFee || 0
 
         const estimatedCommission = monthTotal * (commissionRate / 100)
 
@@ -92,7 +90,7 @@ export function EmployeeStats({ userId, refreshTrigger }: EmployeeStatsProps) {
           const total = (earningsData || [])
             .filter(
               (e: any) =>
-                String(e.chatter_id) === String(ch.id) && e.date >= monthStartISO,
+                String(e.chatterId) === String(ch.id) && e.date >= monthStartISO,
             )
             .reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
           return { id: String(ch.id), total }
