@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useState } from "react"
+import { api } from "@/lib/api"
 
 export function SetupManager() {
   const [isLoading, setIsLoading] = useState(false)
@@ -15,21 +16,18 @@ export function SetupManager() {
     setMessage(null)
 
     try {
-      const response = await fetch("/api/create-manager", {
-        method: "POST",
+      await api.createUser({
+        username: "WolfMas",
+        password: "WolfMas0904",
+        fullName: "WolfMas",
+        role: "manager",
       })
 
-      const data = await response.json()
-
-      if (response.ok) {
-        setMessage(
-          "Manager account created successfully! You can now login with username: WolfMas and password: WolfMas0904",
-        )
-      } else {
-        setError(data.error || "Failed to create manager account")
-      }
-    } catch (error) {
-      setError("Network error occurred")
+      setMessage(
+        "Manager account created successfully! You can now login with username: WolfMas and password: WolfMas0904",
+      )
+    } catch (error: any) {
+      setError(error?.message || "Failed to create manager account")
     } finally {
       setIsLoading(false)
     }

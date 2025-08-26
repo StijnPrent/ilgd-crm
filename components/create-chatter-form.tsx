@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "@/hooks/use-toast"
+import { api } from "@/lib/api"
 
 export function CreateChatterForm() {
   const [username, setUsername] = useState("")
@@ -34,25 +35,18 @@ export function CreateChatterForm() {
     setIsLoading(true)
 
     try {
-      const response = await fetch("/api/create-chatter", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          username,
-          password,
-          currency,
-          commissionRate: parseDecimalInput(commissionRate),
-          platformFeeRate: parseDecimalInput(platformFeeRate),
-        }),
+      const createdUser = await api.createUser({
+        username,
+        password,
+        role: "chatter",
       })
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to create chatter account")
-      }
+      await api.createChatter({
+        userId: createdUser.id,
+        currency,
+        commissionRate: parseDecimalInput(commissionRate),
+        platformFeeRate: parseDecimalInput(platformFeeRate),
+      })
 
       toast({
         title: "Success",
@@ -65,10 +59,10 @@ export function CreateChatterForm() {
       setCurrency("€")
       setCommissionRate("8,00")
       setPlatformFeeRate("20,00")
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create account",
+        description: error?.message || "Failed to create account",
         variant: "destructive",
       })
     } finally {
