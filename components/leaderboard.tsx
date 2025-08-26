@@ -69,8 +69,8 @@ export function Leaderboard({ limit, refreshTrigger }: LeaderboardProps) {
       })
 
       const sortedData = leaderboardData
-        .sort((a, b) => b.month_earnings - a.month_earnings)
-        .map((entry, index) => ({ ...entry, rank: index + 1 }))
+        .sort((a: any, b: any) => b.month_earnings - a.month_earnings)
+        .map((entry: any, index: any) => ({ ...entry, rank: index + 1 }))
 
       const limitedData = limit ? sortedData.slice(0, limit) : sortedData
       setLeaderboard(limitedData)

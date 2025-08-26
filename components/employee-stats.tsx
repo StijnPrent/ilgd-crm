@@ -98,9 +98,9 @@ export function EmployeeStats({ userId, refreshTrigger }: EmployeeStatsProps) {
           return { id: String(ch.id), total }
         })
 
-        monthlyTotals.sort((a, b) => b.total - a.total)
+        monthlyTotals.sort((a: any, b: any) => b.total - a.total)
         const rankIndex = monthlyTotals.findIndex(
-          (t) => t.id === String(userId),
+          (t: any) => t.id === String(userId),
         )
         const currentRank = rankIndex === -1 ? monthlyTotals.length + 1 : rankIndex + 1
 
