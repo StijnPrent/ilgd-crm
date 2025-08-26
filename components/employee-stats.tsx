@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { DollarSign, TrendingUp, Calendar, Award } from "lucide-react"
-// import { api } from "@/lib/api" // ← uncomment when your backend is ready
+import { api } from "@/lib/api"
 
 interface EmployeeStatsProps {
   userId: string
@@ -41,68 +41,68 @@ export function EmployeeStats({ userId, refreshTrigger }: EmployeeStatsProps) {
 
     const fetchStats = async () => {
       try {
-        // ---- Replace this block with your backend call when ready ----
-        // const backend = await api.getEmployeeStats(userId)
-        // const { todayTotal, weekTotal, monthTotal, allTimeTotal, currency, commissionRate, platformFee, currentRank } = backend
+        const [earningsData, chattersData] = await Promise.all([
+          api.getEmployeeEarnings(),
+          api.getChatters(),
+        ])
 
-        const earningsData = localStorage.getItem("employee_earnings")
-        const allEarnings: any[] = earningsData ? JSON.parse(earningsData) : []
+        const currentChatter = (chattersData || []).find(
+          (c: any) => String(c.id) === String(userId),
+        )
 
-        const chattersData = localStorage.getItem("chatters")
-        const chatters = chattersData ? JSON.parse(chattersData) : []
-        const currentChatter = chatters.find((c: any) => c.id === userId)
+        const userEarnings = (earningsData || []).filter(
+          (e: any) => String(e.chatter_id) === String(userId),
+        )
 
-        const userEarnings = allEarnings.filter((e: any) => e.chatter_id === userId)
-
-        // date helpers
         const toISODate = (d: Date) => d.toISOString().split("T")[0]
         const today = toISODate(new Date())
 
         const weekStart = new Date()
         weekStart.setHours(0, 0, 0, 0)
-        weekStart.setDate(weekStart.getDate() - weekStart.getDay()) // Sunday-start; adjust if you want Monday
+        weekStart.setDate(weekStart.getDate() - weekStart.getDay())
 
         const monthStart = new Date()
         monthStart.setHours(0, 0, 0, 0)
         monthStart.setDate(1)
+        const monthStartISO = toISODate(monthStart)
 
-        // filters
-        const todayEarnings = userEarnings.filter((e) => e.date === today)
-        const weekEarnings = userEarnings.filter((e) => e.date >= toISODate(weekStart))
-        const monthEarnings = userEarnings.filter((e) => e.date >= toISODate(monthStart))
-
-        // totals
-        const todayTotal = todayEarnings.reduce((sum, e) => sum + Number(e.amount), 0)
-        const weekTotal = weekEarnings.reduce((sum, e) => sum + Number(e.amount), 0)
-        const monthTotal = monthEarnings.reduce((sum, e) => sum + Number(e.amount), 0)
-        const allTimeTotal = userEarnings.reduce((sum, e) => sum + Number(e.amount), 0)
+        const todayTotal = userEarnings
+          .filter((e: any) => e.date === today)
+          .reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
+        const weekTotal = userEarnings
+          .filter((e: any) => e.date >= toISODate(weekStart))
+          .reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
+        const monthTotal = userEarnings
+          .filter((e: any) => e.date >= monthStartISO)
+          .reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
+        const allTimeTotal = userEarnings.reduce(
+          (sum: number, e: any) => sum + (e.amount || 0),
+          0,
+        )
 
         const currency = currentChatter?.currency || "EUR"
-        const commissionRate = currentChatter?.commission_rate ?? 8
-        const platformFee = currentChatter?.platform_fee ?? 20
+        const commissionRate =
+          currentChatter?.commission_rate || currentChatter?.commissionRate || 0
+        const platformFee =
+          currentChatter?.platform_fee || currentChatter?.platformFee || 0
 
-        // commission = % over revenue (no platform fee deduction, per your note)
         const estimatedCommission = monthTotal * (commissionRate / 100)
 
-        // ranking (by month)
-        let currentRank = 1
-        try {
-          const chattersForRanking = chatters as any[]
-          const monthStartISO = toISODate(monthStart)
+        const monthlyTotals = (chattersData || []).map((ch: any) => {
+          const total = (earningsData || [])
+            .filter(
+              (e: any) =>
+                String(e.chatter_id) === String(ch.id) && e.date >= monthStartISO,
+            )
+            .reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
+          return { id: String(ch.id), total }
+        })
 
-          const allChattersEarnings = chattersForRanking.map((ch) => {
-            const chMonthTotal = allEarnings
-                .filter((e) => e.chatter_id === ch.id && e.date >= monthStartISO)
-                .reduce((sum, e) => sum + Number(e.amount), 0)
-            return { id: ch.id, name: ch.full_name, monthTotal: chMonthTotal }
-          })
-
-          allChattersEarnings.sort((a, b) => b.monthTotal - a.monthTotal)
-          const idx = allChattersEarnings.findIndex((c) => c.id === userId)
-          currentRank = idx >= 0 ? idx + 1 : allChattersEarnings.length + 1
-        } catch {
-          currentRank = 1
-        }
+        monthlyTotals.sort((a, b) => b.total - a.total)
+        const rankIndex = monthlyTotals.findIndex(
+          (t) => t.id === String(userId),
+        )
+        const currentRank = rankIndex === -1 ? monthlyTotals.length + 1 : rankIndex + 1
 
         setStats({
           todayEarnings: todayTotal,
@@ -122,7 +122,7 @@ export function EmployeeStats({ userId, refreshTrigger }: EmployeeStatsProps) {
       }
     }
 
-    setTimeout(fetchStats, 500)
+    fetchStats()
   }, [userId, refreshTrigger])
 
   const formatCurrency = (amount: number) => {

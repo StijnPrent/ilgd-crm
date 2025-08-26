@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { DollarSign, Plus } from "lucide-react"
+import { api } from "@/lib/api"
 
 interface EarningsEntryProps {
   userId: string
@@ -22,11 +23,15 @@ export function EarningsEntry({ userId, onEarningsAdded }: EarningsEntryProps) {
   const [currency, setCurrency] = useState("€")
 
   useEffect(() => {
-    const chatters = JSON.parse(localStorage.getItem("mock_chatters") || "[]")
-    const currentChatter = chatters.find((c: any) => c.id === userId)
-    if (currentChatter?.currency) {
-      setCurrency(currentChatter.currency)
+    const loadChatter = async () => {
+      try {
+        const chatter = await api.getChatter(userId)
+        if (chatter?.currency) setCurrency(chatter.currency)
+      } catch {
+        // ignore
+      }
     }
+    loadChatter()
   }, [userId])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -37,49 +42,25 @@ export function EarningsEntry({ userId, onEarningsAdded }: EarningsEntryProps) {
     setSuccess(false)
 
     try {
-      console.log("[v0] EarningsEntry: Adding earnings for user:", userId, "amount:", amount)
-
       const today = new Date().toISOString().split("T")[0]
       const numericAmount = Number.parseFloat(amount.replace(",", "."))
-
       if (isNaN(numericAmount) || numericAmount <= 0) {
         throw new Error("Please enter a valid amount")
       }
 
-      const existingEarnings = JSON.parse(localStorage.getItem("employee_earnings") || "[]")
-      const todayEarning = existingEarnings.find((e: any) => e.chatter_id === userId && e.date === today)
-
-      if (todayEarning) {
-        // Update existing earnings for today
-        todayEarning.amount = Number.parseFloat(todayEarning.amount.toString()) + numericAmount
-        todayEarning.description = description || todayEarning.description
-        console.log("[v0] EarningsEntry: Updated existing earning:", todayEarning)
-      } else {
-        // Create new earnings entry
-        const newEarning = {
-          id: Date.now().toString(),
-          chatter_id: userId,
-          date: today,
-          amount: numericAmount,
-          description: description || null,
-          created_at: new Date().toISOString(),
-        }
-        existingEarnings.push(newEarning)
-        console.log("[v0] EarningsEntry: Created new earning:", newEarning)
-      }
-
-      localStorage.setItem("employee_earnings", JSON.stringify(existingEarnings))
+      await api.addEmployeeEarning({
+        chatterId: userId,
+        date: today,
+        amount: numericAmount,
+        description: description || undefined,
+      })
 
       setAmount("")
       setDescription("")
       setSuccess(true)
 
-      if (onEarningsAdded) {
-        console.log("[v0] EarningsEntry: Calling onEarningsAdded callback")
-        onEarningsAdded()
-      }
+      onEarningsAdded?.()
 
-      // Clear success message after 3 seconds
       setTimeout(() => setSuccess(false), 3000)
     } catch (error) {
       console.error("Error adding earnings:", error)

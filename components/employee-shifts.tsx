@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Calendar, Clock } from "lucide-react"
+import { api } from "@/lib/api"
 
 interface EmployeeShiftsProps {
   userId: string
@@ -25,35 +26,16 @@ export function EmployeeShifts({ userId }: EmployeeShiftsProps) {
 
     const fetchShifts = async () => {
       try {
-        console.log("[v0] Fetching shifts for user:", userId)
-
-        // Generate mock shifts for the current user
-        const mockShifts: Shift[] = [
-          {
-            id: "shift_1",
-            start_time: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Tomorrow
-            end_time: new Date(Date.now() + 24 * 60 * 60 * 1000 + 8 * 60 * 60 * 1000).toISOString(), // Tomorrow + 8 hours
-            status: "scheduled",
-          },
-          {
-            id: "shift_2",
-            start_time: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(), // Day after tomorrow
-            end_time: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000 + 6 * 60 * 60 * 1000).toISOString(), // Day after tomorrow + 6 hours
-            status: "scheduled",
-          },
-          {
-            id: "shift_3",
-            start_time: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days from now
-            end_time: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000 + 7 * 60 * 60 * 1000).toISOString(), // 3 days from now + 7 hours
-            status: "scheduled",
-          },
-        ]
-
-        // Simulate API delay
-        await new Promise((resolve) => setTimeout(resolve, 500))
-
-        setShifts(mockShifts)
-        console.log("[v0] Mock shifts loaded:", mockShifts.length)
+        const shiftsData = await api.getShifts()
+        const userShifts = (shiftsData || [])
+          .filter((s: any) => String(s.chatter_id) === String(userId))
+          .map((s: any) => ({
+            id: String(s.id),
+            start_time: s.start_time,
+            end_time: s.end_time,
+            status: s.status,
+          }))
+        setShifts(userShifts)
       } catch (error) {
         console.error("Error fetching shifts:", error)
       } finally {
@@ -141,3 +123,4 @@ export function EmployeeShifts({ userId }: EmployeeShiftsProps) {
     </Card>
   )
 }
+

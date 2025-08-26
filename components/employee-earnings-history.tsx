@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { DollarSign, Calendar } from "lucide-react"
+import { api } from "@/lib/api"
 
 interface EmployeeEarningsHistoryProps {
   userId: string
@@ -19,63 +20,31 @@ interface Earning {
 export function EmployeeEarningsHistory({ userId, limit }: EmployeeEarningsHistoryProps) {
   const [earnings, setEarnings] = useState<Earning[]>([])
   const [loading, setLoading] = useState(true)
+  const [currency, setCurrency] = useState("EUR")
 
   useEffect(() => {
     if (!userId) return
 
     const fetchEarnings = async () => {
       try {
-        await new Promise((resolve) => setTimeout(resolve, 500))
+        const [earningsData, chatter] = await Promise.all([
+          api.getEmployeeEarnings(),
+          api.getChatter(userId).catch(() => null),
+        ])
 
-        const storedEarnings = localStorage.getItem(`earnings_${userId}`)
-        let userEarnings: Earning[] = []
+        const userEarnings = (earningsData || [])
+          .filter((e: any) => String(e.chatter_id) === String(userId))
+          .map((e: any) => ({
+            id: String(e.id),
+            date: e.date,
+            amount: e.amount,
+            description: e.description,
+          }))
+          .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
-        if (storedEarnings) {
-          userEarnings = JSON.parse(storedEarnings)
-        } else {
-          userEarnings = [
-            {
-              id: "1",
-              date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-              amount: 125.5,
-              description: "Daily chat earnings",
-            },
-            {
-              id: "2",
-              date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-              amount: 98.75,
-              description: "Daily chat earnings",
-            },
-            {
-              id: "3",
-              date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-              amount: 156.25,
-              description: "Daily chat earnings",
-            },
-            {
-              id: "4",
-              date: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-              amount: 89.5,
-              description: "Daily chat earnings",
-            },
-            {
-              id: "5",
-              date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-              amount: 134.75,
-              description: "Daily chat earnings",
-            },
-          ]
+        setCurrency(chatter?.currency || "EUR")
 
-          localStorage.setItem(`earnings_${userId}`, JSON.stringify(userEarnings))
-        }
-
-        userEarnings.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-
-        if (limit) {
-          userEarnings = userEarnings.slice(0, limit)
-        }
-
-        setEarnings(userEarnings)
+        setEarnings(limit ? userEarnings.slice(0, limit) : userEarnings)
       } catch (error) {
         console.error("Error fetching earnings:", error)
       } finally {
@@ -87,14 +56,9 @@ export function EmployeeEarningsHistory({ userId, limit }: EmployeeEarningsHisto
   }, [userId, limit])
 
   const formatCurrency = (amount: number) => {
-    const user = JSON.parse(localStorage.getItem("user") || "{}")
-    const chatters = JSON.parse(localStorage.getItem("chatters") || "[]")
-    const currentChatter = chatters.find((c: any) => c.id === userId)
-    const currency = currentChatter?.currency || "EUR"
-
     return new Intl.NumberFormat("nl-NL", {
       style: "currency",
-      currency: currency,
+      currency,
     }).format(amount)
   }
 
