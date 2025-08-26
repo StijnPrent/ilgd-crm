@@ -155,6 +155,24 @@ class ApiClient {
   deleteShift(id: string) {
     return this.request(`/shifts/${id}`, { method: "DELETE" })
   }
+
+  /* ---------- Time Tracking ---------- */
+  getActiveTimeEntry(chatterId: string) {
+    return this.request(`/time-entries/active/${chatterId}`)
+  }
+
+  clockIn(data: any) {
+    return this.request("/time-entries/clock-in", {
+      method: "POST",
+      body: JSON.stringify(data),
+    })
+  }
+
+  clockOut(entryId: string) {
+    return this.request(`/time-entries/${entryId}/clock-out`, {
+      method: "POST",
+    })
+  }
 }
 
 export const api = new ApiClient()

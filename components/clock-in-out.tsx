@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Clock, Play, Square, Timer } from "lucide-react"
+import { api } from "@/lib/api"
 
 interface ClockInOutProps {
   userId: string
@@ -37,8 +38,9 @@ export function ClockInOut({ userId }: ClockInOutProps) {
 
   const checkActiveEntry = async () => {
     try {
+      const entry = await api.getActiveTimeEntry(userId)
+      setActiveEntry(entry || null)
     } catch (error) {
-      // No active entry found, which is fine
       setActiveEntry(null)
     } finally {
       setLoading(false)
@@ -48,9 +50,7 @@ export function ClockInOut({ userId }: ClockInOutProps) {
   const handleClockIn = async () => {
     setActionLoading(true)
     try {
-      const now = new Date().toISOString()
-
-      // Refresh active entry
+      await api.clockIn({ chatterId: userId })
       await checkActiveEntry()
     } catch (error) {
       console.error("Error clocking in:", error)
@@ -64,9 +64,7 @@ export function ClockInOut({ userId }: ClockInOutProps) {
 
     setActionLoading(true)
     try {
-      const now = new Date().toISOString()
-
-      // Clear active entry
+      await api.clockOut(activeEntry.id)
       setActiveEntry(null)
     } catch (error) {
       console.error("Error clocking out:", error)

@@ -57,11 +57,6 @@ export function CommissionCalculator() {
 
   const fetchCommissions = async () => {
     try {
-      const [earningsData, chattersData] = await Promise.all([
-        api.getEmployeeEarnings(),
-        api.getChatters(),
-      ])
-
       const currentDate = new Date()
       const start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
       const end = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
@@ -92,7 +87,6 @@ export function CommissionCalculator() {
             status: "calculated",
             created_at: new Date().toISOString(),
             chatter: {
-              full_name: chatter.full_name || chatter.name || chatter.username,
               currency: chatter.currency || "€",
             },
           })
@@ -147,14 +141,6 @@ export function CommissionCalculator() {
     setCalculating(true)
     try {
       const [startDate, endDate] = selectedPeriod.split("_")
-      const [earningsData, chattersData] = await Promise.all([
-        api.getEmployeeEarnings(),
-        api.getChatters(),
-      ])
-
-      const calculations: ChatterEarnings[] = []
-
-      ;(chattersData || []).forEach((chatter: any) => {
         const chatterEarnings = (earningsData || []).filter(
           (e: any) =>
             String(e.chatter_id) === String(chatter.id) &&
@@ -173,7 +159,6 @@ export function CommissionCalculator() {
           const commissionAmount = netEarnings * (commissionRate / 100)
           calculations.push({
             chatter_id: String(chatter.id),
-            full_name: chatter.full_name || chatter.name || chatter.username,
             currency: chatter.currency || "€",
             commission_rate: commissionRate,
             platform_fee_rate: platformFeeRate,

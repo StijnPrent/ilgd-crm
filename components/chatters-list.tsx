@@ -77,11 +77,6 @@ export function ChattersList() {
 
   const fetchChatters = async () => {
     try {
-      const [chattersData, earningsData] = await Promise.all([
-        api.getChatters(),
-        api.getEmployeeEarnings(),
-      ])
-
       const today = new Date().toISOString().split("T")[0]
       const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
 
@@ -98,8 +93,6 @@ export function ChattersList() {
 
         return {
           id: String(chatter.id),
-          full_name: chatter.full_name || chatter.name || chatter.username || "Unknown",
-          email: chatter.email || "",
           created_at: chatter.created_at,
           isOnline: Math.random() > 0.6,
           todayEarnings,

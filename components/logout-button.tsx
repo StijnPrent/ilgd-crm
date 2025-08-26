@@ -3,13 +3,13 @@
 import { Button } from "@/components/ui/button"
 import { LogOut } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { api } from "@/lib/api"
 
 export function LogoutButton() {
   const router = useRouter()
 
   const handleLogout = async () => {
-    localStorage.removeItem("isLoggedIn")
-    localStorage.removeItem("userRole")
+    api.logout()
     router.push("/auth/login")
   }
 
