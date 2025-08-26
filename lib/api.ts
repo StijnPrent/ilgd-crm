@@ -129,6 +129,14 @@ class ApiClient {
     return this.request(`/employee-earnings/${id}`, { method: "DELETE" })
   }
 
+  /* ---------- Commissions ---------- */
+  createCommission(data: any) {
+    return this.request("/commissions", {
+      method: "POST",
+      body: JSON.stringify(data),
+    })
+  }
+
   /* ---------- Shifts ---------- */
   getShifts() {
     return this.request("/shifts")

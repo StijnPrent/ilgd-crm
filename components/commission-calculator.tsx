@@ -226,7 +226,20 @@ export function CommissionCalculator() {
     try {
       const [startDate, endDate] = selectedPeriod.split("_")
 
-      // Mock saving - just add to existing commissions
+      await Promise.all(
+        pendingCalculations.map((calc) =>
+          api.createCommission({
+            chatterId: Number(calc.chatter_id),
+            periodStart: startDate,
+            periodEnd: endDate,
+            earnings: calc.total_earnings,
+            commissionRate: calc.commission_rate / 100,
+            commission: calc.commission_amount,
+            status: "pending",
+          }),
+        ),
+      )
+
       const newCommissions = pendingCalculations.map((calc, index) => ({
         id: `new_${Date.now()}_${index}`,
         user_id: calc.chatter_id,
