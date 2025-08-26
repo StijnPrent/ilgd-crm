@@ -1,8 +1,9 @@
 "use client"
 
 import type React from "react"
-
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -20,266 +21,355 @@ import { CreateChatterForm } from "@/components/create-chatter-form"
 import { WeeklyCalendar } from "@/components/weekly-calendar"
 import { Users, DollarSign, Calendar, TrendingUp, Award, Settings, UserPlus, RotateCcw, Shield } from "lucide-react"
 
+import { api } from "@/lib/api"
+
+/** Tiny JWT decoder so we can recover userId if localStorage is stale */
+function decodeJwtPayload<T = any>(token: string): T | null {
+  const parts = token.split(".")
+  if (parts.length !== 3) return null
+  try {
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/")
+    const json = typeof window === "undefined"
+        ? Buffer.from(base64, "base64").toString("utf8")
+        : atob(base64)
+    return JSON.parse(json) as T
+  } catch {
+    return null
+  }
+}
+
 export function ManagerDashboard() {
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [managerForm, setManagerForm] = useState({
-    username: "",
-    password: "",
-    fullName: "",
-  })
+
+  const [managerForm, setManagerForm] = useState({ username: "", password: "", fullName: "" })
   const [isCreatingManager, setIsCreatingManager] = useState(false)
+  const router = useRouter()
 
   useEffect(() => {
-    const userData = {
-      profile: {
-        full_name: "Manager Admin",
-        username: "admin",
-        role: "manager",
-      },
+    let cancelled = false
+
+    const bootstrap = async () => {
+      try {
+        console.log("[manager] bootstrap start")
+
+        // 1) Require token
+        const token = localStorage.getItem("auth_token")
+        if (!token) {
+          console.warn("[manager] no token -> login")
+          router.replace("/auth/login")
+          return
+        }
+
+        // 2) Resolve user id from localStorage OR JWT payload
+        const storedUserRaw = localStorage.getItem("user")
+        let storedUser: any = null
+        try { storedUser = storedUserRaw ? JSON.parse(storedUserRaw) : null } catch {}
+        let userId: string | null = storedUser?.id ? String(storedUser.id) : null
+
+        if (!userId) {
+          const payload = decodeJwtPayload<{ sub?: string; userId?: string; id?: string }>(token)
+          userId = payload?.sub || payload?.userId || payload?.id || null
+        }
+        if (!userId) {
+          console.warn("[manager] cannot resolve userId from storage or token -> login")
+          localStorage.removeItem("auth_token")
+          localStorage.removeItem("user")
+          router.replace("/auth/login")
+          return
+        }
+
+        // 3) Verify session with API and fetch user
+        console.log("[manager] fetching user", userId)
+        const baseUser = await api.getUser(userId) // GET /users/:id
+
+        // 4) Authorize role
+        const role = (baseUser?.role ?? "").toString().toLowerCase()
+        console.log("[manager] api role =", role)
+        if (role !== "manager") {
+          console.warn("[manager] role != manager -> login")
+          router.replace("/auth/login")
+          return
+        }
+
+        // 5) Normalize for header/UI
+        const normalized = {
+          id: String(baseUser.id),
+          profile: {
+            full_name:
+                baseUser.fullName ??
+                baseUser.full_name ??
+                baseUser.name ??
+                baseUser.username ??
+                "Manager",
+            username: baseUser.username ?? storedUser?.username ?? "",
+            role: "manager",
+          },
+        }
+
+        // 6) Refresh localStorage (keeps other pages happy)
+        localStorage.setItem(
+            "user",
+            JSON.stringify({
+              id: normalized.id,
+              username: normalized.profile.username,
+              fullName: normalized.profile.full_name,
+              role: "manager",
+            })
+        )
+
+        if (!cancelled) {
+          setUser(normalized)
+          setLoading(false)
+          console.log("[manager] bootstrap ok")
+        }
+      } catch (err: any) {
+        console.error("[manager] bootstrap error:", err)
+        localStorage.removeItem("auth_token")
+        localStorage.removeItem("user")
+        router.replace("/auth/login")
+      }
     }
-    setUser(userData)
-    setLoading(false)
-  }, [])
+
+    bootstrap()
+    return () => { cancelled = true }
+  }, [router])
 
   const createManagerAccount = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsCreatingManager(true)
-
     try {
-      const managerCredentials = JSON.parse(localStorage.getItem("manager_credentials") || "{}")
-
-      if (managerCredentials[managerForm.username]) {
-        alert("Manager username already exists!")
-        return
-      }
-
-      managerCredentials[managerForm.username] = {
-        password: managerForm.password,
-        fullName: managerForm.fullName,
+      const payload = {
+        username: managerForm.username.trim(),
+        password: managerForm.password, // backend hashes
+        fullName: managerForm.fullName.trim(),
         role: "manager",
-        createdAt: new Date().toISOString(),
       }
-
-      localStorage.setItem("manager_credentials", JSON.stringify(managerCredentials))
-
-      console.log("[v0] New manager account created:", managerForm.username)
-      alert(`Manager account '${managerForm.username}' created successfully!`)
-
+      const created = await api.createUser(payload) // POST /users
+      alert(`Manager '${created?.username ?? payload.username}' created successfully!`)
       setManagerForm({ username: "", password: "", fullName: "" })
-    } catch (error) {
-      console.error("[v0] Error creating manager account:", error)
-      alert("Error creating manager account. Please try again.")
+    } catch (error: any) {
+      console.error("[manager] create manager error:", error)
+      alert(error?.message || "Error creating manager account. Please try again.")
     } finally {
       setIsCreatingManager(false)
     }
   }
 
-  const resetSystem = () => {
-    if (confirm("Dit zal alle chatter data wissen maar admin login behouden. Weet je het zeker?")) {
-      if (confirm("LAATSTE WAARSCHUWING: Alle chatter accounts, earnings en data worden permanent gewist. Doorgaan?")) {
-        const keysToRemove = ["chatters", "chatter_credentials", "employee_earnings"]
+  const resetSystem = async () => {
+    if (!confirm("Dit wist alle chatter data (accounts, shifts, earnings). Doorgaan?")) return
+    if (!confirm("LAATSTE WAARSCHUWING: permanent wissen. Weet je het zeker?")) return
 
-        keysToRemove.forEach((key) => {
-          localStorage.removeItem(key)
-        })
+    try {
+      const [chatters, earnings, shifts] = await Promise.all([
+        api.getChatters(),
+        api.getEmployeeEarnings(),
+        api.getShifts(),
+      ])
 
-        console.log("[v0] System reset completed by manager - all chatter data cleared")
-        alert("Systeem gereset! Alle chatter data is gewist. Je kunt nu nieuwe accounts aanmaken.")
-        window.location.reload()
-      }
+      await Promise.all([
+        Promise.allSettled((chatters ?? []).map((c: any) => api.deleteChatter(String(c.id)))),
+        Promise.allSettled((earnings ?? []).map((e: any) => api.deleteEmployeeEarning(String(e.id)))),
+        Promise.allSettled((shifts ?? []).map((s: any) => api.deleteShift(String(s.id)))),
+      ])
+
+      alert("Systeem gereset! Alle chatter data is gewist.")
+      window.location.reload()
+    } catch (err) {
+      console.error("[manager] resetSystem error:", err)
+      alert("Reset mislukt. Controleer de serverlogs en probeer opnieuw.")
     }
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Manager Dashboard</h1>
-              <p className="text-muted-foreground">Welcome back, {user?.profile?.full_name}</p>
-            </div>
-            <div className="flex items-center gap-4">
-              <Badge variant="secondary" className="bg-green-100 text-green-800">
-                <Settings className="h-3 w-3 mr-1" />
-                Manager
-              </Badge>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={resetSystem}
-                className="text-destructive hover:text-destructive hover:bg-destructive/10 bg-transparent"
-              >
-                <RotateCcw className="h-4 w-4 mr-2" />
-                Reset System
-              </Button>
-              <LogoutButton />
+      <div className="min-h-screen bg-background">
+        {/* Header */}
+        <header className="border-b bg-card">
+          <div className="container mx-auto px-4 py-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-bold text-foreground">Manager Dashboard</h1>
+                <p className="text-muted-foreground">Welcome back, {user?.profile?.full_name}</p>
+              </div>
+              <div className="flex items-center gap-4">
+                <Badge variant="secondary" className="bg-green-100 text-green-800">
+                  <Settings className="h-3 w-3 mr-1" />
+                  Manager
+                </Badge>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={resetSystem}
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10 bg-transparent"
+                >
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Reset System
+                </Button>
+                <LogoutButton />
+              </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-6">
-        {/* Stats Overview */}
-        <div className="mb-8">
-          <ManagerStats />
-        </div>
+        {/* Main Content */}
+        <main className="container mx-auto px-4 py-6">
+          {/* Stats Overview */}
+          <div className="mb-8">
+            <ManagerStats />
+          </div>
 
-        {/* Tabs Navigation */}
-        <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-7">
-            <TabsTrigger value="overview" className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4" />
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="accounts" className="flex items-center gap-2">
-              <UserPlus className="h-4 w-4" />
-              Accounts
-            </TabsTrigger>
-            <TabsTrigger value="chatters" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Chatters
-            </TabsTrigger>
-            <TabsTrigger value="earnings" className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4" />
-              Earnings
-            </TabsTrigger>
-            <TabsTrigger value="shifts" className="flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Shifts
-            </TabsTrigger>
-            <TabsTrigger value="commissions" className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4" />
-              Commissions
-            </TabsTrigger>
-            <TabsTrigger value="leaderboard" className="flex items-center gap-2">
-              <Award className="h-4 w-4" />
-              Leaderboard
-            </TabsTrigger>
-          </TabsList>
+          {/* Tabs */}
+          <Tabs defaultValue="overview" className="space-y-6">
+            <TabsList className="grid w-full grid-cols-7">
+              <TabsTrigger value="overview" className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4" />
+                Overview
+              </TabsTrigger>
+              <TabsTrigger value="accounts" className="flex items-center gap-2">
+                <UserPlus className="h-4 w-4" />
+                Accounts
+              </TabsTrigger>
+              <TabsTrigger value="chatters" className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Chatters
+              </TabsTrigger>
+              <TabsTrigger value="earnings" className="flex items-center gap-2">
+                <DollarSign className="h-4 w-4" />
+                Earnings
+              </TabsTrigger>
+              <TabsTrigger value="shifts" className="flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Shifts
+              </TabsTrigger>
+              <TabsTrigger value="commissions" className="flex items-center gap-2">
+                <DollarSign className="h-4 w-4" />
+                Commissions
+              </TabsTrigger>
+              <TabsTrigger value="leaderboard" className="flex items-center gap-2">
+                <Award className="h-4 w-4" />
+                Leaderboard
+              </TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="overview" className="space-y-6">
-            <div className="mb-6">
-              <WeeklyCalendar showChatterNames={true} compact={true} />
-            </div>
-            <div className="grid gap-6 md:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Recent Activity</CardTitle>
-                  <CardDescription>Latest earnings and clock-ins from your team</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <EarningsOverview limit={5} />
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Top Performers</CardTitle>
-                  <CardDescription>This week's highest earners</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Leaderboard limit={5} />
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
+            <TabsContent value="overview" className="space-y-6">
+              <div className="mb-6">
+                <WeeklyCalendar showChatterNames compact />
+              </div>
+              <div className="grid gap-6 md:grid-cols-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Recent Activity</CardTitle>
+                    <CardDescription>Latest earnings and clock-ins from your team</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <EarningsOverview limit={5} />
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Top Performers</CardTitle>
+                    <CardDescription>This week's highest earners</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Leaderboard limit={5} />
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
 
-          <TabsContent value="accounts">
-            <div className="grid gap-6 md:grid-cols-2">
-              <CreateChatterForm />
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Shield className="h-5 w-5" />
-                    Create Manager Account
-                  </CardTitle>
-                  <CardDescription>Create new manager accounts with full dashboard access</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={createManagerAccount} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="manager-username">Username</Label>
-                      <Input
-                        id="manager-username"
-                        type="text"
-                        placeholder="Enter manager username"
-                        value={managerForm.username}
-                        onChange={(e) => setManagerForm({ ...managerForm, username: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="manager-fullname">Full Name</Label>
-                      <Input
-                        id="manager-fullname"
-                        type="text"
-                        placeholder="Enter full name"
-                        value={managerForm.fullName}
-                        onChange={(e) => setManagerForm({ ...managerForm, fullName: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="manager-password">Password</Label>
-                      <Input
-                        id="manager-password"
-                        type="password"
-                        placeholder="Enter password"
-                        value={managerForm.password}
-                        onChange={(e) => setManagerForm({ ...managerForm, password: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <Button type="submit" className="w-full" disabled={isCreatingManager}>
-                      {isCreatingManager ? "Creating..." : "Create Manager Account"}
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Account Management</CardTitle>
-                  <CardDescription>Manage chatter accounts and permissions</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ChattersList showActions={true} />
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
+            <TabsContent value="accounts">
+              <div className="grid gap-6 md:grid-cols-2">
+                <CreateChatterForm />
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Shield className="h-5 w-5" />
+                      Create Manager Account
+                    </CardTitle>
+                    <CardDescription>Create new manager accounts with full dashboard access</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <form onSubmit={createManagerAccount} className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="manager-username">Username</Label>
+                        <Input
+                            id="manager-username"
+                            type="text"
+                            placeholder="Enter manager username"
+                            value={managerForm.username}
+                            onChange={(e) => setManagerForm({ ...managerForm, username: e.target.value })}
+                            required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="manager-fullname">Full Name</Label>
+                        <Input
+                            id="manager-fullname"
+                            type="text"
+                            placeholder="Enter full name"
+                            value={managerForm.fullName}
+                            onChange={(e) => setManagerForm({ ...managerForm, fullName: e.target.value })}
+                            required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="manager-password">Password</Label>
+                        <Input
+                            id="manager-password"
+                            type="password"
+                            placeholder="Enter password"
+                            value={managerForm.password}
+                            onChange={(e) => setManagerForm({ ...managerForm, password: e.target.value })}
+                            required
+                        />
+                      </div>
+                      <Button type="submit" className="w-full" disabled={isCreatingManager}>
+                        {isCreatingManager ? "Creating..." : "Create Manager Account"}
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Account Management</CardTitle>
+                    <CardDescription>Manage chatter accounts and permissions</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ChattersList />
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
 
-          <TabsContent value="chatters">
-            <ChattersList />
-          </TabsContent>
+            <TabsContent value="chatters">
+              <ChattersList />
+            </TabsContent>
 
-          <TabsContent value="earnings">
-            <EarningsOverview />
-          </TabsContent>
+            <TabsContent value="earnings">
+              <EarningsOverview />
+            </TabsContent>
 
-          <TabsContent value="shifts">
-            <ShiftManager />
-          </TabsContent>
+            <TabsContent value="shifts">
+              <ShiftManager />
+            </TabsContent>
 
-          <TabsContent value="commissions">
-            <CommissionCalculator />
-          </TabsContent>
+            <TabsContent value="commissions">
+              <CommissionCalculator />
+            </TabsContent>
 
-          <TabsContent value="leaderboard">
-            <Leaderboard />
-          </TabsContent>
-        </Tabs>
-      </main>
-    </div>
+            <TabsContent value="leaderboard">
+              <Leaderboard />
+            </TabsContent>
+          </Tabs>
+        </main>
+      </div>
   )
 }

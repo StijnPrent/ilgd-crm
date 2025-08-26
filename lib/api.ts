@@ -1,5 +1,6 @@
-// Frontend API client for connecting to your Express backend
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002"
+// Frontend API client for connecting to the Express backend
+const API_BASE_URL =
+    process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002/api"
 
 class ApiClient {
   private getAuthHeaders(): Record<string, string> {
@@ -7,7 +8,7 @@ class ApiClient {
     return token ? { Authorization: `Bearer ${token}` } : {}
   }
 
-  async request(endpoint: string, options: RequestInit = {}) {
+  private async request(endpoint: string, options: RequestInit = {}) {
     const url = `${API_BASE_URL}${endpoint}`
     const config: RequestInit = {
       headers: {
@@ -19,7 +20,6 @@ class ApiClient {
     }
 
     const response = await fetch(url, config)
-
     if (!response.ok) {
       throw new Error(`API Error: ${response.status} ${response.statusText}`)
     }
@@ -27,13 +27,14 @@ class ApiClient {
     return response.json()
   }
 
-  // Auth endpoints
+  /* ---------- Auth ---------- */
   async login(username: string, password: string) {
-    const data = await this.request("/auth/login", {
+    const data = await this.request("/users/login", {
       method: "POST",
       body: JSON.stringify({ username, password }),
     })
 
+    console.log(data.token)
     if (data.token) {
       localStorage.setItem("auth_token", data.token)
       localStorage.setItem("user", JSON.stringify(data.user))
@@ -42,84 +43,117 @@ class ApiClient {
     return data
   }
 
-  async logout() {
+  logout() {
     localStorage.removeItem("auth_token")
     localStorage.removeItem("user")
-    // Optionally call backend logout endpoint
-    // await this.request('/auth/logout', { method: 'POST' })
   }
 
-  // Employee endpoints
-  async getProfile() {
-    return this.request("/employee/profile")
+  /* ---------- Users ---------- */
+  getUsers() {
+    return this.request("/users")
   }
 
-  async clockIn() {
-    return this.request("/employee/clock-in", { method: "POST" })
+  getUser(id: string) {
+    return this.request(`/users/${id}`)
   }
 
-  async clockOut() {
-    return this.request("/employee/clock-out", { method: "POST" })
-  }
-
-  async getTimeEntries(startDate?: string, endDate?: string) {
-    const params = new URLSearchParams()
-    if (startDate) params.append("start_date", startDate)
-    if (endDate) params.append("end_date", endDate)
-
-    return this.request(`/employee/time-entries?${params}`)
-  }
-
-  async addEarnings(amount: number, description: string, date: string) {
-    return this.request("/employee/earnings", {
+  createUser(userData: any) {
+    return this.request("/users", {
       method: "POST",
-      body: JSON.stringify({ amount, description, date }),
+      body: JSON.stringify(userData),
     })
   }
 
-  async getEarnings(startDate?: string, endDate?: string) {
-    const params = new URLSearchParams()
-    if (startDate) params.append("start_date", startDate)
-    if (endDate) params.append("end_date", endDate)
-
-    return this.request(`/employee/earnings?${params}`)
-  }
-
-  // Manager endpoints
-  async getEmployees() {
-    return this.request("/manager/employees")
-  }
-
-  async createEmployee(employeeData: any) {
-    return this.request("/manager/employees", {
-      method: "POST",
-      body: JSON.stringify(employeeData),
-    })
-  }
-
-  async updateEmployee(id: string, employeeData: any) {
-    return this.request(`/manager/employees/${id}`, {
+  updateUser(id: string, userData: any) {
+    return this.request(`/users/${id}`, {
       method: "PUT",
-      body: JSON.stringify(employeeData),
+      body: JSON.stringify(userData),
     })
   }
 
-  async deleteEmployee(id: string) {
-    return this.request(`/manager/employees/${id}`, {
-      method: "DELETE",
+  deleteUser(id: string) {
+    return this.request(`/users/${id}`, { method: "DELETE" })
+  }
+
+  /* ---------- Chatters ---------- */
+  getChatters() {
+    return this.request("/chatters")
+  }
+
+  getChatter(id: string) {
+    return this.request(`/chatters/${id}`)
+  }
+
+  createChatter(chatterData: any) {
+    return this.request("/chatters", {
+      method: "POST",
+      body: JSON.stringify(chatterData),
     })
   }
 
-  async getManagerStats() {
-    return this.request("/manager/stats")
+  updateChatter(id: string, chatterData: any) {
+    return this.request(`/chatters/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(chatterData),
+    })
   }
 
-  async getAllTimeEntries() {
-    return this.request("/manager/time-entries")
+  deleteChatter(id: string) {
+    return this.request(`/chatters/${id}`, { method: "DELETE" })
   }
 
-  async getAllEarnings() {
-    return this.request("/manager/earnings")
+  /* ---------- Employee Earnings ---------- */
+  getEmployeeEarnings() {
+    return this.request("/employee-earnings")
+  }
+
+  getEmployeeEarning(id: string) {
+    return this.request(`/employee-earnings/${id}`)
+  }
+
+  addEmployeeEarning(data: any) {
+    return this.request("/employee-earnings", {
+      method: "POST",
+      body: JSON.stringify(data),
+    })
+  }
+
+  updateEmployeeEarning(id: string, data: any) {
+    return this.request(`/employee-earnings/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    })
+  }
+
+  deleteEmployeeEarning(id: string) {
+    return this.request(`/employee-earnings/${id}`, { method: "DELETE" })
+  }
+
+  /* ---------- Shifts ---------- */
+  getShifts() {
+    return this.request("/shifts")
+  }
+
+  getShift(id: string) {
+    return this.request(`/shifts/${id}`)
+  }
+
+  createShift(shiftData: any) {
+    return this.request("/shifts", {
+      method: "POST",
+      body: JSON.stringify(shiftData),
+    })
+  }
+
+  updateShift(id: string, shiftData: any) {
+    return this.request(`/shifts/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(shiftData),
+    })
+  }
+
+  deleteShift(id: string) {
+    return this.request(`/shifts/${id}`, { method: "DELETE" })
   }
 }
 
