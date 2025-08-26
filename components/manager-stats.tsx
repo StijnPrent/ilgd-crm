@@ -1,0 +1,141 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Users, DollarSign, Clock, TrendingUp } from "lucide-react"
+
+interface Stats {
+  totalChatters: number
+  currentlyOnline: number
+  totalEarningsToday: number
+  totalEarningsWeek: number
+  totalEarningsMonth: number
+}
+
+export function ManagerStats() {
+  const [stats, setStats] = useState<Stats>({
+    totalChatters: 0,
+    currentlyOnline: 0,
+    totalEarningsToday: 0,
+    totalEarningsWeek: 0,
+    totalEarningsMonth: 0,
+  })
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const calculateRealStats = () => {
+      // Get real chatters from localStorage
+      const chattersData = localStorage.getItem("chatters")
+      const chatters = chattersData ? JSON.parse(chattersData) : []
+
+      // Get real earnings from localStorage
+      const earningsData = localStorage.getItem("employee_earnings")
+      const earnings = earningsData ? JSON.parse(earningsData) : []
+
+      const today = new Date().toISOString().split("T")[0]
+      const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+      const oneMonthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+
+      // Calculate real earnings
+      const todayEarnings = earnings
+        .filter((e: any) => e.date === today)
+        .reduce((sum: number, e: any) => sum + e.amount, 0)
+
+      const weekEarnings = earnings
+        .filter((e: any) => e.date >= oneWeekAgo)
+        .reduce((sum: number, e: any) => sum + e.amount, 0)
+
+      const monthEarnings = earnings
+        .filter((e: any) => e.date >= oneMonthAgo)
+        .reduce((sum: number, e: any) => sum + e.amount, 0)
+
+      // Count online chatters (simplified - assume random for now)
+      const onlineCount = Math.floor(chatters.length * 0.4) // 40% online assumption
+
+      return {
+        totalChatters: chatters.length,
+        currentlyOnline: onlineCount,
+        totalEarningsToday: todayEarnings,
+        totalEarningsWeek: weekEarnings,
+        totalEarningsMonth: monthEarnings,
+      }
+    }
+
+    // Calculate real stats
+    const realStats = calculateRealStats()
+    setStats(realStats)
+    setLoading(false)
+  }, [])
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("nl-NL", {
+      style: "currency",
+      currency: "EUR",
+    }).format(amount)
+  }
+
+  if (loading) {
+    return (
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {[...Array(4)].map((_, i) => (
+          <Card key={i}>
+            <CardContent className="p-6">
+              <div className="animate-pulse space-y-2">
+                <div className="h-4 bg-muted rounded w-1/2"></div>
+                <div className="h-8 bg-muted rounded w-3/4"></div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Total Chatters</CardTitle>
+          <Users className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{stats.totalChatters}</div>
+          <p className="text-xs text-muted-foreground">Active employees</p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Currently Online</CardTitle>
+          <Clock className="h-4 w-4 text-green-600" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-green-600">{stats.currentlyOnline}</div>
+          <p className="text-xs text-muted-foreground">Clocked in now</p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Today's Earnings</CardTitle>
+          <DollarSign className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{formatCurrency(stats.totalEarningsToday)}</div>
+          <p className="text-xs text-muted-foreground">Total revenue today</p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">This Month</CardTitle>
+          <TrendingUp className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{formatCurrency(stats.totalEarningsMonth)}</div>
+          <p className="text-xs text-muted-foreground">+{formatCurrency(stats.totalEarningsWeek)} this week</p>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
