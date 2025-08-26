@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Plus, Search, Clock, DollarSign, Trash2, UserX, UserCheck } from "lucide-react"
+import { api } from "@/lib/api"
 
 interface Chatter {
   id: string
@@ -76,40 +77,48 @@ export function ChattersList() {
 
   const fetchChatters = async () => {
     try {
-      // Simulate loading delay
-      await new Promise((resolve) => setTimeout(resolve, 500))
+      const [chattersData, earningsData, usersData] = await Promise.all([
+        api.getChatters(),
+        api.getEmployeeEarnings(),
+        api.getUsers(),
+      ])
 
-      const existingChatters = JSON.parse(localStorage.getItem("chatters") || "[]")
+      const usersMap = new Map(
+        (usersData || []).map((u: any) => [String(u.id), u]),
+      )
 
-      // Calculate real earnings for each chatter
-      const earningsData = JSON.parse(localStorage.getItem("employee_earnings") || "[]")
       const today = new Date().toISOString().split("T")[0]
       const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
 
-      const chattersWithRealEarnings = existingChatters.map((chatter: Chatter) => {
-        const chatterEarnings = earningsData.filter((e: any) => e.chatter_id === chatter.id)
+      const chattersWithRealEarnings = (chattersData || []).map((chatter: any) => {
+        const user = usersMap.get(String(chatter.id)) || {}
+        const fullName = user.fullName || user.username || "Unknown"
+        const email = chatter.email || user.username || ""
+        const chatterEarnings = (earningsData || []).filter((e: any) => String(e.chatter_id) === String(chatter.id))
 
         const todayEarnings = chatterEarnings
           .filter((e: any) => e.date === today)
-          .reduce((sum: number, e: any) => sum + e.amount, 0)
+          .reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
 
         const weekEarnings = chatterEarnings
           .filter((e: any) => e.date >= oneWeekAgo)
-          .reduce((sum: number, e: any) => sum + e.amount, 0)
+          .reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
 
         return {
-          ...chatter,
+          id: String(chatter.id),
+          full_name: fullName,
+          email,
+          created_at: chatter.created_at,
+          isOnline: Math.random() > 0.6,
           todayEarnings,
           weekEarnings,
-          isOnline: Math.random() > 0.6, // Simple online status simulation
-          status: chatter.status || "active", // Default to active if not set
+          currency: chatter.currency || chatter.currency_symbol || "€",
+          commission_rate: chatter.commission_rate || chatter.commissionRate || 0,
+          platform_fee: chatter.platform_fee || chatter.platformFeeRate || 0,
+          status: chatter.status || "active",
         }
       })
 
-      console.log(
-        "[v0] Real chatters loaded:",
-        chattersWithRealEarnings.map((c) => ({ id: c.id, name: c.full_name, email: c.email, status: c.status })),
-      )
       setChatters(chattersWithRealEarnings)
     } catch (error) {
       console.error("Error fetching chatters:", error)
@@ -121,33 +130,19 @@ export function ChattersList() {
   const handleAddChatter = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const newChatterId = Date.now().toString()
-      const chatterData = {
-        id: newChatterId,
-        full_name: newChatter.full_name,
-        email: newChatter.email,
-        created_at: new Date().toISOString(),
-        isOnline: false,
-        todayEarnings: 0,
-        weekEarnings: 0,
-        currency: newChatter.currency,
-        commission_rate: parseDecimalInput(newChatter.commission_rate),
-        platform_fee: parseDecimalInput(newChatter.platform_fee),
-        status: "active",
-      }
-
-      const existingChatters = JSON.parse(localStorage.getItem("chatters") || "[]")
-      const updatedChatters = [...existingChatters, chatterData]
-      localStorage.setItem("chatters", JSON.stringify(updatedChatters))
-
-      // Also store login credentials
-      const credentials = JSON.parse(localStorage.getItem("chatter_credentials") || "{}")
-      credentials[newChatter.email] = {
+      const user = await api.createUser({
+        username: newChatter.email,
         password: newChatter.password,
-        id: newChatterId,
         role: "chatter",
-      }
-      localStorage.setItem("chatter_credentials", JSON.stringify(credentials))
+        fullName: newChatter.full_name,
+      })
+
+      await api.createChatter({
+        userId: user.id,
+        currency: newChatter.currency,
+        commissionRate: parseDecimalInput(newChatter.commission_rate),
+        platformFeeRate: parseDecimalInput(newChatter.platform_fee),
+      })
 
       setNewChatter({
         full_name: "",
@@ -166,11 +161,9 @@ export function ChattersList() {
 
   const handleToggleStatus = async (chatterId: string, currentStatus: string) => {
     try {
-      const existingChatters = JSON.parse(localStorage.getItem("chatters") || "[]")
-      const updatedChatters = existingChatters.map((chatter: Chatter) =>
-        chatter.id === chatterId ? { ...chatter, status: currentStatus === "active" ? "inactive" : "active" } : chatter,
-      )
-      localStorage.setItem("chatters", JSON.stringify(updatedChatters))
+      await api.updateChatter(chatterId, {
+        status: currentStatus === "active" ? "inactive" : "active",
+      })
       fetchChatters()
     } catch (error) {
       console.error("Error toggling chatter status:", error)
@@ -179,21 +172,7 @@ export function ChattersList() {
 
   const handleDeleteChatter = async (chatterId: string, email: string) => {
     try {
-      // Remove from chatters list
-      const existingChatters = JSON.parse(localStorage.getItem("chatters") || "[]")
-      const updatedChatters = existingChatters.filter((chatter: Chatter) => chatter.id !== chatterId)
-      localStorage.setItem("chatters", JSON.stringify(updatedChatters))
-
-      // Remove credentials
-      const credentials = JSON.parse(localStorage.getItem("chatter_credentials") || "{}")
-      delete credentials[email]
-      localStorage.setItem("chatter_credentials", JSON.stringify(credentials))
-
-      // Remove earnings data
-      const earningsData = JSON.parse(localStorage.getItem("employee_earnings") || "[]")
-      const updatedEarnings = earningsData.filter((earning: any) => earning.chatter_id !== chatterId)
-      localStorage.setItem("employee_earnings", JSON.stringify(updatedEarnings))
-
+      await api.deleteChatter(chatterId)
       fetchChatters()
     } catch (error) {
       console.error("Error deleting chatter:", error)

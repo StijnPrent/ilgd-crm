@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { DollarSign, Calendar, User } from "lucide-react"
+import { api } from "@/lib/api"
 
 interface EarningsOverviewProps {
   limit?: number
@@ -32,60 +33,56 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
 
   const fetchEarnings = async () => {
     try {
-      const storedEarnings = JSON.parse(localStorage.getItem("employee_earnings") || "[]")
-      const storedChatters = JSON.parse(localStorage.getItem("chatters") || "[]")
+      const [earningsData, chattersData, usersData] = await Promise.all([
+        api.getEmployeeEarnings(),
+        api.getChatters(),
+        api.getUsers(),
+      ])
 
-      console.log("[v0] Earnings Overview: Raw earnings data:", storedEarnings)
-      console.log("[v0] Earnings Overview: Active chatters:", storedChatters)
-
+      const usersMap = new Map(
+        (usersData || []).map((u: any) => [String(u.id), u]),
+      )
       const activeChattersMap = new Map()
-      storedChatters.forEach((chatter: any) => {
-        // Use full_name instead of name for consistency
-        activeChattersMap.set(chatter.id, chatter.full_name || chatter.name)
+      ;(chattersData || []).forEach((chatter: any) => {
+        const user = usersMap.get(String(chatter.id)) || {}
+        const fullName = user.fullName || user.username || "Unknown"
+        activeChattersMap.set(String(chatter.id), fullName)
       })
 
-      const validEarnings = storedEarnings.filter((earning: any) => activeChattersMap.has(earning.chatter_id))
+      const validEarnings = (earningsData || []).filter((earning: any) =>
+        activeChattersMap.has(String(earning.chatter_id)),
+      )
 
-      if (validEarnings.length !== storedEarnings.length) {
-        console.log("[v0] Earnings Overview: Cleaning up orphaned earnings data")
-        localStorage.setItem("employee_earnings", JSON.stringify(validEarnings))
-      }
-
-      // Format earnings with active chatters only
       const formattedEarnings = validEarnings
         .map((earning: any) => ({
-          id: earning.id,
+          id: String(earning.id),
           date: earning.date,
           amount: earning.amount,
           description: earning.description,
           chatter: {
-            full_name: activeChattersMap.get(earning.chatter_id),
+            full_name: activeChattersMap.get(String(earning.chatter_id)),
           },
         }))
         .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
-      console.log("[v0] Earnings Overview: Formatted earnings:", formattedEarnings)
-
-      // Apply limit if specified
       const limitedEarnings = limit ? formattedEarnings.slice(0, limit) : formattedEarnings
       setEarnings(limitedEarnings)
 
-      // Calculate totals with real data
       const today = new Date().toISOString().split("T")[0]
-      const todayEarnings = formattedEarnings.filter((e: any) => e.date === today)
-      const todayTotal = todayEarnings.reduce((sum: number, e: any) => sum + e.amount, 0)
+      const todayTotal = formattedEarnings
+        .filter((e: any) => e.date === today)
+        .reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
 
       const weekStart = new Date()
       weekStart.setDate(weekStart.getDate() - weekStart.getDay())
       const weekStartStr = weekStart.toISOString().split("T")[0]
 
-      const weekEarnings = formattedEarnings.filter((e: any) => e.date >= weekStartStr)
-      const weekTotal = weekEarnings.reduce((sum: number, e: any) => sum + e.amount, 0)
+      const weekTotal = formattedEarnings
+        .filter((e: any) => e.date >= weekStartStr)
+        .reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
 
       setTotalToday(todayTotal)
       setTotalWeek(weekTotal)
-
-      console.log("[v0] Earnings Overview: Today total:", todayTotal, "Week total:", weekTotal)
     } catch (error) {
       console.error("Error fetching earnings:", error)
     } finally {

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ChevronLeft, ChevronRight, Clock, User } from "lucide-react"
+import { api } from "@/lib/api"
 
 interface Shift {
   id: string
@@ -48,29 +49,39 @@ export function WeeklyCalendar({
     return week
   }
 
-  const fetchShifts = () => {
+  const fetchShifts = async () => {
     try {
-      const shiftsData = JSON.parse(localStorage.getItem("shifts") || "[]")
-      const chattersData = JSON.parse(localStorage.getItem("chatters") || "[]")
+      const [shiftsData, chattersData, usersData] = await Promise.all([
+        api.getShifts(),
+        api.getChatters(),
+        api.getUsers(),
+      ])
 
-      // Create a map of chatter IDs to names
-      const chatterMap = chattersData.reduce((acc: any, chatter: any) => {
-        acc[chatter.id] = chatter.full_name || chatter.name
-        return acc
-      }, {})
+      const usersMap = new Map(
+        (usersData || []).map((u: any) => [String(u.id), u]),
+      )
+      const chatterMap: Record<string, string> = {}
+      ;(chattersData || []).forEach((chatter: any) => {
+        const user = usersMap.get(String(chatter.id)) || {}
+        const fullName = user.fullName || user.username || "Unknown"
+        chatterMap[String(chatter.id)] = fullName
+      })
 
-      const formattedShifts = shiftsData.map((shift: any) => ({
-        ...shift,
-        chatter_name: chatterMap[shift.chatter_id] || "Unknown Chatter",
+      const formattedShifts = (shiftsData || []).map((shift: any) => ({
+        id: String(shift.id),
+        chatter_id: String(shift.chatter_id),
+        chatter_name: chatterMap[String(shift.chatter_id)] || "Unknown Chatter",
+        date: shift.start_time ? shift.start_time.split("T")[0] : shift.date,
+        start_time: shift.start_time ? shift.start_time.substring(11, 16) : shift.start_time,
+        end_time: shift.end_time ? shift.end_time.substring(11, 16) : shift.end_time,
+        status: shift.status,
       }))
 
-      // Filter by user if userId is provided
       const filteredShifts = userId
-        ? formattedShifts.filter((shift: Shift) => shift.chatter_id === userId)
+        ? formattedShifts.filter((shift: Shift) => shift.chatter_id === String(userId))
         : formattedShifts
 
       setShifts(filteredShifts)
-      console.log("[v0] WeeklyCalendar: Loaded shifts:", filteredShifts)
     } catch (error) {
       console.error("[v0] WeeklyCalendar: Error loading shifts:", error)
       setShifts([])

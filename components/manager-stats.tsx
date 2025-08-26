@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Users, DollarSign, Clock, TrendingUp } from "lucide-react"
+import { api } from "@/lib/api"
 
 interface Stats {
   totalChatters: number
@@ -23,48 +24,46 @@ export function ManagerStats() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const calculateRealStats = () => {
-      // Get real chatters from localStorage
-      const chattersData = localStorage.getItem("chatters")
-      const chatters = chattersData ? JSON.parse(chattersData) : []
+    const calculateRealStats = async () => {
+      try {
+        const [chatters, earnings] = await Promise.all([
+          api.getChatters(),
+          api.getEmployeeEarnings(),
+        ])
 
-      // Get real earnings from localStorage
-      const earningsData = localStorage.getItem("employee_earnings")
-      const earnings = earningsData ? JSON.parse(earningsData) : []
+        const today = new Date().toISOString().split("T")[0]
+        const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+        const oneMonthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
 
-      const today = new Date().toISOString().split("T")[0]
-      const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
-      const oneMonthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+        const todayEarnings = (earnings || [])
+          .filter((e: any) => e.date === today)
+          .reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
 
-      // Calculate real earnings
-      const todayEarnings = earnings
-        .filter((e: any) => e.date === today)
-        .reduce((sum: number, e: any) => sum + e.amount, 0)
+        const weekEarnings = (earnings || [])
+          .filter((e: any) => e.date >= oneWeekAgo)
+          .reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
 
-      const weekEarnings = earnings
-        .filter((e: any) => e.date >= oneWeekAgo)
-        .reduce((sum: number, e: any) => sum + e.amount, 0)
+        const monthEarnings = (earnings || [])
+          .filter((e: any) => e.date >= oneMonthAgo)
+          .reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
 
-      const monthEarnings = earnings
-        .filter((e: any) => e.date >= oneMonthAgo)
-        .reduce((sum: number, e: any) => sum + e.amount, 0)
+        const onlineCount = Math.floor((chatters?.length || 0) * 0.4)
 
-      // Count online chatters (simplified - assume random for now)
-      const onlineCount = Math.floor(chatters.length * 0.4) // 40% online assumption
-
-      return {
-        totalChatters: chatters.length,
-        currentlyOnline: onlineCount,
-        totalEarningsToday: todayEarnings,
-        totalEarningsWeek: weekEarnings,
-        totalEarningsMonth: monthEarnings,
+        setStats({
+          totalChatters: (chatters || []).length,
+          currentlyOnline: onlineCount,
+          totalEarningsToday: todayEarnings,
+          totalEarningsWeek: weekEarnings,
+          totalEarningsMonth: monthEarnings,
+        })
+      } catch (err) {
+        console.error("Error calculating stats:", err)
+      } finally {
+        setLoading(false)
       }
     }
 
-    // Calculate real stats
-    const realStats = calculateRealStats()
-    setStats(realStats)
-    setLoading(false)
+    calculateRealStats()
   }, [])
 
   const formatCurrency = (amount: number) => {

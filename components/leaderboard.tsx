@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Trophy, Medal, Award, DollarSign } from "lucide-react"
+import { api } from "@/lib/api"
 
 interface LeaderboardEntry {
   id: string
@@ -29,55 +30,56 @@ export function Leaderboard({ limit, refreshTrigger }: LeaderboardProps) {
 
   const fetchLeaderboard = async () => {
     try {
-      console.log("[v0] Leaderboard: Fetching data from localStorage")
+      const [chattersData, earningsData, usersData] = await Promise.all([
+        api.getChatters(),
+        api.getEmployeeEarnings(),
+        api.getUsers(),
+      ])
 
-      const chattersData = localStorage.getItem("chatters")
-      const allChatters = chattersData ? JSON.parse(chattersData) : []
-
-      const activeChatters = allChatters.filter((chatter: any) => chatter.status !== "inactive")
-
-      // Get earnings data from localStorage
-      const earningsData = localStorage.getItem("employee_earnings")
-      const allEarnings = earningsData ? JSON.parse(earningsData) : []
-
-      console.log("[v0] Leaderboard: Active chatters:", activeChatters)
-      console.log("[v0] Leaderboard: All earnings:", allEarnings)
+      const usersMap = new Map(
+        (usersData || []).map((u: any) => [String(u.id), u]),
+      )
+      const activeChatters = (chattersData || []).filter((chatter: any) => chatter.status !== "inactive")
 
       const leaderboardData: LeaderboardEntry[] = activeChatters.map((chatter: any) => {
-        const chatterEarnings = allEarnings.filter((earning: any) => earning.chatter_id === chatter.id)
+        const user = usersMap.get(String(chatter.id)) || {}
+        const fullName = user.fullName || user.username || `User ${chatter.id}`
+        const chatterEarnings = (earningsData || []).filter(
+          (earning: any) => String(earning.chatter_id) === String(chatter.id),
+        )
 
         const now = new Date()
-        const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()))
+        const startOfWeek = new Date(now)
+        startOfWeek.setDate(now.getDate() - now.getDay())
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
 
         const weekEarnings = chatterEarnings
           .filter((earning: any) => new Date(earning.date) >= startOfWeek)
-          .reduce((sum: number, earning: any) => sum + earning.amount, 0)
+          .reduce((sum: number, earning: any) => sum + (earning.amount || 0), 0)
 
         const monthEarnings = chatterEarnings
           .filter((earning: any) => new Date(earning.date) >= startOfMonth)
-          .reduce((sum: number, earning: any) => sum + earning.amount, 0)
+          .reduce((sum: number, earning: any) => sum + (earning.amount || 0), 0)
 
-        const totalEarnings = chatterEarnings.reduce((sum: number, earning: any) => sum + earning.amount, 0)
+        const totalEarnings = chatterEarnings.reduce(
+          (sum: number, earning: any) => sum + (earning.amount || 0),
+          0,
+        )
 
         return {
-          id: chatter.id,
-          full_name: chatter.name || chatter.full_name || `User ${chatter.id}`,
+          id: String(chatter.id),
+          full_name: fullName,
           total_earnings: totalEarnings,
           week_earnings: weekEarnings,
           month_earnings: monthEarnings,
-          rank: 0, // Will be set after sorting
+          rank: 0,
         }
       })
 
-      // Sort by month earnings (descending) and assign ranks
       const sortedData = leaderboardData
         .sort((a, b) => b.month_earnings - a.month_earnings)
         .map((entry, index) => ({ ...entry, rank: index + 1 }))
 
-      console.log("[v0] Leaderboard: Sorted data:", sortedData)
-
-      // Apply limit if specified
       const limitedData = limit ? sortedData.slice(0, limit) : sortedData
       setLeaderboard(limitedData)
     } catch (error) {

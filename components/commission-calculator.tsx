@@ -15,6 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Calculator, DollarSign, Calendar, CheckCircle, Clock, XCircle } from "lucide-react"
+import { api } from "@/lib/api"
 
 interface Commission {
   id: string
@@ -56,56 +57,56 @@ export function CommissionCalculator() {
 
   const fetchCommissions = async () => {
     try {
-      // Mock commission data
-      const mockCommissions: Commission[] = [
-        {
-          id: "1",
-          user_id: "user1",
-          period_start: "2024-08-01",
-          period_end: "2024-08-15",
-          total_earnings: 2500,
-          commission_rate: 0.08,
-          commission_amount: 160,
-          status: "paid",
-          created_at: "2024-08-16T00:00:00Z",
-          chatter: {
-            full_name: "Emma Johnson",
-            currency: "€",
-          },
-        },
-        {
-          id: "2",
-          user_id: "user2",
-          period_start: "2024-08-01",
-          period_end: "2024-08-15",
-          total_earnings: 1800,
-          commission_rate: 0.1,
-          commission_amount: 144,
-          status: "pending",
-          created_at: "2024-08-16T00:00:00Z",
-          chatter: {
-            full_name: "Sarah Wilson",
-            currency: "$",
-          },
-        },
-        {
-          id: "3",
-          user_id: "user3",
-          period_start: "2024-07-16",
-          period_end: "2024-07-31",
-          total_earnings: 3200,
-          commission_rate: 0.08,
-          commission_amount: 204.8,
-          status: "paid",
-          created_at: "2024-08-01T00:00:00Z",
-          chatter: {
-            full_name: "Lisa Chen",
-            currency: "€",
-          },
-        },
-      ]
+      const [earningsData, chattersData, usersData] = await Promise.all([
+        api.getEmployeeEarnings(),
+        api.getChatters(),
+        api.getUsers(),
+      ])
 
-      setCommissions(mockCommissions)
+      const usersMap = new Map(
+        (usersData || []).map((u: any) => [String(u.id), u]),
+      )
+
+      const currentDate = new Date()
+      const start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
+      const end = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
+      const periodStart = start.toISOString().split("T")[0]
+      const periodEnd = end.toISOString().split("T")[0]
+
+      const calculated: Commission[] = []
+
+      ;(chattersData || []).forEach((chatter: any) => {
+        const user = usersMap.get(String(chatter.id)) || {}
+        const fullName = user.fullName || user.username || "Unknown"
+        const chatterEarnings = (earningsData || []).filter(
+          (e: any) => String(e.chatter_id) === String(chatter.id),
+        )
+        const totalEarnings = chatterEarnings.reduce(
+          (sum: number, e: any) => sum + (e.amount || 0),
+          0,
+        )
+        if (totalEarnings > 0) {
+          const rate = (chatter.commission_rate || chatter.commissionRate || 0) / 100
+          const commissionAmount = totalEarnings * rate
+          calculated.push({
+            id: String(chatter.id),
+            user_id: String(chatter.id),
+            period_start: periodStart,
+            period_end: periodEnd,
+            total_earnings: totalEarnings,
+            commission_rate: rate,
+            commission_amount: commissionAmount,
+            status: "calculated",
+            created_at: new Date().toISOString(),
+            chatter: {
+              full_name: fullName,
+              currency: chatter.currency || "€",
+            },
+          })
+        }
+      })
+
+      setCommissions(calculated)
     } catch (error) {
       console.error("Error fetching commissions:", error)
     } finally {
@@ -152,53 +153,49 @@ export function CommissionCalculator() {
 
     setCalculating(true)
     try {
-      // Mock chatter data with individual settings
-      const mockChatters = [
-        {
-          id: "user1",
-          full_name: "Emma Johnson",
-          currency: "€",
-          commission_rate: 8.0,
-          platform_fee_rate: 20.0,
-        },
-        {
-          id: "user2",
-          full_name: "Sarah Wilson",
-          currency: "$",
-          commission_rate: 10.0,
-          platform_fee_rate: 15.0,
-        },
-        {
-          id: "user3",
-          full_name: "Lisa Chen",
-          currency: "€",
-          commission_rate: 8.0,
-          platform_fee_rate: 20.0,
-        },
-      ]
+      const [startDate, endDate] = selectedPeriod.split("_")
+      const [earningsData, chattersData, usersData] = await Promise.all([
+        api.getEmployeeEarnings(),
+        api.getChatters(),
+        api.getUsers(),
+      ])
+
+      const usersMap = new Map(
+        (usersData || []).map((u: any) => [String(u.id), u]),
+      )
 
       const calculations: ChatterEarnings[] = []
 
-      for (const chatter of mockChatters) {
-        // Mock earnings for the selected period
-        const totalEarnings = Math.floor(Math.random() * 3000) + 1000 // Random earnings between 1000-4000
-
-        const platformFeeAmount = totalEarnings * (chatter.platform_fee_rate / 100)
-        const netEarnings = totalEarnings - platformFeeAmount
-        const commissionAmount = netEarnings * (chatter.commission_rate / 100)
-
+      ;(chattersData || []).forEach((chatter: any) => {
+        const user = usersMap.get(String(chatter.id)) || {}
+        const fullName = user.fullName || user.username || "Unknown"
+        const chatterEarnings = (earningsData || []).filter(
+          (e: any) =>
+            String(e.chatter_id) === String(chatter.id) &&
+            e.date >= startDate &&
+            e.date <= endDate,
+        )
+        const totalEarnings = chatterEarnings.reduce(
+          (sum: number, e: any) => sum + (e.amount || 0),
+          0,
+        )
         if (totalEarnings > 0) {
+          const commissionRate = chatter.commission_rate || chatter.commissionRate || 0
+          const platformFeeRate = chatter.platform_fee || chatter.platformFeeRate || 0
+          const platformFeeAmount = totalEarnings * (platformFeeRate / 100)
+          const netEarnings = totalEarnings - platformFeeAmount
+          const commissionAmount = netEarnings * (commissionRate / 100)
           calculations.push({
-            chatter_id: chatter.id,
-            full_name: chatter.full_name,
-            currency: chatter.currency,
-            commission_rate: chatter.commission_rate,
-            platform_fee_rate: chatter.platform_fee_rate,
+            chatter_id: String(chatter.id),
+            full_name: fullName,
+            currency: chatter.currency || "€",
+            commission_rate: commissionRate,
+            platform_fee_rate: platformFeeRate,
             total_earnings: totalEarnings,
             commission_amount: commissionAmount,
           })
         }
-      }
+      })
 
       setPendingCalculations(calculations)
       setIsCalculateDialogOpen(true)
