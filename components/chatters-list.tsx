@@ -77,6 +77,11 @@ export function ChattersList() {
 
   const fetchChatters = async () => {
     try {
+      const [chattersData, earningsData] = await Promise.all([
+        api.getChatters(),
+        api.getEmployeeEarnings(),
+      ])
+
       const today = new Date().toISOString().split("T")[0]
       const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
 

@@ -4,6 +4,7 @@ const API_BASE_URL =
 
 class ApiClient {
   private getAuthHeaders(): Record<string, string> {
+    if (typeof window === "undefined") return {}
     const token = localStorage.getItem("auth_token")
     return token ? { Authorization: `Bearer ${token}` } : {}
   }
