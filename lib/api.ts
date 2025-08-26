@@ -130,6 +130,10 @@ class ApiClient {
   }
 
   /* ---------- Commissions ---------- */
+  getCommissions() {
+    return this.request("/commissions")
+  }
+
   createCommission(data: any) {
     return this.request("/commissions", {
       method: "POST",
