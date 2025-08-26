@@ -57,62 +57,50 @@ export function CommissionCalculator() {
 
   const fetchCommissions = async () => {
     try {
-      const [earningsData, chattersData, usersData] = await Promise.all([
-        api.getEmployeeEarnings(),
+      const [commissionsData, chattersData, usersData] = await Promise.all([
+        api.getCommissions(),
         api.getChatters(),
         api.getUsers(),
       ])
 
       const userMap = new Map(
-          (usersData || []).map((u: any) => [
-            String(u.id),
-            u.fullName || u.full_name || "",
-          ]),
+        (usersData || []).map((u: any) => [
+          String(u.id),
+          u.fullName || u.full_name || "",
+        ]),
       )
 
-      const chattersWithNames = (chattersData || []).map((ch: any) => ({
-        ...ch,
-        full_name: userMap.get(String(ch.user_id || ch.userId)) || "",
-      }))
+      const chatterMap = new Map(
+        (chattersData || []).map((ch: any) => [
+          String(ch.id),
+          {
+            currency: ch.currency || "€",
+            userId: String(ch.user_id || ch.userId),
+          },
+        ]),
+      )
 
-      const currentDate = new Date()
-      const start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
-      const end = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
-      const periodStart = start.toISOString().split("T")[0]
-      const periodEnd = end.toISOString().split("T")[0]
-
-      const calculated: Commission[] = []
-
-      ;(chattersWithNames || []).forEach((chatter: any) => {
-        const chatterEarnings = (earningsData || []).filter(
-          (e: any) => String(e.chatter_id) === String(chatter.id),
-        )
-        const totalEarnings = chatterEarnings.reduce(
-          (sum: number, e: any) => sum + (e.amount || 0),
-          0,
-        )
-        if (totalEarnings > 0) {
-          const rate = (chatter.commission_rate || chatter.commissionRate || 0) / 100
-          const commissionAmount = totalEarnings * rate
-          calculated.push({
-            id: String(chatter.id),
-            user_id: String(chatter.id),
-            period_start: periodStart,
-            period_end: periodEnd,
-            total_earnings: totalEarnings,
-            commission_rate: rate,
-            commission_amount: commissionAmount,
-            status: "calculated",
-            created_at: new Date().toISOString(),
-            chatter: {
-              full_name: chatter.full_name,
-              currency: chatter.currency || "€",
-            },
-          })
+      const formatted = (commissionsData || []).map((c: any) => {
+        const chatterInfo = chatterMap.get(String(c.chatterId || c.chatter_id)) || {}
+        const fullName = userMap.get(chatterInfo.userId) || ""
+        return {
+          id: String(c.id),
+          user_id: String(c.chatterId || c.chatter_id),
+          period_start: c.periodStart || c.period_start,
+          period_end: c.periodEnd || c.period_end,
+          total_earnings: c.earnings || c.total_earnings || 0,
+          commission_rate: c.commissionRate || c.commission_rate || 0,
+          commission_amount: c.commission || c.commission_amount || 0,
+          status: c.status || "pending",
+          created_at: c.createdAt || c.created_at || "",
+          chatter: {
+            full_name: fullName,
+            currency: chatterInfo.currency || "€",
+          },
         }
       })
 
-      setCommissions(calculated)
+      setCommissions(formatted)
     } catch (error) {
       console.error("Error fetching commissions:", error)
     } finally {
@@ -226,7 +214,20 @@ export function CommissionCalculator() {
     try {
       const [startDate, endDate] = selectedPeriod.split("_")
 
-      // Mock saving - just add to existing commissions
+      await Promise.all(
+        pendingCalculations.map((calc) =>
+          api.createCommission({
+            chatterId: Number(calc.chatter_id),
+            periodStart: startDate,
+            periodEnd: endDate,
+            earnings: calc.total_earnings,
+            commissionRate: calc.commission_rate / 100,
+            commission: calc.commission_amount,
+            status: "pending",
+          }),
+        ),
+      )
+
       const newCommissions = pendingCalculations.map((calc, index) => ({
         id: `new_${Date.now()}_${index}`,
         user_id: calc.chatter_id,
@@ -256,11 +257,23 @@ export function CommissionCalculator() {
 
   const updateCommissionStatus = async (commissionId: string, newStatus: string) => {
     try {
+      await api.updateCommission(commissionId, { status: newStatus })
       setCommissions((prev) =>
-        prev.map((commission) => (commission.id === commissionId ? { ...commission, status: newStatus } : commission)),
+        prev.map((commission) =>
+          commission.id === commissionId ? { ...commission, status: newStatus } : commission,
+        ),
       )
     } catch (error) {
       console.error("Error updating commission status:", error)
+    }
+  }
+
+  const deleteCommission = async (commissionId: string) => {
+    try {
+      await api.deleteCommission(commissionId)
+      setCommissions((prev) => prev.filter((commission) => commission.id !== commissionId))
+    } catch (error) {
+      console.error("Error deleting commission:", error)
     }
   }
 
@@ -466,7 +479,7 @@ export function CommissionCalculator() {
                         <Button
                           size="sm"
                           variant="destructive"
-                          onClick={() => updateCommissionStatus(commission.id, "cancelled")}
+                          onClick={() => deleteCommission(commission.id)}
                         >
                           Cancel
                         </Button>
