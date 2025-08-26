@@ -13,6 +13,8 @@ import { api } from "@/lib/api"
 
 export function CreateChatterForm() {
   const [username, setUsername] = useState("")
+  const [email, setEmail] = useState("")
+  const [fullName, setFullName] = useState("")
   const [password, setPassword] = useState("")
   const [currency, setCurrency] = useState("€")
   const [commissionRate, setCommissionRate] = useState("8,00")
@@ -37,12 +39,14 @@ export function CreateChatterForm() {
     try {
       const createdUser = await api.createUser({
         username,
+        fullName,
         password,
         role: "chatter",
       })
 
       await api.createChatter({
         userId: createdUser.id,
+        email,
         currency,
         commissionRate: parseDecimalInput(commissionRate),
         platformFeeRate: parseDecimalInput(platformFeeRate),
@@ -50,11 +54,13 @@ export function CreateChatterForm() {
 
       toast({
         title: "Success",
-        description: `Chatter account created for ${username}`,
+        description: `Chatter account created for ${fullName || username}`,
       })
 
       // Reset form
       setUsername("")
+      setEmail("")
+      setFullName("")
       setPassword("")
       setCurrency("€")
       setCommissionRate("8,00")
@@ -79,6 +85,28 @@ export function CreateChatterForm() {
       <CardContent>
         <form onSubmit={handleCreateChatter} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="full-name">Full Name</Label>
+              <Input
+                id="full-name"
+                type="text"
+                placeholder="Enter full name"
+                required
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="Enter email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="new-username">Username</Label>
               <Input
