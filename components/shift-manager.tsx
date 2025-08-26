@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Calendar, Clock, Plus, User, ChevronLeft, ChevronRight, Trash2 } from "lucide-react"
+import { api } from "@/lib/api"
 
 interface Shift {
   id: string
@@ -53,40 +54,41 @@ export function ShiftManager() {
   })
 
   useEffect(() => {
-    fetchShifts()
-    fetchChatters()
+    fetchData()
   }, [])
 
-  const fetchShifts = async () => {
+  const fetchData = async () => {
     try {
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 500))
+      const [shiftsData, chattersData] = await Promise.all([
+        api.getShifts(),
+        api.getChatters(),
+      ])
 
-      const storedShifts = localStorage.getItem("shifts")
-      const shifts = storedShifts ? JSON.parse(storedShifts) : []
+      const chatterMap = new Map(
+        (chattersData || []).map((c: any) => [String(c.id), c.full_name || c.name || c.username])
+      )
 
-      setShifts(shifts)
+      const formattedShifts = (shiftsData || []).map((shift: any) => ({
+        id: String(shift.id),
+        chatter_id: String(shift.chatter_id),
+        start_time: shift.start_time,
+        end_time: shift.end_time,
+        status: shift.status,
+        created_at: shift.created_at,
+        chatter: { full_name: chatterMap.get(String(shift.chatter_id)) || "Unknown" },
+      }))
+
+      setShifts(formattedShifts)
+      setChatters(
+        (chattersData || []).map((c: any) => ({
+          id: String(c.id),
+          full_name: c.full_name || c.name || c.username,
+        }))
+      )
     } catch (error) {
       console.error("Error fetching shifts:", error)
     } finally {
       setLoading(false)
-    }
-  }
-
-  const fetchChatters = async () => {
-    try {
-      const storedChatters = localStorage.getItem("chatters")
-      const realChatters = storedChatters ? JSON.parse(storedChatters) : []
-
-      // Map to the format expected by this component
-      const formattedChatters = realChatters.map((chatter: any) => ({
-        id: chatter.id,
-        full_name: chatter.full_name,
-      }))
-
-      setChatters(formattedChatters)
-    } catch (error) {
-      console.error("Error fetching chatters:", error)
     }
   }
 
@@ -126,25 +128,15 @@ export function ShiftManager() {
   const handleAddShift = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const selectedChatter = chatters.find((c) => c.id === newShift.chatter_id)
-
-      // Combine date and time
       const startDateTime = `${newShift.date}T${newShift.start_hour}:${newShift.start_minute}:00`
       const endDateTime = `${newShift.date}T${newShift.end_hour}:${newShift.end_minute}:00`
 
-      const newShiftData = {
-        id: Date.now().toString(),
-        chatter_id: newShift.chatter_id,
+      await api.createShift({
+        chatterId: newShift.chatter_id,
         start_time: startDateTime,
         end_time: endDateTime,
         status: "scheduled",
-        created_at: new Date().toISOString(),
-        chatter: { full_name: selectedChatter?.full_name || "Unknown" },
-      }
-
-      const updatedShifts = [...shifts, newShiftData]
-      setShifts(updatedShifts)
-      localStorage.setItem("shifts", JSON.stringify(updatedShifts))
+      })
 
       setNewShift({
         chatter_id: "",
@@ -155,6 +147,7 @@ export function ShiftManager() {
         end_minute: "",
       })
       setIsAddDialogOpen(false)
+      fetchData()
     } catch (error) {
       console.error("Error adding shift:", error)
     }
@@ -162,9 +155,8 @@ export function ShiftManager() {
 
   const updateShiftStatus = async (shiftId: string, newStatus: string) => {
     try {
-      const updatedShifts = shifts.map((shift) => (shift.id === shiftId ? { ...shift, status: newStatus } : shift))
-      setShifts(updatedShifts)
-      localStorage.setItem("shifts", JSON.stringify(updatedShifts))
+      await api.updateShift(shiftId, { status: newStatus })
+      fetchData()
     } catch (error) {
       console.error("Error updating shift status:", error)
     }
@@ -173,9 +165,8 @@ export function ShiftManager() {
   const deleteShift = async (shiftId: string) => {
     if (confirm("Weet je zeker dat je deze shift wilt verwijderen? Deze actie kan niet ongedaan worden gemaakt.")) {
       try {
-        const updatedShifts = shifts.filter((shift) => shift.id !== shiftId)
-        setShifts(updatedShifts)
-        localStorage.setItem("shifts", JSON.stringify(updatedShifts))
+        await api.deleteShift(shiftId)
+        fetchData()
       } catch (error) {
         console.error("Error deleting shift:", error)
       }
