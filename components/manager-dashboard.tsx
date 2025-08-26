@@ -50,6 +50,7 @@ export function ManagerDashboard() {
     let cancelled = false
 
     const bootstrap = async () => {
+      if (typeof window === "undefined") return
       try {
         console.log("[manager] bootstrap start")
 
