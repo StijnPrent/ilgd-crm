@@ -66,7 +66,7 @@ export function CommissionCalculator() {
       const userMap = new Map(
         (usersData || []).map((u: any) => [
           String(u.id),
-          u.fullName || u.full_name || "",
+          u.fullName || "",
         ]),
       )
 
@@ -81,8 +81,8 @@ export function CommissionCalculator() {
       )
 
       const formatted = (commissionsData || []).map((c: any) => {
-        const chatterInfo = chatterMap.get(String(c.chatterId || c.chatter_id)) || {}
-        const fullName = userMap.get(chatterInfo.userId) || ""
+        const chatterInfo = chatterMap.get(String(c.chatterId)) || {}
+        const fullName = userMap.get(c.chatterId) || ""
         return {
           id: String(c.id),
           user_id: String(c.chatterId || c.chatter_id),
@@ -95,7 +95,7 @@ export function CommissionCalculator() {
           created_at: c.createdAt || c.created_at || "",
           chatter: {
             full_name: fullName,
-            currency: chatterInfo.currency || "€",
+            currency: "€",
           },
         }
       })
