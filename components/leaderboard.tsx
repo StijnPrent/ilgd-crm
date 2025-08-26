@@ -30,14 +30,27 @@ export function Leaderboard({ limit, refreshTrigger }: LeaderboardProps) {
 
   const fetchLeaderboard = async () => {
     try {
-      const [earningsData, chattersData] = await Promise.all([
+      const [earningsData, chattersData, usersData] = await Promise.all([
         api.getEmployeeEarnings(),
         api.getChatters(),
+        api.getUsers(),
       ])
 
-      const leaderboardData = (chattersData || []).map((chatter: any) => {
+      const userMap = new Map(
+          (usersData || []).map((u: any) => [
+            String(u.id),
+            u.fullName  || "",
+          ]),
+      )
+
+      const chattersWithNames = (chattersData || []).map((ch: any) => ({
+        ...ch,
+        full_name: userMap.get(String(ch.id)) || "",
+      }))
+
+      const leaderboardData = (chattersWithNames || []).map((chatter: any) => {
         const chatterEarnings = (earningsData || []).filter(
-          (earning: any) => String(earning.chatter_id) === String(chatter.id),
+          (earning: any) => String(earning.chatterId) === String(chatter.id),
         )
 
         const now = new Date()

@@ -33,19 +33,27 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
 
   const fetchEarnings = async () => {
     try {
-      const [earningsData, chattersData] = await Promise.all([
+      const [earningsData, chattersData, usersData] = await Promise.all([
         api.getEmployeeEarnings(),
         api.getChatters(),
+        api.getUsers(),
       ])
 
+      const userMap = new Map(
+          (usersData || []).map((u: any) => [
+            String(u.id),
+            u.fullName || "",
+          ]),
+      )
+
       const activeChattersMap = new Map(
-        (chattersData || [])
-          .filter((ch: any) => ch.status !== "inactive")
-          .map((ch: any) => [String(ch.id), ch.full_name]),
+          (chattersData || [])
+              .filter((ch: any) => ch.status !== "inactive")
+              .map((ch: any) => [String(ch.id), userMap.get(String(ch.id))]),
       )
 
       const validEarnings = (earningsData || []).filter((earning: any) =>
-        activeChattersMap.has(String(earning.chatter_id)),
+        activeChattersMap.has(String(earning.chatterId)),
       )
 
       const formattedEarnings = validEarnings
@@ -55,7 +63,7 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
           amount: earning.amount,
           description: earning.description,
           chatter: {
-            full_name: activeChattersMap.get(String(earning.chatter_id)),
+            full_name: activeChattersMap.get(String(earning.chatterId)),
           },
         }))
         .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())

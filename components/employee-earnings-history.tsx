@@ -33,7 +33,7 @@ export function EmployeeEarningsHistory({ userId, limit }: EmployeeEarningsHisto
         ])
 
         const userEarnings = (earningsData || [])
-          .filter((e: any) => String(e.chatter_id) === String(userId))
+          .filter((e: any) => String(e.chatterId) === String(userId))
           .map((e: any) => ({
             id: String(e.id),
             date: e.date,
@@ -54,13 +54,6 @@ export function EmployeeEarningsHistory({ userId, limit }: EmployeeEarningsHisto
 
     fetchEarnings()
   }, [userId, limit])
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("nl-NL", {
-      style: "currency",
-      currency,
-    }).format(amount)
-  }
 
   const formatDate = (date: string) => {
     return new Date(date).toLocaleDateString("nl-NL", {
@@ -101,7 +94,7 @@ export function EmployeeEarningsHistory({ userId, limit }: EmployeeEarningsHisto
                     {earning.description && <div className="text-sm text-muted-foreground">{earning.description}</div>}
                   </div>
                 </div>
-                <div className="text-lg font-semibold">{formatCurrency(earning.amount)}</div>
+                <div className="text-lg font-semibold">€{earning.amount}</div>
               </div>
             ))}
           </div>
@@ -126,7 +119,7 @@ export function EmployeeEarningsHistory({ userId, limit }: EmployeeEarningsHisto
             <Calendar className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-medium">{formatDate(earning.date)}</span>
           </div>
-          <span className="font-semibold">{formatCurrency(earning.amount)}</span>
+          <span className="font-semibold">€{earning.amount}</span>
         </div>
       ))}
 

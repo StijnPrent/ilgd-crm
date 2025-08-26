@@ -338,16 +338,16 @@ export function ManagerDashboard() {
                     </form>
                   </CardContent>
                 </Card>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Account Management</CardTitle>
-                    <CardDescription>Manage chatter accounts and permissions</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <ChattersList />
-                  </CardContent>
-                </Card>
               </div>
+              <Card className="mt-6">
+                <CardHeader>
+                  <CardTitle>Account Management</CardTitle>
+                  <CardDescription>Manage chatter accounts and permissions</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ChattersList />
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="chatters">

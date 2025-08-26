@@ -49,38 +49,47 @@ export function WeeklyCalendar({
     return week
   }
 
-    const fetchShifts = async () => {
-      try {
-        const [shiftsData, chattersData] = await Promise.all([
-          api.getShifts(),
-          api.getChatters(),
-        ])
+  const fetchShifts = async () => {
+    try {
+      const [shiftsData, chattersData, usersData] = await Promise.all([
+        api.getShifts(),
+        api.getChatters(),
+        api.getUsers(),
+      ])
 
-        const chatterMap: Record<string, string> = {}
-        ;(chattersData || []).forEach((chatter: any) => {
-          chatterMap[String(chatter.id)] = chatter.full_name
-        })
+      const userMap = new Map(
+          (usersData || []).map((u: any) => [
+            String(u.id),
+            u.fullName || u.full_name || "",
+          ]),
+      )
 
-        const formattedShifts = (shiftsData || []).map((shift: any) => ({
-          id: String(shift.id),
-          chatter_id: String(shift.chatter_id),
-          chatter_name: chatterMap[String(shift.chatter_id)] || "Unknown Chatter",
-          date: shift.start_time ? shift.start_time.split("T")[0] : shift.date,
-          start_time: shift.start_time ? shift.start_time.substring(11, 16) : shift.start_time,
-          end_time: shift.end_time ? shift.end_time.substring(11, 16) : shift.end_time,
-          status: shift.status,
-        }))
+      const chatterMap: Record<string, string> = {}
+      ;(chattersData || []).forEach((chatter: any) => {
+        const name: any = userMap.get(String(chatter.user_id || chatter.userId)) || "Unknown Chatter"
+        chatterMap[String(chatter.id)] = name
+      })
 
-        const filteredShifts = userId
+      const formattedShifts = (shiftsData || []).map((shift: any) => ({
+        id: String(shift.id),
+        chatter_id: String(shift.chatter_id),
+        chatter_name: chatterMap[String(shift.chatter_id)] || "Unknown Chatter",
+        date: shift.start_time ? shift.start_time.split("T")[0] : shift.date,
+        start_time: shift.start_time ? shift.start_time.substring(11, 16) : shift.start_time,
+        end_time: shift.end_time ? shift.end_time.substring(11, 16) : shift.end_time,
+        status: shift.status,
+      }))
+
+      const filteredShifts = userId
           ? formattedShifts.filter((shift: Shift) => shift.chatter_id === String(userId))
           : formattedShifts
 
-        setShifts(filteredShifts)
-      } catch (error) {
-        console.error("[v0] WeeklyCalendar: Error loading shifts:", error)
-        setShifts([])
-      } finally {
-        setLoading(false)
+      setShifts(filteredShifts)
+    } catch (error) {
+      console.error("[v0] WeeklyCalendar: Error loading shifts:", error)
+      setShifts([])
+    } finally {
+      setLoading(false)
     }
   }
 

@@ -77,16 +77,30 @@ export function ChattersList() {
 
   const fetchChatters = async () => {
     try {
-      const [chattersData, earningsData] = await Promise.all([
+      const [chattersData, earningsData, usersData] = await Promise.all([
         api.getChatters(),
         api.getEmployeeEarnings(),
+        api.getUsers(),
       ])
+
+      const userMap = new Map(
+          (usersData || []).map((u: any) => [
+            String(u.id),
+            {
+              full_name: u.fullName || u.full_name || "",
+            },
+          ]),
+      )
 
       const today = new Date().toISOString().split("T")[0]
       const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
 
       const chattersWithRealEarnings = (chattersData || []).map((chatter: any) => {
-        const chatterEarnings = (earningsData || []).filter((e: any) => String(e.chatter_id) === String(chatter.id))
+        const user: any = userMap.get(String(chatter.id)) || {
+          full_name: "",
+        }
+
+        const chatterEarnings = (earningsData || []).filter((e: any) => String(e.chatterId) === String(chatter.id))
 
         const todayEarnings = chatterEarnings
           .filter((e: any) => e.date === today)
@@ -98,13 +112,15 @@ export function ChattersList() {
 
         return {
           id: String(chatter.id),
-          created_at: chatter.created_at,
+          full_name: user.full_name,
+          email: chatter.email,
+          created_at: chatter.createdAt,
           isOnline: Math.random() > 0.6,
           todayEarnings,
           weekEarnings,
           currency: chatter.currency || chatter.currency_symbol || "€",
-          commission_rate: chatter.commission_rate || chatter.commissionRate || 0,
-          platform_fee: chatter.platform_fee || chatter.platformFeeRate || 0,
+          commission_rate: chatter.commissionRate || 0,
+          platform_fee: chatter.platformFeeRate || 0,
           status: chatter.status || "active",
         }
       })
@@ -358,13 +374,11 @@ export function ChattersList() {
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center">
-                    <DollarSign className="h-3 w-3 mr-1 text-muted-foreground" />
                     {formatCurrency(chatter.todayEarnings, chatter.currency)}
                   </div>
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center">
-                    <DollarSign className="h-3 w-3 mr-1 text-muted-foreground" />
                     {formatCurrency(chatter.weekEarnings, chatter.currency)}
                   </div>
                 </TableCell>

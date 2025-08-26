@@ -36,15 +36,15 @@ export function ManagerStats() {
         const oneMonthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
 
         const todayEarnings = (earnings || [])
-          .filter((e: any) => e.date === today)
+          .filter((e: any) => e.date.split("T")[0] === today)
           .reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
 
         const weekEarnings = (earnings || [])
-          .filter((e: any) => e.date >= oneWeekAgo)
+          .filter((e: any) => e.date.split("T")[0] >= oneWeekAgo)
           .reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
 
         const monthEarnings = (earnings || [])
-          .filter((e: any) => e.date >= oneMonthAgo)
+          .filter((e: any) => e.date.split("T")[0] >= oneMonthAgo)
           .reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
 
         const onlineCount = Math.floor((chatters?.length || 0) * 0.4)

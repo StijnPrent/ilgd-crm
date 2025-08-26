@@ -59,30 +59,43 @@ export function ShiftManager() {
 
   const fetchData = async () => {
     try {
-      const [shiftsData, chattersData] = await Promise.all([
+      const [shiftsData, chattersData, usersData] = await Promise.all([
         api.getShifts(),
         api.getChatters(),
+        api.getUsers(),
       ])
 
+      const userMap = new Map(
+          (usersData || []).map((u: any) => [
+            String(u.id),
+            u.fullName || "",
+          ]),
+      )
+
+      const chattersWithNames = (chattersData || []).map((c: any) => ({
+        ...c,
+        full_name: userMap.get(String(c.id)) || "",
+      }))
+
       const chatterMap = new Map(
-        (chattersData || []).map((c: any) => [String(c.id), c.full_name])
+          (chattersWithNames || []).map((c: any) => [String(c.id), c.full_name])
       )
 
       const formattedShifts = (shiftsData || []).map((shift: any) => ({
         id: String(shift.id),
-        chatter_id: String(shift.chatter_id),
-        start_time: shift.start_time,
-        end_time: shift.end_time,
+        chatter_id: String(shift.chatterId),
+        start_time: shift.startTime,
+        end_time: shift.endTime,
         status: shift.status,
-        created_at: shift.created_at,
-        chatter: { full_name: chatterMap.get(String(shift.chatter_id)) || "Unknown" },
+        created_at: shift.createdAt,
+        chatter: { full_name: chatterMap.get(String(shift.chatterId)) || "Unknown" },
       }))
 
       setShifts(formattedShifts)
       setChatters(
         (chattersData || []).map((c: any) => ({
           id: String(c.id),
-          full_name: c.full_name,
+          full_name: userMap.get(String(c.id)) || "",
         }))
       )
     } catch (error) {

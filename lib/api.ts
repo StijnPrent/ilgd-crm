@@ -35,7 +35,6 @@ class ApiClient {
       body: JSON.stringify({ username, password }),
     })
 
-    console.log(data.token)
     if (data.token) {
       localStorage.setItem("auth_token", data.token)
       localStorage.setItem("user", JSON.stringify(data.user))

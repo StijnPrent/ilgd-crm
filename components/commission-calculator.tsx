@@ -57,10 +57,23 @@ export function CommissionCalculator() {
 
   const fetchCommissions = async () => {
     try {
-      const [earningsData, chattersData] = await Promise.all([
+      const [earningsData, chattersData, usersData] = await Promise.all([
         api.getEmployeeEarnings(),
         api.getChatters(),
+        api.getUsers(),
       ])
+
+      const userMap = new Map(
+          (usersData || []).map((u: any) => [
+            String(u.id),
+            u.fullName || u.full_name || "",
+          ]),
+      )
+
+      const chattersWithNames = (chattersData || []).map((ch: any) => ({
+        ...ch,
+        full_name: userMap.get(String(ch.user_id || ch.userId)) || "",
+      }))
 
       const currentDate = new Date()
       const start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
@@ -70,7 +83,7 @@ export function CommissionCalculator() {
 
       const calculated: Commission[] = []
 
-      ;(chattersData || []).forEach((chatter: any) => {
+      ;(chattersWithNames || []).forEach((chatter: any) => {
         const chatterEarnings = (earningsData || []).filter(
           (e: any) => String(e.chatter_id) === String(chatter.id),
         )
@@ -148,17 +161,30 @@ export function CommissionCalculator() {
     try {
       const [startDate, endDate] = selectedPeriod.split("_")
 
-      const [earningsData, chattersData] = await Promise.all([
+      const [earningsData, chattersData, usersData] = await Promise.all([
         api.getEmployeeEarnings(),
         api.getChatters(),
+        api.getUsers(),
       ])
+
+      const userMap = new Map(
+          (usersData || []).map((u: any) => [
+            String(u.id),
+            u.fullName || "",
+          ]),
+      )
+
+      const chattersWithNames = (chattersData || []).map((ch: any) => ({
+        ...ch,
+        full_name: userMap.get(String(ch.id)) || "",
+      }))
 
       const calculations: ChatterEarnings[] = []
 
-      ;(chattersData || []).forEach((chatter: any) => {
+      ;(chattersWithNames || []).forEach((chatter: any) => {
         const chatterEarnings = (earningsData || []).filter(
           (e: any) =>
-            String(e.chatter_id) === String(chatter.id) &&
+            String(e.chatterId) === String(chatter.id) &&
             e.date >= startDate &&
             e.date <= endDate,
         )
@@ -167,8 +193,8 @@ export function CommissionCalculator() {
           0,
         )
         if (totalEarnings > 0) {
-          const commissionRate = chatter.commission_rate || chatter.commissionRate || 0
-          const platformFeeRate = chatter.platform_fee || chatter.platformFeeRate || 0
+          const commissionRate = chatter.commissionRate || 0
+          const platformFeeRate = chatter.platformFeeRate || 0
           const platformFeeAmount = totalEarnings * (platformFeeRate / 100)
           const netEarnings = totalEarnings - platformFeeAmount
           const commissionAmount = netEarnings * (commissionRate / 100)
@@ -312,7 +338,7 @@ export function CommissionCalculator() {
                 Calculate New Period
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-3xl">
+            <DialogContent className="min-w-3xl">
               <DialogHeader>
                 <DialogTitle>Calculate Commissions</DialogTitle>
                 <DialogDescription>
