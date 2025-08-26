@@ -49,30 +49,38 @@ export function WeeklyCalendar({
     return week
   }
 
-  const fetchShifts = async () => {
-    try {
-      })
+    const fetchShifts = async () => {
+      try {
+        const [shiftsData, chattersData] = await Promise.all([
+          api.getShifts(),
+          api.getChatters(),
+        ])
 
-      const formattedShifts = (shiftsData || []).map((shift: any) => ({
-        id: String(shift.id),
-        chatter_id: String(shift.chatter_id),
-        chatter_name: chatterMap[String(shift.chatter_id)] || "Unknown Chatter",
-        date: shift.start_time ? shift.start_time.split("T")[0] : shift.date,
-        start_time: shift.start_time ? shift.start_time.substring(11, 16) : shift.start_time,
-        end_time: shift.end_time ? shift.end_time.substring(11, 16) : shift.end_time,
-        status: shift.status,
-      }))
+        const chatterMap: Record<string, string> = {}
+        ;(chattersData || []).forEach((chatter: any) => {
+          chatterMap[String(chatter.id)] = chatter.full_name
+        })
 
-      const filteredShifts = userId
-        ? formattedShifts.filter((shift: Shift) => shift.chatter_id === String(userId))
-        : formattedShifts
+        const formattedShifts = (shiftsData || []).map((shift: any) => ({
+          id: String(shift.id),
+          chatter_id: String(shift.chatter_id),
+          chatter_name: chatterMap[String(shift.chatter_id)] || "Unknown Chatter",
+          date: shift.start_time ? shift.start_time.split("T")[0] : shift.date,
+          start_time: shift.start_time ? shift.start_time.substring(11, 16) : shift.start_time,
+          end_time: shift.end_time ? shift.end_time.substring(11, 16) : shift.end_time,
+          status: shift.status,
+        }))
 
-      setShifts(filteredShifts)
-    } catch (error) {
-      console.error("[v0] WeeklyCalendar: Error loading shifts:", error)
-      setShifts([])
-    } finally {
-      setLoading(false)
+        const filteredShifts = userId
+          ? formattedShifts.filter((shift: Shift) => shift.chatter_id === String(userId))
+          : formattedShifts
+
+        setShifts(filteredShifts)
+      } catch (error) {
+        console.error("[v0] WeeklyCalendar: Error loading shifts:", error)
+        setShifts([])
+      } finally {
+        setLoading(false)
     }
   }
 

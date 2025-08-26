@@ -12,6 +12,8 @@ export default function DashboardPage() {
   useEffect(() => {
     console.log("[v0] Dashboard: Checking authentication")
 
+    if (typeof window === "undefined") return
+
     // Check localStorage for user session
     const userSession = localStorage.getItem("user")
     console.log("[v0] Dashboard: User session found:", !!userSession)
@@ -26,22 +28,22 @@ export default function DashboardPage() {
           setIsAuthenticated(true)
         } else {
           console.log("[v0] Dashboard: User is not a chatter, redirecting to login")
-          window.location.href = "/auth/login"
+          router.replace("/auth/login")
           return
         }
       } catch (error) {
         console.log("[v0] Dashboard: Error parsing user session:", error)
-        window.location.href = "/auth/login"
+        router.replace("/auth/login")
         return
       }
     } else {
       console.log("[v0] Dashboard: No user session found, redirecting to login")
-      window.location.href = "/auth/login"
+      router.replace("/auth/login")
       return
     }
 
     setIsLoading(false)
-  }, [])
+  }, [router])
 
   if (isLoading) {
     return (

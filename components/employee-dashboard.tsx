@@ -26,6 +26,7 @@ export function EmployeeDashboard() {
     let cancelled = false
 
     const bootstrap = async () => {
+      if (typeof window === "undefined") return
       try {
         // Require token + stored user id (set by api.login)
         const token = localStorage.getItem("auth_token")
