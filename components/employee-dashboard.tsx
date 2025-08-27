@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import {useRouter, useSearchParams} from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -21,6 +21,9 @@ export function EmployeeDashboard() {
   const [loading, setLoading] = useState(true)
   const [refreshStats, setRefreshStats] = useState(0)
   const router = useRouter()
+  const searchParams  = useSearchParams()
+  const initialTab    = searchParams.get('tab') ?? 'overview'
+  const [activeTab, setActiveTab] = useState<string>(initialTab)
 
   const handleClockChange = () => setRefreshStats(p => p + 1);
 
@@ -127,6 +130,15 @@ export function EmployeeDashboard() {
     return () => { cancelled = true }
   }, [router])
 
+  useEffect(() => {
+    // only push if it actually changed
+    if ((searchParams.get('tab') ?? 'overview') !== activeTab) {
+      const url = new URL(window.location.href)
+      url.searchParams.set('tab', activeTab)
+      router.replace(url.pathname + url.search)
+    }
+  }, [activeTab, router, searchParams])
+
   const handleEarningsAdded = () => setRefreshStats((p) => p + 1)
 
   if (loading) {
@@ -196,7 +208,7 @@ export function EmployeeDashboard() {
           </div>
 
           {/* Tabs Navigation */}
-          <Tabs defaultValue="overview" className="space-y-6">
+          <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="overview" className="space-y-6">
             <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="overview" className="flex items-center gap-2">
                 <DollarSign className="h-4 w-4" />

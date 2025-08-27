@@ -20,6 +20,13 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Calendar, Clock, Plus, User, ChevronLeft, ChevronRight, Trash2 } from "lucide-react"
 import { api } from "@/lib/api"
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from "@/components/ui/alert-dialog";
 
 interface Shift {
   id: string
@@ -44,6 +51,8 @@ export function ShiftManager() {
   const [loading, setLoading] = useState(true)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [currentWeek, setCurrentWeek] = useState(new Date())
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
   const [newShift, setNewShift] = useState({
     chatter_id: "",
     date: "",
@@ -176,11 +185,13 @@ export function ShiftManager() {
     }
   }
 
-  const deleteShift = async (shiftId: string) => {
-    if (!confirm("Weet je zeker dat je deze shift wilt verwijderen? Deze actie kan niet ongedaan worden gemaakt.")) {
-      return
-    }
+  const confirmDeleteShift = (shiftId: string) => setConfirmDeleteId(shiftId)
 
+  const performDeleteShift = async () => {
+    if (!confirmDeleteId) return
+    const shiftId = confirmDeleteId
+
+    setDeletingIds(prev => new Set(prev).add(shiftId))
     const prevShifts = shifts
     setShifts((prev) => prev.filter((s) => s.id !== shiftId))
 
@@ -191,7 +202,13 @@ export function ShiftManager() {
       console.error("Error deleting shift:", error)
       // rollback on failure
       setShifts(prevShifts)
-      alert("Verwijderen mislukt. Probeer het opnieuw.")
+    } finally {
+      setDeletingIds(prev => {
+        const next = new Set(prev)
+        next.delete(shiftId)
+        return next
+      })
+      setConfirmDeleteId(null)
     }
   }
 
@@ -329,7 +346,7 @@ export function ShiftManager() {
                           className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 hover:bg-red-600 text-white rounded-full p-1"
                           onClick={(e) => {
                             e.stopPropagation()
-                            deleteShift(shift.id)
+                            confirmDeleteShift(shift.id)
                           }}
                           title="Verwijder shift"
                         >
@@ -551,7 +568,7 @@ export function ShiftManager() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => deleteShift(shift.id)}
+                        onClick={() => confirmDeleteShift(shift.id)}
                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -572,6 +589,26 @@ export function ShiftManager() {
           )}
         </CardContent>
       </Card>
+      <AlertDialog open={!!confirmDeleteId} onOpenChange={(open) => !open && setConfirmDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Shift verwijderen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deze actie kan niet ongedaan worden gemaakt. De shift wordt permanent verwijderd.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogAction
+                onClick={performDeleteShift}
+                className="bg-red-600 text-white hover:bg-red-700"
+            >
+              Verwijderen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   )
 }

@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import {useRouter, useSearchParams} from "next/navigation"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -41,6 +41,9 @@ function decodeJwtPayload<T = any>(token: string): T | null {
 export function ManagerDashboard() {
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const searchParams  = useSearchParams()
+  const initialTab    = searchParams.get('tab') ?? 'overview'
+  const [activeTab, setActiveTab] = useState<string>(initialTab)
 
   const [managerForm, setManagerForm] = useState({ username: "", password: "", fullName: "" })
   const [isCreatingManager, setIsCreatingManager] = useState(false)
@@ -136,6 +139,15 @@ export function ManagerDashboard() {
     return () => { cancelled = true }
   }, [router])
 
+  useEffect(() => {
+    // only push if it actually changed
+    if ((searchParams.get('tab') ?? 'overview') !== activeTab) {
+      const url = new URL(window.location.href)
+      url.searchParams.set('tab', activeTab)
+      router.replace(url.pathname + url.search)
+    }
+  }, [activeTab, router, searchParams])
+
   const createManagerAccount = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsCreatingManager(true)
@@ -147,11 +159,9 @@ export function ManagerDashboard() {
         role: "manager",
       }
       const created = await api.createUser(payload) // POST /users
-      alert(`Manager '${created?.username ?? payload.username}' created successfully!`)
       setManagerForm({ username: "", password: "", fullName: "" })
     } catch (error: any) {
       console.error("[manager] create manager error:", error)
-      alert(error?.message || "Error creating manager account. Please try again.")
     } finally {
       setIsCreatingManager(false)
     }
@@ -228,7 +238,7 @@ export function ManagerDashboard() {
           </div>
 
           {/* Tabs */}
-          <Tabs defaultValue="overview" className="space-y-6">
+          <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="overview" className="space-y-6">
             <TabsList className="grid w-full grid-cols-7">
               <TabsTrigger value="overview" className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
