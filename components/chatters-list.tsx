@@ -120,7 +120,7 @@ export function ChattersList() {
           weekEarnings,
           currency: chatter.currency || chatter.currency_symbol || "€",
           commission_rate: chatter.commissionRate || 0,
-          platform_fee: chatter.platformFeeRate || 0,
+          platform_fee: chatter.platformFee || 0,
           status: chatter.status || "active",
         }
       })

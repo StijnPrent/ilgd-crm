@@ -24,7 +24,7 @@ class ApiClient {
     if (!response.ok) {
       throw new Error(`API Error: ${response.status} ${response.statusText}`)
     }
-
+    if (response.status === 204) return null
     return response.json()
   }
 
@@ -174,26 +174,26 @@ class ApiClient {
     })
   }
 
+  clockIn(id: string) {
+    return this.request(`/shifts/clock-in`, {
+      method: "POST",
+        body: JSON.stringify({ chatterId: id }),
+    })
+  }
+
+  clockOut(id: string) {
+    return this.request(`/shifts/${id}/clock-out`, {
+      method: "POST",
+    })
+  }
+
   deleteShift(id: string) {
     return this.request(`/shifts/${id}`, { method: "DELETE" })
   }
 
   /* ---------- Time Tracking ---------- */
   getActiveTimeEntry(chatterId: string) {
-    return this.request(`/time-entries/active/${chatterId}`)
-  }
-
-  clockIn(data: any) {
-    return this.request("/time-entries/clock-in", {
-      method: "POST",
-      body: JSON.stringify(data),
-    })
-  }
-
-  clockOut(entryId: string) {
-    return this.request(`/time-entries/${entryId}/clock-out`, {
-      method: "POST",
-    })
+    return this.request(`/shifts/time-entry/active/${chatterId}`)
   }
 }
 

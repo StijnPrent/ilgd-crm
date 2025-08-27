@@ -148,6 +148,7 @@ export function ShiftManager() {
         chatterId: newShift.chatter_id,
         start_time: startDateTime,
         end_time: endDateTime,
+        date: newShift.date,
         status: "scheduled",
       })
 
@@ -176,13 +177,21 @@ export function ShiftManager() {
   }
 
   const deleteShift = async (shiftId: string) => {
-    if (confirm("Weet je zeker dat je deze shift wilt verwijderen? Deze actie kan niet ongedaan worden gemaakt.")) {
-      try {
-        await api.deleteShift(shiftId)
-        fetchData()
-      } catch (error) {
-        console.error("Error deleting shift:", error)
-      }
+    if (!confirm("Weet je zeker dat je deze shift wilt verwijderen? Deze actie kan niet ongedaan worden gemaakt.")) {
+      return
+    }
+
+    const prevShifts = shifts
+    setShifts((prev) => prev.filter((s) => s.id !== shiftId))
+
+    try {
+      await api.deleteShift(shiftId) // server call (204/200)
+      // success: nothing else to do
+    } catch (error) {
+      console.error("Error deleting shift:", error)
+      // rollback on failure
+      setShifts(prevShifts)
+      alert("Verwijderen mislukt. Probeer het opnieuw.")
     }
   }
 

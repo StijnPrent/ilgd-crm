@@ -8,16 +8,17 @@ import { Clock, Play, Square, Timer } from "lucide-react"
 import { api } from "@/lib/api"
 
 interface ClockInOutProps {
-  userId: string
+  userId: string,
+  onChange?: () => void
 }
 
 interface ActiveTimeEntry {
   id: string
-  clock_in: string
+  startTime: string
   shift_id: string | null
 }
 
-export function ClockInOut({ userId }: ClockInOutProps) {
+export function ClockInOut({ userId, onChange }: ClockInOutProps) {
   const [activeEntry, setActiveEntry] = useState<ActiveTimeEntry | null>(null)
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
@@ -39,6 +40,7 @@ export function ClockInOut({ userId }: ClockInOutProps) {
   const checkActiveEntry = async () => {
     try {
       const entry = await api.getActiveTimeEntry(userId)
+      console.log("Active entry:", entry)
       setActiveEntry(entry || null)
     } catch (error) {
       setActiveEntry(null)
@@ -50,7 +52,7 @@ export function ClockInOut({ userId }: ClockInOutProps) {
   const handleClockIn = async () => {
     setActionLoading(true)
     try {
-      await api.clockIn({ chatterId: userId })
+      await api.clockIn(userId)
       await checkActiveEntry()
     } catch (error) {
       console.error("Error clocking in:", error)
@@ -66,6 +68,7 @@ export function ClockInOut({ userId }: ClockInOutProps) {
     try {
       await api.clockOut(activeEntry.id)
       setActiveEntry(null)
+      onChange?.()
     } catch (error) {
       console.error("Error clocking out:", error)
     } finally {
@@ -93,7 +96,7 @@ export function ClockInOut({ userId }: ClockInOutProps) {
   const calculateWorkingTime = () => {
     if (!activeEntry) return "00:00:00"
 
-    const clockInTime = new Date(activeEntry.clock_in)
+    const clockInTime = new Date(activeEntry.startTime)
     const diff = currentTime.getTime() - clockInTime.getTime()
 
     const hours = Math.floor(diff / (1000 * 60 * 60))
@@ -164,7 +167,7 @@ export function ClockInOut({ userId }: ClockInOutProps) {
         {activeEntry && (
           <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
             <div className="text-sm text-blue-700">
-              <strong>Clocked in at:</strong> {new Date(activeEntry.clock_in).toLocaleString("nl-NL")}
+              <strong>Clocked in at:</strong> {new Date(activeEntry.startTime).toLocaleString("nl-NL")}
             </div>
           </div>
         )}

@@ -21,6 +21,7 @@ interface WeeklyCalendarProps {
   userId?: string // If provided, only show shifts for this user
   showChatterNames?: boolean // Whether to show chatter names (for manager view)
   compact?: boolean // Compact view for overview pages
+  refreshTrigger?: number;
   onShiftClick?: (shift: Shift) => void
 }
 
@@ -28,6 +29,7 @@ export function WeeklyCalendar({
   userId,
   showChatterNames = false,
   compact = false,
+  refreshTrigger,
   onShiftClick,
 }: WeeklyCalendarProps) {
   const [shifts, setShifts] = useState<Shift[]>([])
@@ -60,23 +62,23 @@ export function WeeklyCalendar({
       const userMap = new Map(
           (usersData || []).map((u: any) => [
             String(u.id),
-            u.fullName || u.full_name || "",
+            u.fullName || "",
           ]),
       )
 
       const chatterMap: Record<string, string> = {}
       ;(chattersData || []).forEach((chatter: any) => {
-        const name: any = userMap.get(String(chatter.user_id || chatter.userId)) || "Unknown Chatter"
+        const name: any = userMap.get(String(chatter.id)) || "Unknown Chatter"
         chatterMap[String(chatter.id)] = name
       })
 
       const formattedShifts = (shiftsData || []).map((shift: any) => ({
         id: String(shift.id),
-        chatter_id: String(shift.chatter_id),
-        chatter_name: chatterMap[String(shift.chatter_id)] || "Unknown Chatter",
-        date: shift.start_time ? shift.start_time.split("T")[0] : shift.date,
-        start_time: shift.start_time ? shift.start_time.substring(11, 16) : shift.start_time,
-        end_time: shift.end_time ? shift.end_time.substring(11, 16) : shift.end_time,
+        chatter_id: String(shift.chatterId),
+        chatter_name: chatterMap[String(shift.chatterId)] || "Unknown Chatter",
+        date: shift.startTime ? shift.startTime.split("T")[0] : shift.date,
+        start_time: shift.startTime ? shift.startTime.substring(11, 16) : shift.startTime,
+        end_time: shift.endTime ? shift.endTime.substring(11, 16) : shift.endTime,
         status: shift.status,
       }))
 
@@ -95,7 +97,7 @@ export function WeeklyCalendar({
 
   useEffect(() => {
     fetchShifts()
-  }, [userId])
+  }, [userId, refreshTrigger])
 
   const weekDates = getWeekDates(currentWeek)
   const today = new Date()
@@ -185,7 +187,7 @@ export function WeeklyCalendar({
                     >
                       <div className="flex items-center gap-1 mb-1">
                         <Clock className="h-3 w-3" />
-                        <span>{shift.start_time}</span>
+                        <span>{shift.start_time} - {shift.end_time}</span>
                       </div>
                       {showChatterNames && (
                         <div className="flex items-center gap-1">

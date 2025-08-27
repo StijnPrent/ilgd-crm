@@ -22,6 +22,8 @@ export function EmployeeDashboard() {
   const [refreshStats, setRefreshStats] = useState(0)
   const router = useRouter()
 
+  const handleClockChange = () => setRefreshStats(p => p + 1);
+
   useEffect(() => {
     let cancelled = false
 
@@ -183,11 +185,11 @@ export function EmployeeDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 md:grid-cols-2">
-                  <ClockInOut userId={user.id} />
+                  <ClockInOut userId={user.id} onChange={handleClockChange} />
                   <EarningsEntry userId={user.id} onEarningsAdded={handleEarningsAdded} />
                 </div>
                 <div className="mt-6">
-                  <WeeklyCalendar userId={user.id} compact />
+                  <WeeklyCalendar userId={user.id} refreshTrigger={refreshStats} compact />
                 </div>
               </CardContent>
             </Card>
