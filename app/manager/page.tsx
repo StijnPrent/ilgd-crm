@@ -1,10 +1,10 @@
 "use client"
 
-import { useEffect } from "react"
+import { Suspense, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { ManagerDashboard } from "@/components/manager-dashboard"
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic"
 
 export default function ManagerPage() {
   const router = useRouter()
@@ -38,5 +38,15 @@ export default function ManagerPage() {
     }
   }, [router])
 
-  return <ManagerDashboard />
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        </div>
+      }
+    >
+      <ManagerDashboard />
+    </Suspense>
+  )
 }
