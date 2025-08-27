@@ -4,6 +4,8 @@ import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { ManagerDashboard } from "@/components/manager-dashboard"
 
+export const dynamic = "force-dynamic";
+
 export default function ManagerPage() {
   const router = useRouter()
 
