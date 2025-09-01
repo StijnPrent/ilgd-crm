@@ -20,6 +20,7 @@ import { Leaderboard } from "@/components/leaderboard"
 import { CreateChatterForm } from "@/components/create-chatter-form"
 import { WeeklyCalendar } from "@/components/weekly-calendar"
 import { Users, DollarSign, Calendar, TrendingUp, Award, Settings, UserPlus, RotateCcw, Shield } from "lucide-react"
+import Image from "next/image"
 
 import { api } from "@/lib/api"
 
@@ -204,11 +205,14 @@ export function ManagerDashboard() {
       <div className="min-h-screen bg-background">
         {/* Header */}
         <header className="border-b bg-card">
-          <div className="container mx-auto px-4 py-4">
+          <div className="container mx-auto px-4 p2-4">
             <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-foreground">Manager Dashboard</h1>
-                <p className="text-muted-foreground">Welcome back, {user?.profile?.full_name}</p>
+              <div className="flex items-center">
+                <Image src="/logo.png" alt="Logo" width={90} height={90} />
+                <div className="ml-4">
+                    <h1 className="text-2xl font-bold text-foreground">Manager Dashboard</h1>
+                    <p className="text-muted-foreground">Welcome back, {user?.profile?.full_name}</p>
+                </div>
               </div>
               <div className="flex items-center gap-4">
                 <Badge variant="secondary" className="bg-green-100 text-green-800">

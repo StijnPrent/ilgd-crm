@@ -12,6 +12,7 @@ import { EarningsEntry } from "@/components/earnings-entry"
 import { EmployeeShifts } from "@/components/employee-shifts"
 import { Leaderboard } from "@/components/leaderboard"
 import { DollarSign, Calendar, Award, User } from "lucide-react"
+import Image from "next/image"
 import { EmployeeEarningsHistory } from "@/components/employee-earnings-history"
 import { WeeklyCalendar } from "@/components/weekly-calendar"
 import { api } from "@/lib/api"
@@ -164,11 +165,14 @@ export function EmployeeDashboard() {
       <div className="min-h-screen bg-background">
         {/* Header */}
         <header className="border-b bg-card">
-          <div className="container mx-auto px-4 py-4">
+          <div className="container mx-auto px-4 py-2">
             <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-foreground">My Dashboard</h1>
-                <p className="text-muted-foreground">Welcome back, {user?.profile?.full_name}</p>
+              <div className="flex items-center">
+                <Image src="/logo.png" alt="Logo" width={90} height={90} />
+                <div className="ml-4">
+                    <h1 className="text-2xl font-bold text-foreground">My Dashboard</h1>
+                    <p className="text-muted-foreground">Welcome back, {user?.profile?.full_name}</p>
+                </div>
               </div>
               <div className="flex items-center gap-4">
                 <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
