@@ -3,7 +3,7 @@ const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002/api"
 
 class ApiClient {
-  private getAuthHeaders(): Record<string, string> {
+  private getAuthHeaders(): Record<any, any> {
     if (typeof window === "undefined") return {}
     const token = localStorage.getItem("auth_token")
     return token ? { Authorization: `Bearer ${token}` } : {}
