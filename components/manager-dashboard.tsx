@@ -219,15 +219,6 @@ export function ManagerDashboard() {
                   <Settings className="h-3 w-3 mr-1" />
                   Manager
                 </Badge>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={resetSystem}
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10 bg-transparent"
-                >
-                  <RotateCcw className="h-4 w-4 mr-2" />
-                  Reset System
-                </Button>
                 <LogoutButton />
               </div>
             </div>
