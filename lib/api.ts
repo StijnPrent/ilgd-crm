@@ -191,6 +191,12 @@ class ApiClient {
     return this.request(`/shifts/${id}`, { method: "DELETE" })
   }
 
+  /* ---------- Unlocks ---------- */
+  getUnlocksPerChatter(date?: string) {
+    const query = date ? `?date=${date}` : ""
+    return this.request(`/unlocks/per-chatter${query}`)
+  }
+
   /* ---------- Time Tracking ---------- */
   getActiveTimeEntry(chatterId: string) {
     return this.request(`/shifts/time-entry/active/${chatterId}`)
