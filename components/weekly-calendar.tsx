@@ -4,13 +4,15 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ChevronLeft, ChevronRight, Clock, User } from "lucide-react"
+import { ChevronLeft, ChevronRight, Clock, User, UserCircle } from "lucide-react"
 import { api } from "@/lib/api"
 
 interface Shift {
   id: string
   chatter_id: string
   chatter_name: string
+  model_id: string
+  model_name: string
   date: string
   start_time: string
   end_time: string
@@ -53,10 +55,11 @@ export function WeeklyCalendar({
 
   const fetchShifts = async () => {
     try {
-      const [shiftsData, chattersData, usersData] = await Promise.all([
+      const [shiftsData, chattersData, usersData, modelsData] = await Promise.all([
         api.getShifts(),
         api.getChatters(),
         api.getUsers(),
+        api.getModels(),
       ])
 
       const userMap = new Map(
@@ -72,10 +75,17 @@ export function WeeklyCalendar({
         chatterMap[String(chatter.id)] = name
       })
 
+      const modelMap: Record<string, string> = {}
+      ;(modelsData || []).forEach((model: any) => {
+        modelMap[String(model.id)] = model.displayName || "Unknown Model"
+      })
+
       const formattedShifts = (shiftsData || []).map((shift: any) => ({
         id: String(shift.id),
         chatter_id: String(shift.chatterId),
         chatter_name: chatterMap[String(shift.chatterId)] || "Unknown Chatter",
+        model_id: String(shift.modelId),
+        model_name: modelMap[String(shift.modelId)] || "Unknown Model",
         date: shift.startTime ? shift.startTime.split("T")[0] : shift.date,
         start_time: shift.startTime ? shift.startTime.substring(11, 16) : shift.startTime,
         end_time: shift.endTime ? shift.endTime.substring(11, 16) : shift.endTime,
@@ -188,6 +198,10 @@ export function WeeklyCalendar({
                       <div className="flex items-center gap-1 mb-1">
                         <Clock className="h-3 w-3" />
                         <span>{shift.start_time} - {shift.end_time}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <UserCircle className="h-3 w-3" />
+                        <span className="truncate">{shift.model_name}</span>
                       </div>
                       {showChatterNames && (
                         <div className="flex items-center gap-1">
