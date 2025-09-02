@@ -13,13 +13,14 @@ import { Label } from "@/components/ui/label"
 import { LogoutButton } from "@/components/logout-button"
 import { ManagerStats } from "@/components/manager-stats"
 import { ChattersList } from "@/components/chatters-list"
+import { ModelsList } from "@/components/models-list"
 import { EarningsOverview } from "@/components/earnings-overview"
 import { ShiftManager } from "@/components/shift-manager"
 import { CommissionCalculator } from "@/components/commission-calculator"
 import { Leaderboard } from "@/components/leaderboard"
 import { CreateChatterForm } from "@/components/create-chatter-form"
 import { WeeklyCalendar } from "@/components/weekly-calendar"
-import { Users, DollarSign, Calendar, TrendingUp, Award, Settings, UserPlus, RotateCcw, Shield } from "lucide-react"
+import { Users, DollarSign, Calendar, TrendingUp, Award, Settings, UserPlus, RotateCcw, Shield, User } from "lucide-react"
 import Image from "next/image"
 
 import { api } from "@/lib/api"
@@ -234,7 +235,7 @@ export function ManagerDashboard() {
 
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="overview" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-7">
+            <TabsList className="grid w-full grid-cols-8">
               <TabsTrigger value="overview" className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
                 Overview
@@ -246,6 +247,10 @@ export function ManagerDashboard() {
               <TabsTrigger value="chatters" className="flex items-center gap-2">
                 <Users className="h-4 w-4" />
                 Chatters
+              </TabsTrigger>
+              <TabsTrigger value="models" className="flex items-center gap-2">
+                <User className="h-4 w-4" />
+                Models
               </TabsTrigger>
               <TabsTrigger value="earnings" className="flex items-center gap-2">
                 <DollarSign className="h-4 w-4" />
@@ -357,6 +362,10 @@ export function ManagerDashboard() {
 
             <TabsContent value="chatters">
               <ChattersList />
+            </TabsContent>
+
+            <TabsContent value="models">
+              <ModelsList />
             </TabsContent>
 
             <TabsContent value="earnings">

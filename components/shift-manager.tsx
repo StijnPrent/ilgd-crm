@@ -45,15 +45,22 @@ interface Chatter {
   full_name: string
 }
 
+interface Model {
+  id: string
+  display_name: string
+}
+
 export function ShiftManager() {
   const [shifts, setShifts] = useState<Shift[]>([])
   const [chatters, setChatters] = useState<Chatter[]>([])
+  const [models, setModels] = useState<Model[]>([])
   const [loading, setLoading] = useState(true)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [currentWeek, setCurrentWeek] = useState(new Date())
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
   const [newShift, setNewShift] = useState({
+    model_id: "",
     chatter_id: "",
     date: "",
     start_hour: "",
@@ -68,10 +75,11 @@ export function ShiftManager() {
 
   const fetchData = async () => {
     try {
-      const [shiftsData, chattersData, usersData] = await Promise.all([
+      const [shiftsData, chattersData, usersData, modelsData] = await Promise.all([
         api.getShifts(),
         api.getChatters(),
         api.getUsers(),
+        api.getModels(),
       ])
 
       const userMap = new Map(
@@ -105,6 +113,12 @@ export function ShiftManager() {
         (chattersData || []).map((c: any) => ({
           id: String(c.id),
           full_name: userMap.get(String(c.id)) || "",
+        }))
+      )
+      setModels(
+        (modelsData || []).map((m: any) => ({
+          id: String(m.id),
+          display_name: m.displayName || m.display_name || "",
         }))
       )
     } catch (error) {
@@ -155,6 +169,7 @@ export function ShiftManager() {
 
       await api.createShift({
         chatterId: newShift.chatter_id,
+        modelId: newShift.model_id,
         start_time: startDateTime,
         end_time: endDateTime,
         date: newShift.date,
@@ -162,6 +177,7 @@ export function ShiftManager() {
       })
 
       setNewShift({
+        model_id: "",
         chatter_id: "",
         date: "",
         start_hour: "",
@@ -393,6 +409,25 @@ export function ShiftManager() {
                 </DialogHeader>
                 <form onSubmit={handleAddShift} className="space-y-4">
                   <div>
+                    <Label htmlFor="model">Model</Label>
+                    <Select
+                      value={newShift.model_id}
+                      onValueChange={(value) => setNewShift({ ...newShift, model_id: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecteer een model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {models.map((model) => (
+                          <SelectItem key={model.id} value={model.id}>
+                            {model.display_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
                     <Label htmlFor="chatter">Chatter</Label>
                     <Select
                       value={newShift.chatter_id}
@@ -500,6 +535,7 @@ export function ShiftManager() {
                     type="submit"
                     className="w-full"
                     disabled={
+                      !newShift.model_id ||
                       !newShift.chatter_id ||
                       !newShift.date ||
                       !newShift.start_hour ||
