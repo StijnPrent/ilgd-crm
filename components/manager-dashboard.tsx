@@ -19,7 +19,8 @@ import { CommissionCalculator } from "@/components/commission-calculator"
 import { Leaderboard } from "@/components/leaderboard"
 import { CreateChatterForm } from "@/components/create-chatter-form"
 import { WeeklyCalendar } from "@/components/weekly-calendar"
-import { Users, DollarSign, Calendar, TrendingUp, Award, Settings, UserPlus, RotateCcw, Shield } from "lucide-react"
+import { Users, DollarSign, Calendar, TrendingUp, Award, Settings, UserPlus, RotateCcw, Shield, LockOpen } from "lucide-react"
+import { UnlocksByChatter } from "@/components/unlocks-by-chatter"
 import Image from "next/image"
 
 import { api } from "@/lib/api"
@@ -234,7 +235,7 @@ export function ManagerDashboard() {
 
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="overview" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-7">
+            <TabsList className="grid w-full grid-cols-8">
               <TabsTrigger value="overview" className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
                 Overview
@@ -250,6 +251,10 @@ export function ManagerDashboard() {
               <TabsTrigger value="earnings" className="flex items-center gap-2">
                 <DollarSign className="h-4 w-4" />
                 Earnings
+              </TabsTrigger>
+              <TabsTrigger value="unlocks" className="flex items-center gap-2">
+                <LockOpen className="h-4 w-4" />
+                Unlocks
               </TabsTrigger>
               <TabsTrigger value="shifts" className="flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
@@ -361,6 +366,10 @@ export function ManagerDashboard() {
 
             <TabsContent value="earnings">
               <EarningsOverview />
+            </TabsContent>
+
+            <TabsContent value="unlocks">
+              <UnlocksByChatter />
             </TabsContent>
 
             <TabsContent value="shifts">
