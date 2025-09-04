@@ -70,6 +70,7 @@ export function ShiftManager() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
   const [newShift, setNewShift] = useState({
+    model_id: "",
     chatter_id: "",
     model_ids: [] as string[],
     date: "",
@@ -187,6 +188,7 @@ export function ShiftManager() {
       })
 
       setNewShift({
+        model_id: "",
         chatter_id: "",
         model_ids: [],
         date: "",
@@ -419,6 +421,25 @@ export function ShiftManager() {
                 </DialogHeader>
                 <form onSubmit={handleAddShift} className="space-y-4">
                   <div>
+                    <Label htmlFor="model">Model</Label>
+                    <Select
+                      value={newShift.model_id}
+                      onValueChange={(value) => setNewShift({ ...newShift, model_id: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecteer een model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {models.map((model) => (
+                          <SelectItem key={model.id} value={model.id}>
+                            {model.display_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
                     <Label htmlFor="chatter">Chatter</Label>
                     <Select
                       value={newShift.chatter_id}
@@ -580,6 +601,7 @@ export function ShiftManager() {
                     type="submit"
                     className="w-full"
                     disabled={
+                      !newShift.model_id ||
                       !newShift.chatter_id ||
                       !newShift.date ||
                       !newShift.start_hour ||

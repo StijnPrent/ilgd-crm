@@ -75,6 +75,33 @@ class ApiClient {
     return this.request(`/users/${id}`, { method: "DELETE" })
   }
 
+  /* ---------- Models ---------- */
+  getModels() {
+    return this.request("/models")
+  }
+
+  getModel(id: string) {
+    return this.request(`/models/${id}`)
+  }
+
+  createModel(modelData: any) {
+    return this.request("/models", {
+      method: "POST",
+      body: JSON.stringify(modelData),
+    })
+  }
+
+  updateModel(id: string, modelData: any) {
+    return this.request(`/models/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(modelData),
+    })
+  }
+
+  deleteModel(id: string) {
+    return this.request(`/models/${id}`, { method: "DELETE" })
+  }
+
   /* ---------- Chatters ---------- */
   getChatters() {
     return this.request("/chatters")
