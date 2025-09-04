@@ -421,25 +421,6 @@ export function ShiftManager() {
                 </DialogHeader>
                 <form onSubmit={handleAddShift} className="space-y-4">
                   <div>
-                    <Label htmlFor="model">Model</Label>
-                    <Select
-                      value={newShift.model_id}
-                      onValueChange={(value) => setNewShift({ ...newShift, model_id: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecteer een model" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {models.map((model) => (
-                          <SelectItem key={model.id} value={model.id}>
-                            {model.display_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
                     <Label htmlFor="chatter">Chatter</Label>
                     <Select
                       value={newShift.chatter_id}
