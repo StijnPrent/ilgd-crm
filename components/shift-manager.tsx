@@ -57,7 +57,7 @@ interface Chatter {
 
 interface Model {
   id: string
-  full_name: string
+  display_name: string
 }
 
 export function ShiftManager() {
@@ -79,6 +79,7 @@ export function ShiftManager() {
     end_hour: "",
     end_minute: "",
   })
+  const [isModelPopoverOpen, setIsModelPopoverOpen] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -129,7 +130,7 @@ export function ShiftManager() {
       setModels(
         (modelsData || []).map((m: any) => ({
           id: String(m.id),
-          full_name: userMap.get(String(m.id)) || "",
+          display_name: m.displayName,
         }))
       )
     } catch (error) {
@@ -460,7 +461,7 @@ export function ShiftManager() {
 
                   <div>
                     <Label htmlFor="models">Models</Label>
-                    <Popover>
+                    <Popover open={isModelPopoverOpen} onOpenChange={setIsModelPopoverOpen}>
                       <PopoverTrigger asChild>
                         <Button
                           type="button"
@@ -471,7 +472,7 @@ export function ShiftManager() {
                           {newShift.model_ids.length > 0
                             ? models
                                 .filter((m) => newShift.model_ids.includes(m.id))
-                                .map((m) => m.full_name)
+                                .map((m) => m.display_name)
                                 .join(", ")
                             : "Selecteer models"}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -487,14 +488,15 @@ export function ShiftManager() {
                               return (
                                 <CommandItem
                                   key={model.id}
-                                  onSelect={() =>
+                                  onSelect={() => {
                                     setNewShift({
                                       ...newShift,
                                       model_ids: selected
                                         ? newShift.model_ids.filter((id) => id !== model.id)
                                         : [...newShift.model_ids, model.id],
                                     })
-                                  }
+                                    setIsModelPopoverOpen(true)
+                                  }}
                                 >
                                   <Check
                                     className={cn(
@@ -502,7 +504,7 @@ export function ShiftManager() {
                                       selected ? "opacity-100" : "opacity-0",
                                     )}
                                   />
-                                  {model.full_name}
+                                  {model.display_name}
                                 </CommandItem>
                               )
                             })}
