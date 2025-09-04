@@ -18,8 +18,18 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar, Clock, Plus, User, ChevronLeft, ChevronRight, Trash2 } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import { Calendar, Clock, Plus, User, ChevronLeft, ChevronRight, Trash2, ChevronsUpDown, Check } from "lucide-react"
 import { api } from "@/lib/api"
+import { cn } from "@/lib/utils"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent,
@@ -45,9 +55,15 @@ interface Chatter {
   full_name: string
 }
 
+interface Model {
+  id: string
+  full_name: string
+}
+
 export function ShiftManager() {
   const [shifts, setShifts] = useState<Shift[]>([])
   const [chatters, setChatters] = useState<Chatter[]>([])
+  const [models, setModels] = useState<Model[]>([])
   const [loading, setLoading] = useState(true)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [currentWeek, setCurrentWeek] = useState(new Date())
@@ -55,6 +71,7 @@ export function ShiftManager() {
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
   const [newShift, setNewShift] = useState({
     chatter_id: "",
+    model_ids: [] as string[],
     date: "",
     start_hour: "",
     start_minute: "",
@@ -68,10 +85,11 @@ export function ShiftManager() {
 
   const fetchData = async () => {
     try {
-      const [shiftsData, chattersData, usersData] = await Promise.all([
+      const [shiftsData, chattersData, usersData, modelsData] = await Promise.all([
         api.getShifts(),
         api.getChatters(),
         api.getUsers(),
+        api.getModels(),
       ])
 
       const userMap = new Map(
@@ -105,6 +123,12 @@ export function ShiftManager() {
         (chattersData || []).map((c: any) => ({
           id: String(c.id),
           full_name: userMap.get(String(c.id)) || "",
+        }))
+      )
+      setModels(
+        (modelsData || []).map((m: any) => ({
+          id: String(m.id),
+          full_name: userMap.get(String(m.id)) || "",
         }))
       )
     } catch (error) {
@@ -155,6 +179,7 @@ export function ShiftManager() {
 
       await api.createShift({
         chatterId: newShift.chatter_id,
+        modelIds: newShift.model_ids,
         start_time: startDateTime,
         end_time: endDateTime,
         date: newShift.date,
@@ -163,6 +188,7 @@ export function ShiftManager() {
 
       setNewShift({
         chatter_id: "",
+        model_ids: [],
         date: "",
         start_hour: "",
         start_minute: "",
@@ -409,6 +435,60 @@ export function ShiftManager() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="models">Models</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          role="combobox"
+                          className="w-full justify-between"
+                        >
+                          {newShift.model_ids.length > 0
+                            ? models
+                                .filter((m) => newShift.model_ids.includes(m.id))
+                                .map((m) => m.full_name)
+                                .join(", ")
+                            : "Selecteer models"}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[200px] p-0">
+                        <Command>
+                          <CommandInput placeholder="Zoek model..." />
+                          <CommandEmpty>Geen model gevonden.</CommandEmpty>
+                          <CommandGroup>
+                            {models.map((model) => {
+                              const selected = newShift.model_ids.includes(model.id)
+                              return (
+                                <CommandItem
+                                  key={model.id}
+                                  onSelect={() =>
+                                    setNewShift({
+                                      ...newShift,
+                                      model_ids: selected
+                                        ? newShift.model_ids.filter((id) => id !== model.id)
+                                        : [...newShift.model_ids, model.id],
+                                    })
+                                  }
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      selected ? "opacity-100" : "opacity-0",
+                                    )}
+                                  />
+                                  {model.full_name}
+                                </CommandItem>
+                              )
+                            })}
+                          </CommandGroup>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
 
                   <div>
