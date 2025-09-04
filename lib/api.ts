@@ -129,6 +129,15 @@ class ApiClient {
     return this.request(`/chatters/${id}`, { method: "DELETE" })
   }
 
+  /* ---------- Models ---------- */
+  getModels() {
+    return this.request("/models")
+  }
+
+  getModel(id: string) {
+    return this.request(`/models/${id}`)
+  }
+
   /* ---------- Employee Earnings ---------- */
   getEmployeeEarnings() {
     return this.request("/employee-earnings")

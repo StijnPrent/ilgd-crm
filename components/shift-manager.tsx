@@ -18,8 +18,18 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar, Clock, Plus, User, ChevronLeft, ChevronRight, Trash2 } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import { Calendar, Clock, Plus, User, ChevronLeft, ChevronRight, Trash2, ChevronsUpDown, Check } from "lucide-react"
 import { api } from "@/lib/api"
+import { cn } from "@/lib/utils"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent,
@@ -47,7 +57,7 @@ interface Chatter {
 
 interface Model {
   id: string
-  display_name: string
+  full_name: string
 }
 
 export function ShiftManager() {
@@ -62,6 +72,7 @@ export function ShiftManager() {
   const [newShift, setNewShift] = useState({
     model_id: "",
     chatter_id: "",
+    model_ids: [] as string[],
     date: "",
     start_hour: "",
     start_minute: "",
@@ -118,7 +129,7 @@ export function ShiftManager() {
       setModels(
         (modelsData || []).map((m: any) => ({
           id: String(m.id),
-          display_name: m.displayName || m.display_name || "",
+          full_name: userMap.get(String(m.id)) || "",
         }))
       )
     } catch (error) {
@@ -169,7 +180,7 @@ export function ShiftManager() {
 
       await api.createShift({
         chatterId: newShift.chatter_id,
-        modelId: newShift.model_id,
+        modelIds: newShift.model_ids,
         start_time: startDateTime,
         end_time: endDateTime,
         date: newShift.date,
@@ -179,6 +190,7 @@ export function ShiftManager() {
       setNewShift({
         model_id: "",
         chatter_id: "",
+        model_ids: [],
         date: "",
         start_hour: "",
         start_minute: "",
@@ -444,6 +456,60 @@ export function ShiftManager() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="models">Models</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          role="combobox"
+                          className="w-full justify-between"
+                        >
+                          {newShift.model_ids.length > 0
+                            ? models
+                                .filter((m) => newShift.model_ids.includes(m.id))
+                                .map((m) => m.full_name)
+                                .join(", ")
+                            : "Selecteer models"}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[200px] p-0">
+                        <Command>
+                          <CommandInput placeholder="Zoek model..." />
+                          <CommandEmpty>Geen model gevonden.</CommandEmpty>
+                          <CommandGroup>
+                            {models.map((model) => {
+                              const selected = newShift.model_ids.includes(model.id)
+                              return (
+                                <CommandItem
+                                  key={model.id}
+                                  onSelect={() =>
+                                    setNewShift({
+                                      ...newShift,
+                                      model_ids: selected
+                                        ? newShift.model_ids.filter((id) => id !== model.id)
+                                        : [...newShift.model_ids, model.id],
+                                    })
+                                  }
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      selected ? "opacity-100" : "opacity-0",
+                                    )}
+                                  />
+                                  {model.full_name}
+                                </CommandItem>
+                              )
+                            })}
+                          </CommandGroup>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
 
                   <div>
