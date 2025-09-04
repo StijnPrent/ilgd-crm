@@ -79,6 +79,7 @@ export function ShiftManager() {
     end_hour: "",
     end_minute: "",
   })
+  const [isModelPopoverOpen, setIsModelPopoverOpen] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -441,7 +442,7 @@ export function ShiftManager() {
 
                   <div>
                     <Label htmlFor="models">Models</Label>
-                    <Popover>
+                    <Popover open={isModelPopoverOpen} onOpenChange={setIsModelPopoverOpen}>
                       <PopoverTrigger asChild>
                         <Button
                           type="button"
@@ -468,14 +469,15 @@ export function ShiftManager() {
                               return (
                                 <CommandItem
                                   key={model.id}
-                                  onSelect={() =>
+                                  onSelect={() => {
                                     setNewShift({
                                       ...newShift,
                                       model_ids: selected
                                         ? newShift.model_ids.filter((id) => id !== model.id)
                                         : [...newShift.model_ids, model.id],
                                     })
-                                  }
+                                    setIsModelPopoverOpen(true)
+                                  }}
                                 >
                                   <Check
                                     className={cn(
