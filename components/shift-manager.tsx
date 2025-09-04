@@ -57,7 +57,7 @@ interface Chatter {
 
 interface Model {
   id: string
-  full_name: string
+  display_name: string
 }
 
 export function ShiftManager() {
@@ -129,7 +129,7 @@ export function ShiftManager() {
       setModels(
         (modelsData || []).map((m: any) => ({
           id: String(m.id),
-          full_name: userMap.get(String(m.id)) || "",
+          display_name: m.displayName,
         }))
       )
     } catch (error) {
@@ -471,7 +471,7 @@ export function ShiftManager() {
                           {newShift.model_ids.length > 0
                             ? models
                                 .filter((m) => newShift.model_ids.includes(m.id))
-                                .map((m) => m.full_name)
+                                .map((m) => m.display_name)
                                 .join(", ")
                             : "Selecteer models"}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -502,7 +502,7 @@ export function ShiftManager() {
                                       selected ? "opacity-100" : "opacity-0",
                                     )}
                                   />
-                                  {model.full_name}
+                                  {model.display_name}
                                 </CommandItem>
                               )
                             })}
