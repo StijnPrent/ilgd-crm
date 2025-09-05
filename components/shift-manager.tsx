@@ -237,6 +237,7 @@ export function ShiftManager() {
             day: "numeric",
             hour: "2-digit",
             minute: "2-digit",
+            timeZone: "UTC",
         })
     }
 
@@ -356,9 +357,14 @@ export function ShiftManager() {
                                                     {new Date(shift.start_time).toLocaleTimeString("nl-NL", {
                                                         hour: "2-digit",
                                                         minute: "2-digit",
+                                                        timeZone: "UTC",
                                                     })}{" "}
                                                     -{" "}
-                                                    {new Date(shift.end_time).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" })}
+                                                    {new Date(shift.end_time).toLocaleTimeString("nl-NL", {
+                                                        hour: "2-digit",
+                                                        minute: "2-digit",
+                                                        timeZone: "UTC",
+                                                    })}
                                                 </div>
                                                 <button
                                                     className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 hover:bg-red-600 text-white rounded-full p-1"

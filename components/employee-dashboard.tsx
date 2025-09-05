@@ -16,6 +16,7 @@ import Image from "next/image"
 import { EmployeeEarningsHistory } from "@/components/employee-earnings-history"
 import { WeeklyCalendar } from "@/components/weekly-calendar"
 import { api } from "@/lib/api"
+import { EmployeeEarningsProvider } from "@/hooks/use-employee-earnings"
 
 export function EmployeeDashboard() {
   const [user, setUser] = useState<any>(null)
@@ -187,10 +188,11 @@ export function EmployeeDashboard() {
 
         {/* Main Content */}
         <main className="container mx-auto px-4 py-6">
-          {/* Stats Overview */}
-          <div className="mb-8">
-            <EmployeeStats userId={user.id} refreshTrigger={refreshStats} />
-          </div>
+          <EmployeeEarningsProvider>
+            {/* Stats Overview */}
+            <div className="mb-8">
+              <EmployeeStats userId={user.id} refreshTrigger={refreshStats} />
+            </div>
 
           {/* Quick Actions */}
           <div className="mb-8">
@@ -211,62 +213,63 @@ export function EmployeeDashboard() {
             </Card>
           </div>
 
-          {/* Tabs Navigation */}
-          <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="overview" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="overview" className="flex items-center gap-2">
-                <DollarSign className="h-4 w-4" />
-                Overview
-              </TabsTrigger>
-              <TabsTrigger value="shifts" className="flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
-                My Shifts
-              </TabsTrigger>
-              <TabsTrigger value="earnings" className="flex items-center gap-2">
-                <DollarSign className="h-4 w-4" />
-                Earnings
-              </TabsTrigger>
-              <TabsTrigger value="leaderboard" className="flex items-center gap-2">
-                <Award className="h-4 w-4" />
-                Leaderboard
-              </TabsTrigger>
-            </TabsList>
+            {/* Tabs Navigation */}
+            <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="overview" className="space-y-6">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="overview" className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4" />
+                  Overview
+                </TabsTrigger>
+                <TabsTrigger value="shifts" className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  My Shifts
+                </TabsTrigger>
+                <TabsTrigger value="earnings" className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4" />
+                  Earnings
+                </TabsTrigger>
+                <TabsTrigger value="leaderboard" className="flex items-center gap-2">
+                  <Award className="h-4 w-4" />
+                  Leaderboard
+                </TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="overview" className="space-y-6">
-              <div className="grid gap-6 md:grid-cols-2">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Recent Earnings</CardTitle>
-                    <CardDescription>Your earnings from the last 7 days</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <EmployeeEarningsHistory userId={user.id} limit={7} />
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Your Ranking</CardTitle>
-                    <CardDescription>See how you compare to your teammates</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Leaderboard limit={5} refreshTrigger={refreshStats} />
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
+              <TabsContent value="overview" className="space-y-6">
+                <div className="grid gap-6 md:grid-cols-2">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Recent Earnings</CardTitle>
+                      <CardDescription>Your earnings from the last 7 days</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <EmployeeEarningsHistory userId={user.id} limit={7} />
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Your Ranking</CardTitle>
+                      <CardDescription>See how you compare to your teammates</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <Leaderboard limit={5} refreshTrigger={refreshStats} />
+                    </CardContent>
+                  </Card>
+                </div>
+              </TabsContent>
 
-            <TabsContent value="shifts">
-              <EmployeeShifts userId={user.id} />
-            </TabsContent>
+              <TabsContent value="shifts">
+                <EmployeeShifts userId={user.id} />
+              </TabsContent>
 
-            <TabsContent value="earnings">
-              <EmployeeEarningsHistory userId={user.id} />
-            </TabsContent>
+              <TabsContent value="earnings">
+                <EmployeeEarningsHistory userId={user.id} />
+              </TabsContent>
 
-            <TabsContent value="leaderboard">
-              <Leaderboard refreshTrigger={refreshStats} />
-            </TabsContent>
-          </Tabs>
+              <TabsContent value="leaderboard">
+                <Leaderboard refreshTrigger={refreshStats} />
+              </TabsContent>
+            </Tabs>
+          </EmployeeEarningsProvider>
         </main>
       </div>
   )

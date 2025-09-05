@@ -165,6 +165,11 @@ class ApiClient {
     return this.request(`/employee-earnings/${id}`, { method: "DELETE" })
   }
 
+  /* ---------- Revenue ---------- */
+  getRevenueEarnings() {
+    return this.request("/revenue/earnings")
+  }
+
   /* ---------- Commissions ---------- */
   getCommissions() {
     return this.request("/commissions")
