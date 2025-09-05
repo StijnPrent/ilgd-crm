@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { DollarSign, Calendar, User } from "lucide-react"
 import { api } from "@/lib/api"
+import { useEmployeeEarnings } from "@/hooks/use-employee-earnings"
 
 interface EarningsOverviewProps {
   limit?: number
@@ -27,14 +28,16 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
   const [totalToday, setTotalToday] = useState(0)
   const [totalWeek, setTotalWeek] = useState(0)
 
+  const { earnings: allEarnings } = useEmployeeEarnings()
+
   useEffect(() => {
+    if (allEarnings === null) return
     fetchEarnings()
-  }, [])
+  }, [allEarnings])
 
   const fetchEarnings = async () => {
     try {
-      const [earningsData, chattersData, usersData] = await Promise.all([
-        api.getEmployeeEarnings(),
+      const [chattersData, usersData] = await Promise.all([
         api.getChatters(),
         api.getUsers(),
       ])
@@ -52,7 +55,7 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
               .map((ch: any) => [String(ch.id), userMap.get(String(ch.id))]),
       )
 
-      const validEarnings = (earningsData || []).filter((earning: any) =>
+      const validEarnings = (allEarnings || []).filter((earning: any) =>
         activeChattersMap.has(String(earning.chatterId)),
       )
 
