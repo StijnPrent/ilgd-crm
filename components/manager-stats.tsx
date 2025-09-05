@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Users, DollarSign, Clock, TrendingUp } from "lucide-react"
 import { api } from "@/lib/api"
+import { useEmployeeEarnings } from "@/hooks/use-employee-earnings"
 
 interface Stats {
   totalChatters: number
@@ -22,14 +23,14 @@ export function ManagerStats() {
     totalEarningsMonth: 0,
   })
   const [loading, setLoading] = useState(true)
+  const { earnings } = useEmployeeEarnings()
 
   useEffect(() => {
+    if (earnings === null) return
+
     const calculateRealStats = async () => {
       try {
-        const [chatters, earnings] = await Promise.all([
-          api.getChatters(),
-          api.getEmployeeEarnings(),
-        ])
+        const chatters = await api.getChatters()
 
         const today = new Date().toISOString().split("T")[0]
         const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
@@ -64,7 +65,7 @@ export function ManagerStats() {
     }
 
     calculateRealStats()
-  }, [])
+  }, [earnings])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("nl-NL", {

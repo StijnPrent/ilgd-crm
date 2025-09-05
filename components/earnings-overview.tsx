@@ -6,6 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { DollarSign, Calendar, User } from "lucide-react"
 import { api } from "@/lib/api"
+import { useEmployeeEarnings } from "@/hooks/use-employee-earnings"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface EarningsOverviewProps {
   limit?: number
@@ -16,9 +18,10 @@ interface EarningsData {
   date: string
   amount: number
   description: string | null
+  chatterId: string | null
   chatter: {
     full_name: string
-  }
+  } | null
 }
 
 export function EarningsOverview({ limit }: EarningsOverviewProps) {
@@ -27,14 +30,17 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
   const [totalToday, setTotalToday] = useState(0)
   const [totalWeek, setTotalWeek] = useState(0)
 
+  const { earnings: allEarnings, refresh } = useEmployeeEarnings()
+  const [chatters, setChatters] = useState<{ id: string; full_name: string }[]>([])
+
   useEffect(() => {
+    if (allEarnings === null) return
     fetchEarnings()
-  }, [])
+  }, [allEarnings])
 
   const fetchEarnings = async () => {
     try {
-      const [earningsData, chattersData, usersData] = await Promise.all([
-        api.getEmployeeEarnings(),
+      const [chattersData, usersData] = await Promise.all([
         api.getChatters(),
         api.getUsers(),
       ])
@@ -46,26 +52,42 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
           ]),
       )
 
-      const activeChattersMap = new Map(
-          (chattersData || [])
-              .filter((ch: any) => ch.status !== "inactive")
-              .map((ch: any) => [String(ch.id), userMap.get(String(ch.id))]),
+      const activeChatters = (chattersData || []).filter(
+        (ch: any) => ch.status !== "inactive",
       )
+      const activeChattersMap = new Map(
+        activeChatters.map((ch: any) => [String(ch.id), userMap.get(String(ch.id))]),
+      )
+      setChatters([
+        { id: "unknown", full_name: "Unknown chatter" },
+        ...activeChatters.map((ch: any) => ({
+          id: String(ch.id),
+          full_name: userMap.get(String(ch.id)) || "",
+        })),
+      ])
 
-      const validEarnings = (earningsData || []).filter((earning: any) =>
-        activeChattersMap.has(String(earning.chatterId)),
+      const validEarnings = (allEarnings || []).filter(
+        (earning: any) =>
+          !earning.chatterId || activeChattersMap.has(String(earning.chatterId)),
       )
 
       const formattedEarnings = validEarnings
-        .map((earning: any) => ({
-          id: String(earning.id),
-          date: earning.date,
-          amount: earning.amount,
-          description: earning.description,
-          chatter: {
-            full_name: activeChattersMap.get(String(earning.chatterId)),
-          },
-        }))
+        .map((earning: any) => {
+          const chatterId = earning.chatterId
+            ? String(earning.chatterId)
+            : null
+          const full_name = earning.chatterId
+            ? activeChattersMap.get(String(earning.chatterId)) || "Unknown chatter"
+            : "Unknown chatter"
+          return {
+            id: String(earning.id),
+            date: earning.date,
+            amount: earning.amount,
+            description: earning.description,
+            chatterId,
+            chatter: earning.chatterId ? { full_name } : null,
+          }
+        })
         .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
       const limitedEarnings = limit ? formattedEarnings.slice(0, limit) : formattedEarnings
@@ -106,6 +128,17 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
       month: "short",
       day: "numeric",
     })
+  }
+
+  const handleChatterChange = async (earningId: string, chatterId: string) => {
+    try {
+      await api.updateEmployeeEarning(earningId, {
+        chatterId: chatterId === "unknown" ? null : chatterId,
+      })
+      await refresh()
+    } catch (error) {
+      console.error("Error updating earning:", error)
+    }
   }
 
   if (loading) {
@@ -162,10 +195,29 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
                   </div>
                 </TableCell>
                 <TableCell>
-                  <div className="flex items-center gap-2">
-                    <User className="h-4 w-4 text-muted-foreground" />
-                    {earning.chatter.full_name}
-                  </div>
+                  {limit ? (
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                      {earning.chatter?.full_name ?? "Unknown chatter"}
+                    </div>
+                  ) : (
+                    <Select
+                      value={earning.chatterId ?? "unknown"}
+                      onValueChange={(value) => handleChatterChange(earning.id, value)}
+                    >
+                      <SelectTrigger className="w-[200px]">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {chatters.map((chatter) => (
+                          <SelectItem key={chatter.id} value={chatter.id}>
+                            {chatter.full_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1 font-semibold">
