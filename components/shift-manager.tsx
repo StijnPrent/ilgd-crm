@@ -325,6 +325,176 @@ export function ShiftManager() {
                                 <ChevronRight className="h-4 w-4" />
                             </Button>
                         </div>
+                        <button
+                          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 hover:bg-red-600 text-white rounded-full p-1"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            confirmDeleteShift(shift.id)
+                          }}
+                          title="Verwijder shift"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          {shifts.length === 0 && (
+            <div className="text-center py-8 text-muted-foreground">
+              <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>Geen shifts ingepland.</p>
+              <p className="text-sm">Gebruik de "Add Shift" knop om nieuwe shifts in te plannen.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Shift Beheer
+              </CardTitle>
+              <CardDescription>Plan en beheer chatter shifts</CardDescription>
+            </div>
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Shift
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Nieuwe Shift Inplannen</DialogTitle>
+                  <DialogDescription>Maak een nieuwe shift aan voor een chatter</DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleAddShift} className="space-y-4">
+                  <div>
+                    <Label htmlFor="chatter">Chatter</Label>
+                    <Select
+                      value={newShift.chatter_id}
+                      onValueChange={(value) => setNewShift({ ...newShift, chatter_id: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecteer een chatter" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {chatters.map((chatter) => (
+                          <SelectItem key={chatter.id} value={chatter.id}>
+                            {chatter.full_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="models">Models</Label>
+                    <Popover open={isModelPopoverOpen} onOpenChange={setIsModelPopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          role="combobox"
+                          className="w-full justify-between"
+                        >
+                          {newShift.model_ids.length > 0
+                            ? models
+                                .filter((m) => newShift.model_ids.includes(m.id))
+                                .map((m) => m.display_name)
+                                .join(", ")
+                            : "Selecteer models"}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent portalled={false} className="w-[200px] p-0">
+                        <Command>
+                          <CommandInput placeholder="Zoek model..." />
+                          <CommandEmpty>Geen model gevonden.</CommandEmpty>
+                          <CommandGroup>
+                            {models.map((model) => {
+                              const selected = newShift.model_ids.includes(model.id)
+                              return (
+                                <CommandItem
+                                  key={model.id}
+                                  onSelect={() => {
+                                    setNewShift({
+                                      ...newShift,
+                                      model_ids: selected
+                                        ? newShift.model_ids.filter((id) => id !== model.id)
+                                        : [...newShift.model_ids, model.id],
+                                    })
+                                    setIsModelPopoverOpen(true)
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      selected ? "opacity-100" : "opacity-0",
+                                    )}
+                                  />
+                                  {model.display_name}
+                                </CommandItem>
+                              )
+                            })}
+                          </CommandGroup>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="date">Datum</Label>
+                    <Input
+                      id="date"
+                      type="date"
+                      value={newShift.date}
+                      onChange={(e) => setNewShift({ ...newShift, date: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Start Tijd</Label>
+                      <div className="flex gap-2">
+                        <Select
+                          value={newShift.start_hour}
+                          onValueChange={(value) => setNewShift({ ...newShift, start_hour: value })}
+                        >
+                          <SelectTrigger className="flex-1">
+                            <SelectValue placeholder="Uur" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {generateTimeOptions("hour").map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.value}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={newShift.start_minute}
+                          onValueChange={(value) => setNewShift({ ...newShift, start_minute: value })}
+                        >
+                          <SelectTrigger className="flex-1">
+                            <SelectValue placeholder="Min" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {generateTimeOptions("minute").map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.value}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                 </CardHeader>
                 <CardContent>
