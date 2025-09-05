@@ -11,8 +11,8 @@ interface Shift {
   id: string
   chatter_id: string
   chatter_name: string
-  model_id: string
-  model_name: string
+  model_id: string[]
+  model_name: string[]
   date: string
   start_time: string
   end_time: string
@@ -61,6 +61,7 @@ export function WeeklyCalendar({
         api.getUsers(),
         api.getModels(),
       ])
+      console.log("Fetched shifts data:", shiftsData)
 
       const userMap = new Map(
           (usersData || []).map((u: any) => [
@@ -84,13 +85,14 @@ export function WeeklyCalendar({
         id: String(shift.id),
         chatter_id: String(shift.chatterId),
         chatter_name: chatterMap[String(shift.chatterId)] || "Unknown Chatter",
-        model_id: String(shift.modelId),
-        model_name: modelMap[String(shift.modelId)] || "Unknown Model",
+        model_id: String(shift.modelIds),
+        model_name: modelMap[String(shift.modelIds)] || "No model",
         date: shift.startTime ? shift.startTime.split("T")[0] : shift.date,
         start_time: shift.startTime ? shift.startTime.substring(11, 16) : shift.startTime,
         end_time: shift.endTime ? shift.endTime.substring(11, 16) : shift.endTime,
         status: shift.status,
       }))
+      console.log("Formatted shifts:", formattedShifts)
 
       const filteredShifts = userId
           ? formattedShifts.filter((shift: Shift) => shift.chatter_id === String(userId))

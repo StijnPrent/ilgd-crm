@@ -26,7 +26,6 @@ export function ManagerStats() {
   const { earnings } = useEmployeeEarnings()
 
   useEffect(() => {
-    console.log("earnings changed:", earnings)
     if (earnings === null) return
 
     const calculateRealStats = async () => {
