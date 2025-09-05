@@ -6,6 +6,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Clock, Play, Square, Timer } from "lucide-react"
 import { api } from "@/lib/api"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface ClockInOutProps {
   userId: string,
@@ -23,18 +33,29 @@ export function ClockInOut({ userId, onChange }: ClockInOutProps) {
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
   const [currentTime, setCurrentTime] = useState(new Date())
+  const [currentShift, setCurrentShift] = useState<any>(null)
+  const [showEarlyClockOut, setShowEarlyClockOut] = useState(false)
 
   useEffect(() => {
     if (!userId) return
 
     checkActiveEntry()
+    fetchCurrentShift()
 
     // Update current time every second
-    const timer = setInterval(() => {
+    const timeTimer = setInterval(() => {
       setCurrentTime(new Date())
     }, 1000)
 
-    return () => clearInterval(timer)
+    // Refresh shift info periodically
+    const shiftTimer = setInterval(() => {
+      fetchCurrentShift()
+    }, 60000)
+
+    return () => {
+      clearInterval(timeTimer)
+      clearInterval(shiftTimer)
+    }
   }, [userId])
 
   const checkActiveEntry = async () => {
@@ -49,9 +70,33 @@ export function ClockInOut({ userId, onChange }: ClockInOutProps) {
     }
   }
 
+  const fetchCurrentShift = async () => {
+    try {
+      const shifts = await api.getShifts()
+      const now = new Date()
+      const shift = (shifts || []).find(
+        (s: any) =>
+          String(s.chatterId) === String(userId) &&
+          new Date(s.startTime) <= now &&
+          new Date(s.endTime) >= now,
+      )
+      setCurrentShift(shift || null)
+      return shift || null
+    } catch (error) {
+      setCurrentShift(null)
+      return null
+    }
+  }
+
   const handleClockIn = async () => {
     setActionLoading(true)
     try {
+      const shift = await fetchCurrentShift()
+      const now = new Date()
+      if (!shift || new Date(shift.startTime) > now) {
+        alert("You can only clock in when your shift has started.")
+        return
+      }
       await api.clockIn(userId)
       await checkActiveEntry()
     } catch (error) {
@@ -61,7 +106,7 @@ export function ClockInOut({ userId, onChange }: ClockInOutProps) {
     }
   }
 
-  const handleClockOut = async () => {
+  const performClockOut = async () => {
     if (!activeEntry) return
 
     setActionLoading(true)
@@ -74,6 +119,19 @@ export function ClockInOut({ userId, onChange }: ClockInOutProps) {
     } finally {
       setActionLoading(false)
     }
+  }
+
+  const handleClockOut = () => {
+    if (!activeEntry) return
+    const now = new Date()
+    if (
+      currentShift &&
+      new Date(currentShift.endTime).getTime() - now.getTime() > 60 * 60 * 1000
+    ) {
+      setShowEarlyClockOut(true)
+      return
+    }
+    void performClockOut()
   }
 
   const formatTime = (date: Date) => {
@@ -188,7 +246,7 @@ export function ClockInOut({ userId, onChange }: ClockInOutProps) {
           ) : (
             <Button
               onClick={handleClockIn}
-              disabled={actionLoading}
+              disabled={actionLoading || !currentShift || new Date(currentShift.startTime) > currentTime}
               className="w-full bg-green-600 hover:bg-green-700"
               size="lg"
             >
@@ -198,6 +256,27 @@ export function ClockInOut({ userId, onChange }: ClockInOutProps) {
           )}
         </div>
       </CardContent>
+      <AlertDialog open={showEarlyClockOut} onOpenChange={setShowEarlyClockOut}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clock out early?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You are attempting to clock out more than an hour before your shift ends. Are you sure you want to continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowEarlyClockOut(false)
+                void performClockOut()
+              }}
+            >
+              Clock Out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   )
 }
