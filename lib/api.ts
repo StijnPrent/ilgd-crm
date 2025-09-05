@@ -111,6 +111,10 @@ class ApiClient {
     return this.request(`/chatters/${id}`)
   }
 
+  getOnlineChatters() {
+    return this.request("/chatters/online")
+  }
+
   createChatter(chatterData: any) {
     return this.request("/chatters", {
       method: "POST",
@@ -163,6 +167,11 @@ class ApiClient {
 
   deleteEmployeeEarning(id: string) {
     return this.request(`/employee-earnings/${id}`, { method: "DELETE" })
+  }
+
+  /* ---------- Revenue ---------- */
+  getRevenueEarnings() {
+    return this.request("/revenue/earnings")
   }
 
   /* ---------- Commissions ---------- */

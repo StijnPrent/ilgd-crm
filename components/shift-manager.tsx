@@ -166,7 +166,19 @@ export function ShiftManager() {
         e.preventDefault()
         try {
             const startDateTime = `${newShift.date}T${newShift.start_hour}:${newShift.start_minute}:00`
-            const endDateTime = `${newShift.date}T${newShift.end_hour}:${newShift.end_minute}:00`
+            let endDate = newShift.date
+
+            if (
+                parseInt(newShift.end_hour) < parseInt(newShift.start_hour) ||
+                (parseInt(newShift.end_hour) === parseInt(newShift.start_hour) &&
+                    parseInt(newShift.end_minute) <= parseInt(newShift.start_minute))
+            ) {
+                const nextDay = new Date(newShift.date)
+                nextDay.setDate(nextDay.getDate() + 1)
+                endDate = nextDay.toISOString().split("T")[0]
+            }
+
+            const endDateTime = `${endDate}T${newShift.end_hour}:${newShift.end_minute}:00`
 
             await api.createShift({
                 chatterId: newShift.chatter_id,
@@ -237,6 +249,7 @@ export function ShiftManager() {
             day: "numeric",
             hour: "2-digit",
             minute: "2-digit",
+            timeZone: "UTC",
         })
     }
 
@@ -356,9 +369,14 @@ export function ShiftManager() {
                                                     {new Date(shift.start_time).toLocaleTimeString("nl-NL", {
                                                         hour: "2-digit",
                                                         minute: "2-digit",
+                                                        timeZone: "UTC",
                                                     })}{" "}
                                                     -{" "}
-                                                    {new Date(shift.end_time).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" })}
+                                                    {new Date(shift.end_time).toLocaleTimeString("nl-NL", {
+                                                        hour: "2-digit",
+                                                        minute: "2-digit",
+                                                        timeZone: "UTC",
+                                                    })}
                                                 </div>
                                                 <button
                                                     className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 hover:bg-red-600 text-white rounded-full p-1"

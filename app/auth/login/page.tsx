@@ -67,15 +67,12 @@ export default function LoginPage() {
                   <Input
                       id="username"
                       type="text"
-                      placeholder="Enter your username or email"
+                      placeholder="Enter your username"
                       required
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
                       autoComplete="username"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Chatters: gebruik je e-mailadres als gebruikersnaam
-                  </p>
                 </div>
 
                 <div className="space-y-2">
