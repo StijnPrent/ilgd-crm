@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { DollarSign, Calendar, User } from "lucide-react"
 import { api } from "@/lib/api"
 import { useEmployeeEarnings } from "@/hooks/use-employee-earnings"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface EarningsOverviewProps {
   limit?: number
@@ -17,6 +18,7 @@ interface EarningsData {
   date: string
   amount: number
   description: string | null
+  chatterId: string
   chatter: {
     full_name: string
   }
@@ -28,7 +30,8 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
   const [totalToday, setTotalToday] = useState(0)
   const [totalWeek, setTotalWeek] = useState(0)
 
-  const { earnings: allEarnings } = useEmployeeEarnings()
+  const { earnings: allEarnings, refresh } = useEmployeeEarnings()
+  const [chatters, setChatters] = useState<{ id: string; full_name: string }[]>([])
 
   useEffect(() => {
     if (allEarnings === null) return
@@ -49,10 +52,15 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
           ]),
       )
 
+      const activeChatters = (chattersData || []).filter((ch: any) => ch.status !== "inactive")
       const activeChattersMap = new Map(
-          (chattersData || [])
-              .filter((ch: any) => ch.status !== "inactive")
-              .map((ch: any) => [String(ch.id), userMap.get(String(ch.id))]),
+        activeChatters.map((ch: any) => [String(ch.id), userMap.get(String(ch.id))]),
+      )
+      setChatters(
+        activeChatters.map((ch: any) => ({
+          id: String(ch.id),
+          full_name: userMap.get(String(ch.id)) || "",
+        })),
       )
 
       const validEarnings = (allEarnings || []).filter((earning: any) =>
@@ -65,6 +73,7 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
           date: earning.date,
           amount: earning.amount,
           description: earning.description,
+          chatterId: String(earning.chatterId),
           chatter: {
             full_name: activeChattersMap.get(String(earning.chatterId)),
           },
@@ -109,6 +118,15 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
       month: "short",
       day: "numeric",
     })
+  }
+
+  const handleChatterChange = async (earningId: string, chatterId: string) => {
+    try {
+      await api.updateEmployeeEarning(earningId, { chatterId })
+      await refresh()
+    } catch (error) {
+      console.error("Error updating earning:", error)
+    }
   }
 
   if (loading) {
@@ -165,10 +183,29 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
                   </div>
                 </TableCell>
                 <TableCell>
-                  <div className="flex items-center gap-2">
-                    <User className="h-4 w-4 text-muted-foreground" />
-                    {earning.chatter.full_name}
-                  </div>
+                  {limit ? (
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                      {earning.chatter.full_name}
+                    </div>
+                  ) : (
+                    <Select
+                      value={earning.chatterId}
+                      onValueChange={(value) => handleChatterChange(earning.id, value)}
+                    >
+                      <SelectTrigger className="w-[200px]">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {chatters.map((chatter) => (
+                          <SelectItem key={chatter.id} value={chatter.id}>
+                            {chatter.full_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1 font-semibold">
