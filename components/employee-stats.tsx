@@ -41,18 +41,11 @@ export function EmployeeStats({ userId, refreshTrigger }: EmployeeStatsProps) {
 
     const fetchStats = async () => {
       try {
-        const [earningsData, chattersData] = await Promise.all([
-          api.getEmployeeEarnings(),
-          api.getChatters(),
+        const [earningsData, chatter, leaderboard] = await Promise.all([
+          api.getEmployeeEarningsByChatter(userId),
+          api.getChatter(userId).catch(() => null),
+          api.getEmployeeEarningsLeaderboard().catch(() => []),
         ])
-
-        const currentChatter = (chattersData || []).find(
-          (c: any) => String(c.id) === String(userId),
-        )
-
-        const userEarnings = (earningsData || []).filter(
-          (e: any) => String(e.chatterId) === String(userId),
-        )
 
         const toISODate = (d: Date) => d.toISOString().split("T")[0]
         const today = toISODate(new Date())
@@ -66,41 +59,30 @@ export function EmployeeStats({ userId, refreshTrigger }: EmployeeStatsProps) {
         monthStart.setDate(1)
         const monthStartISO = toISODate(monthStart)
 
-        const todayTotal = userEarnings
+        const todayTotal = (earningsData || [])
           .filter((e: any) => e.date === today)
           .reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
-        const weekTotal = userEarnings
+        const weekTotal = (earningsData || [])
           .filter((e: any) => e.date >= toISODate(weekStart))
           .reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
-        const monthTotal = userEarnings
+        const monthTotal = (earningsData || [])
           .filter((e: any) => e.date >= monthStartISO)
           .reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
-        const allTimeTotal = userEarnings.reduce(
+        const allTimeTotal = (earningsData || []).reduce(
           (sum: number, e: any) => sum + (e.amount || 0),
           0,
         )
 
-        const currency = currentChatter?.currency || "EUR"
-        const commissionRate = currentChatter?.commissionRate || 0
-        const platformFee = currentChatter?.platformFee || 0
+        const currency = chatter?.currency || "EUR"
+        const commissionRate = chatter?.commissionRate || 0
+        const platformFee = chatter?.platformFee || 0
 
         const estimatedCommission = monthTotal * (commissionRate / 100)
 
-        const monthlyTotals = (chattersData || []).map((ch: any) => {
-          const total = (earningsData || [])
-            .filter(
-              (e: any) =>
-                String(e.chatterId) === String(ch.id) && e.date >= monthStartISO,
-            )
-            .reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
-          return { id: String(ch.id), total }
-        })
-
-        monthlyTotals.sort((a: any, b: any) => b.total - a.total)
-        const rankIndex = monthlyTotals.findIndex(
-          (t: any) => t.id === String(userId),
+        const rankEntry = (leaderboard || []).find(
+          (entry: any) => String(entry.chatterId) === String(userId),
         )
-        const currentRank = rankIndex === -1 ? monthlyTotals.length + 1 : rankIndex + 1
+        const currentRank = rankEntry?.rank || 0
 
         setStats({
           todayEarnings: todayTotal,
