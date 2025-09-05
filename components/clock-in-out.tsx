@@ -61,8 +61,12 @@ export function ClockInOut({ userId, onChange }: ClockInOutProps) {
   const checkActiveEntry = async () => {
     try {
       const entry = await api.getActiveTimeEntry(userId)
-      console.log("Active entry:", entry)
-      setActiveEntry(entry || null)
+      const now = new Date()
+      if (entry && entry.startTime && new Date(entry.startTime) <= now) {
+        setActiveEntry(entry)
+      } else {
+        setActiveEntry(null)
+      }
     } catch (error) {
       setActiveEntry(null)
     } finally {
