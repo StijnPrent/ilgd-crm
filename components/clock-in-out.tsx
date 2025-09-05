@@ -47,14 +47,15 @@ export function ClockInOut({ userId, onChange }: ClockInOutProps) {
       setCurrentTime(new Date())
     }, 1000)
 
-    // Refresh shift info periodically
-    const shiftTimer = setInterval(() => {
+    // Refresh shift and active entry info periodically
+    const syncTimer = setInterval(() => {
       fetchCurrentShift()
+      checkActiveEntry()
     }, 60000)
 
     return () => {
       clearInterval(timeTimer)
-      clearInterval(shiftTimer)
+      clearInterval(syncTimer)
     }
   }, [userId])
 
@@ -250,7 +251,10 @@ export function ClockInOut({ userId, onChange }: ClockInOutProps) {
           ) : (
             <Button
               onClick={handleClockIn}
-              disabled={actionLoading || !currentShift || new Date(currentShift.startTime) > currentTime}
+              disabled={
+                actionLoading ||
+                (currentShift && new Date(currentShift.startTime) > currentTime)
+              }
               className="w-full bg-green-600 hover:bg-green-700"
               size="lg"
             >
