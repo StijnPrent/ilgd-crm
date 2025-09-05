@@ -59,7 +59,7 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
         activeChatters.map((ch: any) => [String(ch.id), userMap.get(String(ch.id))]),
       )
       setChatters([
-        { id: "unknown", full_name: "Unknown chatter" },
+        { id: "unknown", full_name: "Wolf" },
         ...activeChatters.map((ch: any) => ({
           id: String(ch.id),
           full_name: userMap.get(String(ch.id)) || "",
@@ -77,7 +77,7 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
             ? String(earning.chatterId)
             : null
           const full_name = earning.chatterId
-            ? activeChattersMap.get(String(earning.chatterId)) || "Unknown chatter"
+            ? activeChattersMap.get(String(earning.chatterId)) || "Wolf"
             : "Unknown chatter"
           return {
             id: String(earning.id),
