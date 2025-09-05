@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Trophy, Medal, Award, DollarSign } from "lucide-react"
 import { api } from "@/lib/api"
+import { useEmployeeEarnings } from "@/hooks/use-employee-earnings"
 
 interface LeaderboardEntry {
   id: string
@@ -24,14 +25,16 @@ export function Leaderboard({ limit, refreshTrigger }: LeaderboardProps) {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
 
+  const { earnings } = useEmployeeEarnings()
+
   useEffect(() => {
+    if (earnings === null) return
     fetchLeaderboard()
-  }, [refreshTrigger])
+  }, [refreshTrigger, earnings])
 
   const fetchLeaderboard = async () => {
     try {
-      const [earningsData, chattersData, usersData] = await Promise.all([
-        api.getEmployeeEarnings(),
+      const [chattersData, usersData] = await Promise.all([
         api.getChatters(),
         api.getUsers(),
       ])
@@ -49,7 +52,7 @@ export function Leaderboard({ limit, refreshTrigger }: LeaderboardProps) {
       }))
 
       const leaderboardData = (chattersWithNames || []).map((chatter: any) => {
-        const chatterEarnings = (earningsData || []).filter(
+        const chatterEarnings = (earnings || []).filter(
           (earning: any) => String(earning.chatterId) === String(chatter.id),
         )
 

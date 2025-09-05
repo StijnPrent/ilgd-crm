@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { Calculator, DollarSign, Calendar, CheckCircle, Clock, XCircle } from "lucide-react"
 import { api } from "@/lib/api"
+import { useEmployeeEarnings } from "@/hooks/use-employee-earnings"
 
 interface Commission {
   id: string
@@ -50,6 +51,7 @@ export function CommissionCalculator() {
   const [selectedPeriod, setSelectedPeriod] = useState("")
   const [isCalculateDialogOpen, setIsCalculateDialogOpen] = useState(false)
   const [pendingCalculations, setPendingCalculations] = useState<ChatterEarnings[]>([])
+  const { earnings } = useEmployeeEarnings()
 
   useEffect(() => {
     fetchCommissions()
@@ -149,8 +151,9 @@ export function CommissionCalculator() {
     try {
       const [startDate, endDate] = selectedPeriod.split("_")
 
-      const [earningsData, chattersData, usersData] = await Promise.all([
-        api.getEmployeeEarnings(),
+      if (earnings === null) return
+
+      const [chattersData, usersData] = await Promise.all([
         api.getChatters(),
         api.getUsers(),
       ])
@@ -170,7 +173,7 @@ export function CommissionCalculator() {
       const calculations: ChatterEarnings[] = []
 
       ;(chattersWithNames || []).forEach((chatter: any) => {
-        const chatterEarnings = (earningsData || []).filter(
+        const chatterEarnings = (earnings || []).filter(
           (e: any) =>
             String(e.chatterId) === String(chatter.id) &&
             e.date >= startDate &&

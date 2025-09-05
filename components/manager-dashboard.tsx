@@ -20,6 +20,7 @@ import { CommissionCalculator } from "@/components/commission-calculator"
 import { Leaderboard } from "@/components/leaderboard"
 import { CreateChatterForm } from "@/components/create-chatter-form"
 import { WeeklyCalendar } from "@/components/weekly-calendar"
+import { EmployeeEarningsProvider } from "@/hooks/use-employee-earnings"
 import { Users, DollarSign, Calendar, TrendingUp, Award, Settings, UserPlus, RotateCcw, Shield, User } from "lucide-react"
 import Image from "next/image"
 
@@ -228,14 +229,15 @@ export function ManagerDashboard() {
 
         {/* Main Content */}
         <main className="container mx-auto px-4 py-6">
-          {/* Stats Overview */}
-          <div className="mb-8">
-            <ManagerStats />
-          </div>
+          <EmployeeEarningsProvider>
+            {/* Stats Overview */}
+            <div className="mb-8">
+              <ManagerStats />
+            </div>
 
-          {/* Tabs */}
-          <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="overview" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-8">
+            {/* Tabs */}
+            <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="overview" className="space-y-6">
+              <TabsList className="grid w-full grid-cols-8">
               <TabsTrigger value="overview" className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
                 Overview
@@ -384,6 +386,7 @@ export function ManagerDashboard() {
               <Leaderboard />
             </TabsContent>
           </Tabs>
+          </EmployeeEarningsProvider>
         </main>
       </div>
   )

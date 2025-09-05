@@ -30,6 +30,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Plus, Search, Clock, DollarSign, Trash2, UserX, UserCheck } from "lucide-react"
 import { api } from "@/lib/api"
+import { useEmployeeEarnings } from "@/hooks/use-employee-earnings"
 
 interface Chatter {
   id: string
@@ -71,15 +72,17 @@ export function ChattersList() {
     return value.replace(".", ",")
   }
 
+  const { earnings } = useEmployeeEarnings()
+
   useEffect(() => {
+    if (earnings === null) return
     fetchChatters()
-  }, [])
+  }, [earnings])
 
   const fetchChatters = async () => {
     try {
-      const [chattersData, earningsData, usersData] = await Promise.all([
+      const [chattersData, usersData] = await Promise.all([
         api.getChatters(),
-        api.getEmployeeEarnings(),
         api.getUsers(),
       ])
 
@@ -100,7 +103,7 @@ export function ChattersList() {
           full_name: "",
         }
 
-        const chatterEarnings = (earningsData || []).filter((e: any) => String(e.chatterId) === String(chatter.id))
+        const chatterEarnings = (earnings || []).filter((e: any) => String(e.chatterId) === String(chatter.id))
 
         const todayEarnings = chatterEarnings
           .filter((e: any) => e.date === today)
