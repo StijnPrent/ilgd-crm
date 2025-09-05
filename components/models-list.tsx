@@ -18,7 +18,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog"
-import { Plus, Trash2 } from "lucide-react"
+import { Plus, Trash2, Pencil } from "lucide-react"
 import { api } from "@/lib/api"
 
 interface Model {
@@ -37,6 +37,12 @@ export function ModelsList() {
     username: "",
     commissionRate: "",
   })
+  const [editingModel, setEditingModel] = useState<{
+    id: string
+    displayName: string
+    username: string
+    commissionRate: string
+  } | null>(null)
 
   useEffect(() => {
     fetchModels()
@@ -75,6 +81,22 @@ export function ModelsList() {
     }
   }
 
+  const handleUpdateModel = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingModel) return
+    try {
+      await api.updateModel(editingModel.id, {
+        displayName: editingModel.displayName,
+        username: editingModel.username,
+        commissionRate: parseFloat(editingModel.commissionRate) || 0,
+      })
+      setEditingModel(null)
+      fetchModels()
+    } catch (err) {
+      console.error("Error updating model:", err)
+    }
+  }
+
   const handleDeleteModel = async (id: string) => {
     try {
       await api.deleteModel(id)
@@ -85,13 +107,14 @@ export function ModelsList() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle>Models</CardTitle>
-            <CardDescription>Manage models</CardDescription>
-          </div>
+    <>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Models</CardTitle>
+              <CardDescription>Manage models</CardDescription>
+            </div>
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
               <Button>
@@ -160,7 +183,22 @@ export function ModelsList() {
                 <TableCell>{model.username}</TableCell>
                 <TableCell>{model.commissionRate}%</TableCell>
                 <TableCell>{new Date(model.createdAt).toLocaleDateString("nl-NL")}</TableCell>
-                <TableCell>
+                <TableCell className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setEditingModel({
+                        id: model.id,
+                        displayName: model.displayName,
+                        username: model.username,
+                        commissionRate: String(model.commissionRate),
+                      })
+                    }
+                  >
+                    <Pencil className="h-3 w-3 mr-1" />
+                    Edit
+                  </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button variant="destructive" size="sm">
@@ -196,6 +234,61 @@ export function ModelsList() {
         )}
       </CardContent>
     </Card>
+      <Dialog open={!!editingModel} onOpenChange={(open) => !open && setEditingModel(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Model</DialogTitle>
+            <DialogDescription>Update model details</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleUpdateModel} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-displayName">Display Name</Label>
+              <Input
+                id="edit-displayName"
+                value={editingModel?.displayName || ""}
+                onChange={(e) =>
+                  setEditingModel((prev) =>
+                    prev ? { ...prev, displayName: e.target.value } : prev,
+                  )
+                }
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-username">Username</Label>
+              <Input
+                id="edit-username"
+                value={editingModel?.username || ""}
+                onChange={(e) =>
+                  setEditingModel((prev) =>
+                    prev ? { ...prev, username: e.target.value } : prev,
+                  )
+                }
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-commissionRate">Commission Rate</Label>
+              <Input
+                id="edit-commissionRate"
+                type="number"
+                step="0.01"
+                value={editingModel?.commissionRate || ""}
+                onChange={(e) =>
+                  setEditingModel((prev) =>
+                    prev ? { ...prev, commissionRate: e.target.value } : prev,
+                  )
+                }
+                required
+              />
+            </div>
+            <Button type="submit" className="w-full">
+              Update Model
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 

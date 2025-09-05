@@ -18,10 +18,10 @@ interface EarningsData {
   date: string
   amount: number
   description: string | null
-  chatterId: string
+  chatterId: string | null
   chatter: {
     full_name: string
-  }
+  } | null
 }
 
 export function EarningsOverview({ limit }: EarningsOverviewProps) {
@@ -75,7 +75,7 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
         .map((earning: any) => {
           const chatterId = earning.chatterId
             ? String(earning.chatterId)
-            : "unknown"
+            : null
           const full_name = earning.chatterId
             ? activeChattersMap.get(String(earning.chatterId)) || "Unknown chatter"
             : "Unknown chatter"
@@ -85,7 +85,7 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
             amount: earning.amount,
             description: earning.description,
             chatterId,
-            chatter: { full_name },
+            chatter: earning.chatterId ? { full_name } : null,
           }
         })
         .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -198,11 +198,11 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
                   {limit ? (
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4 text-muted-foreground" />
-                      {earning.chatter.full_name}
+                      {earning.chatter?.full_name ?? "Unknown chatter"}
                     </div>
                   ) : (
                     <Select
-                      value={earning.chatterId}
+                      value={earning.chatterId ?? "unknown"}
                       onValueChange={(value) => handleChatterChange(earning.id, value)}
                     >
                       <SelectTrigger className="w-[200px]">
