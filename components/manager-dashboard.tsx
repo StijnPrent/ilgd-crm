@@ -21,7 +21,8 @@ import {Leaderboard} from "@/components/leaderboard"
 import {CreateChatterForm} from "@/components/create-chatter-form"
 import {WeeklyCalendar} from "@/components/weekly-calendar"
 import {EmployeeEarningsProvider} from "@/hooks/use-employee-earnings"
-import {Users, DollarSign, Calendar, TrendingUp, Award, Settings, UserPlus, RotateCcw, Shield, User} from "lucide-react"
+import {RevenueOverview} from "@/components/revenue-overview"
+import {Users, DollarSign, Calendar, TrendingUp, Award, Settings, UserPlus, RotateCcw, Shield, User, PieChart} from "lucide-react"
 import Image from "next/image"
 
 import {api} from "@/lib/api"
@@ -242,7 +243,7 @@ export function ManagerDashboard() {
 
                     {/* Tabs */}
                     <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="overview" className="space-y-6">
-                        <TabsList className="grid w-full grid-cols-6">
+                        <TabsList className="grid w-full grid-cols-7">
                             <TabsTrigger value="overview" className="flex items-center gap-2">
                                 <TrendingUp className="h-4 w-4"/>
                                 Overview
@@ -266,6 +267,10 @@ export function ManagerDashboard() {
                             <TabsTrigger value="commissions" className="flex items-center gap-2">
                                 <DollarSign className="h-4 w-4"/>
                                 Commissions
+                            </TabsTrigger>
+                            <TabsTrigger value="revenue" className="flex items-center gap-2">
+                                <PieChart className="h-4 w-4"/>
+                                Revenue
                             </TabsTrigger>
                         </TabsList>
 
@@ -366,6 +371,9 @@ export function ManagerDashboard() {
 
                         <TabsContent value="commissions">
                             <CommissionCalculator/>
+                        </TabsContent>
+                        <TabsContent value="revenue">
+                            <RevenueOverview/>
                         </TabsContent>
                     </Tabs>
                 </EmployeeEarningsProvider>
