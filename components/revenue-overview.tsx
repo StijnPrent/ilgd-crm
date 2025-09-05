@@ -1,29 +1,73 @@
 "use client"
 
-import {useState} from "react"
+import {useEffect, useState} from "react"
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "@/components/ui/card"
 import {Input} from "@/components/ui/input"
 import {Label} from "@/components/ui/label"
+import {Button} from "@/components/ui/button"
 import {useEmployeeEarnings} from "@/hooks/use-employee-earnings"
-import {DollarSign} from "lucide-react"
+import {DollarSign, X} from "lucide-react"
+import {api} from "@/lib/api"
 
 export function RevenueOverview() {
   const { earnings, loading } = useEmployeeEarnings()
   const [platformFee, setPlatformFee] = useState(20)
-  const [splitRate, setSplitRate] = useState(50)
-  const [deduction, setDeduction] = useState(0)
+  const [modelsMap, setModelsMap] = useState<Map<string, number>>(new Map())
+  const [chattersMap, setChattersMap] = useState<Map<string, number>>(new Map())
+  const [adjustments, setAdjustments] = useState<number[]>([])
+  const [commissionLoading, setCommissionLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [modelsData, chattersData] = await Promise.all([
+          api.getModels(),
+          api.getChatters(),
+        ])
+        setModelsMap(new Map((modelsData || []).map((m: any) => [String(m.id), m.commissionRate || 0])))
+        setChattersMap(new Map((chattersData || []).map((c: any) => [String(c.id), c.commissionRate || c.commission_rate || 0])))
+      } catch (err) {
+        console.error("Failed to load commission data:", err)
+      } finally {
+        setCommissionLoading(false)
+      }
+    }
+    fetchData()
+  }, [])
 
   const total = (earnings || []).reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
   const platformFeeAmount = total * (platformFee / 100)
   const afterPlatform = total - platformFeeAmount
-  const modelPayout = afterPlatform * (splitRate / 100)
-  const companyRevenue = afterPlatform - modelPayout
-  const finalRevenue = companyRevenue - deduction
+
+  let modelCommission = 0
+  let chatterCommission = 0
+  ;(earnings || []).forEach((e: any) => {
+    const amount = e.amount || 0
+    const net = amount * (1 - platformFee / 100)
+    const mRate = modelsMap.get(String(e.modelId ?? e.model_id)) || 0
+    const cRate = chattersMap.get(String(e.chatterId ?? e.chatter_id)) || 0
+    modelCommission += net * (mRate / 100)
+    chatterCommission += net * (cRate / 100)
+  })
+
+  const companyRevenue = afterPlatform - modelCommission - chatterCommission
+  const adjustmentsTotal = adjustments.reduce((sum, val) => sum + (val || 0), 0)
+  const finalRevenue = companyRevenue + adjustmentsTotal
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" }).format(amount)
 
-  if (loading) {
+  const addAdjustment = () => setAdjustments([...adjustments, 0])
+  const updateAdjustment = (index: number, value: number) => {
+    const newAdjustments = [...adjustments]
+    newAdjustments[index] = value
+    setAdjustments(newAdjustments)
+  }
+  const removeAdjustment = (index: number) => {
+    setAdjustments(adjustments.filter((_, i) => i !== index))
+  }
+
+  if (loading || commissionLoading) {
     return (
       <Card>
         <CardContent className="p-6">
@@ -42,14 +86,14 @@ export function RevenueOverview() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <DollarSign className="h-5 w-5" />
-          Revenue After Split
+          Revenue Overview
         </CardTitle>
         <CardDescription>
-          View total revenue after platform fees and model split.
+          Total revenue after platform, model and chatter commissions.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="platform-fee">Platform fee (%)</Label>
             <Input
@@ -60,22 +104,22 @@ export function RevenueOverview() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="split-rate">Model split (%)</Label>
-            <Input
-              id="split-rate"
-              type="number"
-              value={splitRate}
-              onChange={(e) => setSplitRate(Number(e.target.value) || 0)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="deduction">Additional deductions (€)</Label>
-            <Input
-              id="deduction"
-              type="number"
-              value={deduction}
-              onChange={(e) => setDeduction(Number(e.target.value) || 0)}
-            />
+            <Label>Manual adjustments (negative = cost)</Label>
+            {adjustments.map((adj, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  value={adj}
+                  onChange={(e) => updateAdjustment(idx, Number(e.target.value) || 0)}
+                />
+                <Button variant="outline" size="icon" onClick={() => removeAdjustment(idx)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            <Button variant="outline" onClick={addAdjustment} className="w-full">
+              Add adjustment
+            </Button>
           </div>
         </div>
 
@@ -93,17 +137,21 @@ export function RevenueOverview() {
             <span>{formatCurrency(afterPlatform)}</span>
           </div>
           <div className="flex justify-between">
-            <span>Model split ({splitRate}%)</span>
-            <span>-{formatCurrency(modelPayout)}</span>
+            <span>Model commissions</span>
+            <span>-{formatCurrency(modelCommission)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Chatter commissions</span>
+            <span>-{formatCurrency(chatterCommission)}</span>
           </div>
           <div className="flex justify-between font-medium">
             <span>Company revenue</span>
             <span>{formatCurrency(companyRevenue)}</span>
           </div>
-          {deduction !== 0 && (
+          {adjustmentsTotal !== 0 && (
             <div className="flex justify-between">
-              <span>Other deductions</span>
-              <span>-{formatCurrency(deduction)}</span>
+              <span>Adjustments</span>
+              <span>{adjustmentsTotal >= 0 ? "+" : ""}{formatCurrency(adjustmentsTotal)}</span>
             </div>
           )}
           <div className="flex justify-between font-bold">
