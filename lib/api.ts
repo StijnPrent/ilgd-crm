@@ -111,6 +111,10 @@ class ApiClient {
     return this.request(`/chatters/${id}`)
   }
 
+  getOnlineChatters() {
+    return this.request("/chatters/online")
+  }
+
   createChatter(chatterData: any) {
     return this.request("/chatters", {
       method: "POST",

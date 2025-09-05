@@ -31,7 +31,10 @@ export function ManagerStats() {
 
     const calculateRealStats = async () => {
       try {
-        const chatters = await api.getChatters()
+        const [chatters, onlineChatters] = await Promise.all([
+          api.getChatters(),
+          api.getOnlineChatters(),
+        ])
 
         const today = new Date().toISOString().split("T")[0]
         const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
@@ -49,11 +52,9 @@ export function ManagerStats() {
           .filter((e: any) => e.date.split("T")[0] >= oneMonthAgo)
           .reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
 
-        const onlineCount = Math.floor((chatters?.length || 0) * 0.4)
-
         setStats({
           totalChatters: (chatters || []).length,
-          currentlyOnline: onlineCount,
+          currentlyOnline: (onlineChatters || []).length,
           totalEarningsToday: todayEarnings,
           totalEarningsWeek: weekEarnings,
           totalEarningsMonth: monthEarnings,

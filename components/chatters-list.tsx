@@ -81,10 +81,15 @@ export function ChattersList() {
 
   const fetchChatters = async () => {
     try {
-      const [chattersData, usersData] = await Promise.all([
+      const [chattersData, usersData, onlineChatters] = await Promise.all([
         api.getChatters(),
         api.getUsers(),
+        api.getOnlineChatters(),
       ])
+
+      const onlineIds = new Set(
+        (onlineChatters || []).map((c: any) => String(c.id)),
+      )
 
       const userMap = new Map(
           (usersData || []).map((u: any) => [
@@ -118,7 +123,7 @@ export function ChattersList() {
           full_name: user.full_name,
           email: chatter.email,
           created_at: chatter.createdAt,
-          isOnline: Math.random() > 0.6,
+          isOnline: onlineIds.has(String(chatter.id)),
           todayEarnings,
           weekEarnings,
           currency: chatter.currency || chatter.currency_symbol || "€",
