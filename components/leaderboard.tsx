@@ -5,14 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Trophy, Medal, Award, DollarSign } from "lucide-react"
 import { api } from "@/lib/api"
-import { useEmployeeEarnings } from "@/hooks/use-employee-earnings"
 
 interface LeaderboardEntry {
-  id: string
-  full_name: string
-  total_earnings: number
-  week_earnings: number
-  month_earnings: number
+  chatterId: string
+  chatterName: string
+  weeklyAmount: number
+  monthlyAmount: number
   rank: number
 }
 
@@ -25,70 +23,14 @@ export function Leaderboard({ limit, refreshTrigger }: LeaderboardProps) {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
 
-  const { earnings } = useEmployeeEarnings()
-
   useEffect(() => {
-    if (earnings === null) return
     fetchLeaderboard()
-  }, [refreshTrigger, earnings])
+  }, [refreshTrigger])
 
   const fetchLeaderboard = async () => {
     try {
-      const [chattersData, usersData] = await Promise.all([
-        api.getChatters(),
-        api.getUsers(),
-      ])
-
-      const userMap = new Map(
-          (usersData || []).map((u: any) => [
-            String(u.id),
-            u.fullName  || "",
-          ]),
-      )
-
-      const chattersWithNames = (chattersData || []).map((ch: any) => ({
-        ...ch,
-        full_name: userMap.get(String(ch.id)) || "",
-      }))
-
-      const leaderboardData = (chattersWithNames || []).map((chatter: any) => {
-        const chatterEarnings = (earnings || []).filter(
-          (earning: any) => String(earning.chatterId) === String(chatter.id),
-        )
-
-        const now = new Date()
-        const startOfWeek = new Date(now)
-        startOfWeek.setDate(now.getDate() - now.getDay())
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-
-        const weekEarnings = chatterEarnings
-          .filter((earning: any) => new Date(earning.date) >= startOfWeek)
-          .reduce((sum: number, earning: any) => sum + (earning.amount || 0), 0)
-
-        const monthEarnings = chatterEarnings
-          .filter((earning: any) => new Date(earning.date) >= startOfMonth)
-          .reduce((sum: number, earning: any) => sum + (earning.amount || 0), 0)
-
-        const totalEarnings = chatterEarnings.reduce(
-          (sum: number, earning: any) => sum + (earning.amount || 0),
-          0,
-        )
-
-        return {
-          id: String(chatter.id),
-          full_name: chatter.full_name,
-          total_earnings: totalEarnings,
-          week_earnings: weekEarnings,
-          month_earnings: monthEarnings,
-          rank: 0,
-        }
-      })
-
-      const sortedData = leaderboardData
-        .sort((a: any, b: any) => b.month_earnings - a.month_earnings)
-        .map((entry: any, index: any) => ({ ...entry, rank: index + 1 }))
-
-      const limitedData = limit ? sortedData.slice(0, limit) : sortedData
+      const data = await api.getEmployeeEarningsLeaderboard()
+      const limitedData = limit ? (data || []).slice(0, limit) : data || []
       setLeaderboard(limitedData)
     } catch (error) {
       console.error("Error fetching leaderboard:", error)
@@ -157,7 +99,7 @@ export function Leaderboard({ limit, refreshTrigger }: LeaderboardProps) {
         <div className="space-y-4">
           {leaderboard.map((entry) => (
             <div
-              key={entry.id}
+              key={entry.chatterId}
               className={`flex items-center justify-between p-4 rounded-lg border ${
                 entry.rank <= 3 ? "bg-muted/50" : "bg-background"
               }`}
@@ -166,18 +108,18 @@ export function Leaderboard({ limit, refreshTrigger }: LeaderboardProps) {
                 <div className="flex items-center justify-center w-10 h-10">{getRankIcon(entry.rank)}</div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="font-semibold">{entry.full_name}</h3>
+                    <h3 className="font-semibold">{entry.chatterName}</h3>
                     {entry.rank <= 3 && getRankBadge(entry.rank)}
                   </div>
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <span>Week: {formatCurrency(entry.week_earnings)}</span>
+                    <span>Week: {formatCurrency(entry.weeklyAmount)}</span>
                   </div>
                 </div>
               </div>
               <div className="text-right">
                 <div className="flex items-center gap-1 text-lg font-bold">
                   <DollarSign className="h-4 w-4" />
-                  {formatCurrency(entry.month_earnings)}
+                  {formatCurrency(entry.monthlyAmount)}
                 </div>
                 <div className="text-sm text-muted-foreground">Monthly Earnings</div>
               </div>

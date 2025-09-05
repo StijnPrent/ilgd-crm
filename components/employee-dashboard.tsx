@@ -188,7 +188,7 @@ export function EmployeeDashboard() {
 
         {/* Main Content */}
         <main className="container mx-auto px-4 py-6">
-          <EmployeeEarningsProvider>
+          <EmployeeEarningsProvider userId={user.id}>
             {/* Stats Overview */}
             <div className="mb-8">
               <EmployeeStats userId={user.id} refreshTrigger={refreshStats} />

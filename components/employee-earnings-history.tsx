@@ -28,12 +28,11 @@ export function EmployeeEarningsHistory({ userId, limit }: EmployeeEarningsHisto
     const fetchEarnings = async () => {
       try {
         const [earningsData, chatter] = await Promise.all([
-          api.getEmployeeEarnings(),
+          api.getEmployeeEarningsByChatter(userId),
           api.getChatter(userId).catch(() => null),
         ])
 
         const userEarnings = (earningsData || [])
-          .filter((e: any) => String(e.chatterId) === String(userId))
           .map((e: any) => ({
             id: String(e.id),
             date: e.date,
