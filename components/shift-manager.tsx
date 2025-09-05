@@ -431,7 +431,7 @@ export function ShiftManager() {
 
                                     <div>
                                         <Label htmlFor="models">Models</Label>
-                                        <Popover open={isModelPopoverOpen} onOpenChange={setIsModelPopoverOpen}>
+                                        <Popover modal open={isModelPopoverOpen} onOpenChange={setIsModelPopoverOpen}>
                                             <PopoverTrigger asChild>
                                                 <Button
                                                     variant="outline"
@@ -445,7 +445,7 @@ export function ShiftManager() {
                                                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                                 </Button>
                                             </PopoverTrigger>
-                                            <PopoverContent className="w-full p-0">
+                                            <PopoverContent portalled={false} className="w-full p-0">
                                                 <Command>
                                                     <CommandInput placeholder="Zoek models..." />
                                                     <CommandEmpty>Geen models gevonden.</CommandEmpty>
