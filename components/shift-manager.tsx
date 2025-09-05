@@ -166,7 +166,19 @@ export function ShiftManager() {
         e.preventDefault()
         try {
             const startDateTime = `${newShift.date}T${newShift.start_hour}:${newShift.start_minute}:00`
-            const endDateTime = `${newShift.date}T${newShift.end_hour}:${newShift.end_minute}:00`
+            let endDate = newShift.date
+
+            if (
+                parseInt(newShift.end_hour) < parseInt(newShift.start_hour) ||
+                (parseInt(newShift.end_hour) === parseInt(newShift.start_hour) &&
+                    parseInt(newShift.end_minute) <= parseInt(newShift.start_minute))
+            ) {
+                const nextDay = new Date(newShift.date)
+                nextDay.setDate(nextDay.getDate() + 1)
+                endDate = nextDay.toISOString().split("T")[0]
+            }
+
+            const endDateTime = `${endDate}T${newShift.end_hour}:${newShift.end_minute}:00`
 
             await api.createShift({
                 chatterId: newShift.chatter_id,
