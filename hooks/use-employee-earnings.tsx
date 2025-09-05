@@ -18,7 +18,7 @@ export function EmployeeEarningsProvider({ children }: { children: ReactNode }) 
   const refresh = async () => {
     try {
       setLoading(true)
-      const data = await api.getRevenueEarnings()
+      const data = await api.getEmployeeEarnings()
       setEarnings(data || [])
     } catch (err) {
       console.error("Failed to load employee earnings:", err)
