@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { DollarSign, Calendar, User } from "lucide-react"
+import { DollarSign, Calendar, User, MessageSquare, Gift, Repeat, FileText } from "lucide-react"
 import { api } from "@/lib/api"
 import { useEmployeeEarnings } from "@/hooks/use-employee-earnings"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -18,6 +18,7 @@ interface EarningsData {
   date: string
   amount: number
   description: string | null
+  type: string
   chatterId: string | null
   chatter: {
     full_name: string
@@ -84,6 +85,7 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
             date: earning.date,
             amount: earning.amount,
             description: earning.description,
+            type: earning.type,
             chatterId,
             chatter: earning.chatterId ? { full_name } : null,
           }
@@ -180,6 +182,7 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
           <TableHeader>
             <TableRow>
               <TableHead>Date</TableHead>
+              <TableHead>Type</TableHead>
               <TableHead>Chatter</TableHead>
               <TableHead>Amount</TableHead>
               <TableHead>Description</TableHead>
@@ -195,28 +198,43 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
                   </div>
                 </TableCell>
                 <TableCell>
-                  {limit ? (
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                      {earning.chatter?.full_name ?? "Unknown chatter"}
-                    </div>
-                  ) : (
-                    <Select
-                      value={earning.chatterId ?? "unknown"}
-                      onValueChange={(value) => handleChatterChange(earning.id, value)}
-                    >
-                      <SelectTrigger className="w-[200px]">
+                  {(() => {
+                    const iconMap: Record<string, JSX.Element> = {
+                      paypermessage: <MessageSquare className="h-4 w-4 text-muted-foreground" />,
+                      tip: <Gift className="h-4 w-4 text-muted-foreground" />,
+                      subscriptionperiod: <Repeat className="h-4 w-4 text-muted-foreground" />,
+                      payperpost: <FileText className="h-4 w-4 text-muted-foreground" />,
+                    }
+                    return iconMap[earning.type] || null
+                  })()}
+                </TableCell>
+                <TableCell>
+                  {['paypermessage','tip'].includes(earning.type) ? (
+                    limit ? (
+                      <div className="flex items-center gap-2">
                         <User className="h-4 w-4 text-muted-foreground" />
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {chatters.map((chatter) => (
-                          <SelectItem key={chatter.id} value={chatter.id}>
-                            {chatter.full_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                        {earning.chatter?.full_name ?? "Unknown chatter"}
+                      </div>
+                    ) : (
+                      <Select
+                        value={earning.chatterId ?? "unknown"}
+                        onValueChange={(value) => handleChatterChange(earning.id, value)}
+                      >
+                        <SelectTrigger className="w-[200px]">
+                          <User className="h-4 w-4 text-muted-foreground" />
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {chatters.map((chatter) => (
+                            <SelectItem key={chatter.id} value={chatter.id}>
+                              {chatter.full_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
                   )}
                 </TableCell>
                 <TableCell>

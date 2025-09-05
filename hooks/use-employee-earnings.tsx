@@ -11,14 +11,18 @@ interface EmployeeEarningsContextValue {
 
 const EmployeeEarningsContext = createContext<EmployeeEarningsContextValue | undefined>(undefined)
 
-export function EmployeeEarningsProvider({ children }: { children: ReactNode }) {
+interface ProviderProps { children: ReactNode; userId?: string }
+
+export function EmployeeEarningsProvider({ children, userId }: ProviderProps) {
   const [earnings, setEarnings] = useState<any[] | null>(null)
   const [loading, setLoading] = useState(true)
 
   const refresh = async () => {
     try {
       setLoading(true)
-      const data = await api.getEmployeeEarnings()
+      const data = userId
+        ? await api.getEmployeeEarningsByChatter(userId)
+        : await api.getEmployeeEarnings()
       setEarnings(data || [])
     } catch (err) {
       console.error("Failed to load employee earnings:", err)
@@ -30,7 +34,7 @@ export function EmployeeEarningsProvider({ children }: { children: ReactNode }) 
 
   useEffect(() => {
     refresh()
-  }, [])
+  }, [userId])
 
   return (
     <EmployeeEarningsContext.Provider value={{ earnings, loading, refresh }}>

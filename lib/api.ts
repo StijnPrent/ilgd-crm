@@ -147,6 +147,14 @@ class ApiClient {
     return this.request("/employee-earnings")
   }
 
+  getEmployeeEarningsByChatter(id: string) {
+    return this.request(`/employee-earnings/chatter/${id}`)
+  }
+
+  getEmployeeEarningsLeaderboard() {
+    return this.request("/employee-earnings/leaderboard")
+  }
+
   getEmployeeEarning(id: string) {
     return this.request(`/employee-earnings/${id}`)
   }
