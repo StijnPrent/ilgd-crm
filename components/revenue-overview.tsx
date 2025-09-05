@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   Card,
   CardContent,
@@ -11,13 +11,29 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-import { useEmployeeEarnings } from "@/hooks/use-employee-earnings"
+import { api } from "@/lib/api"
 import { DollarSign, X } from "lucide-react"
 
 export function RevenueOverview() {
-  const { earnings, loading } = useEmployeeEarnings()
+  const [earnings, setEarnings] = useState<any[] | null>(null)
+  const [loading, setLoading] = useState(true)
   const [platformFee, setPlatformFee] = useState(20)
   const [adjustments, setAdjustments] = useState<number[]>([])
+
+  useEffect(() => {
+    const fetchEarnings = async () => {
+      try {
+        const data = await api.getRevenueEarnings()
+        setEarnings(data || [])
+      } catch (err) {
+        console.error("Failed to load revenue earnings:", err)
+        setEarnings([])
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchEarnings()
+  }, [])
 
   const total = (earnings || []).reduce(
       (sum: number, e: any) => sum + (e.amount || 0),
