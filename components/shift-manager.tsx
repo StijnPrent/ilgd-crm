@@ -459,7 +459,7 @@ export function ShiftManager() {
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-[200px] p-0">
+                      <PopoverContent portalled={false} className="w-[200px] p-0">
                         <Command>
                           <CommandInput placeholder="Zoek model..." />
                           <CommandEmpty>Geen model gevonden.</CommandEmpty>
