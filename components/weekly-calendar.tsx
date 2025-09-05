@@ -11,8 +11,8 @@ interface Shift {
   id: string
   chatter_id: string
   chatter_name: string
-  model_id: string[]
-  model_name: string[]
+  model_ids: string[]
+  model_names: string[]
   date: string
   start_time: string
   end_time: string
@@ -85,8 +85,10 @@ export function WeeklyCalendar({
         id: String(shift.id),
         chatter_id: String(shift.chatterId),
         chatter_name: chatterMap[String(shift.chatterId)] || "Unknown Chatter",
-        model_id: String(shift.modelIds),
-        model_name: modelMap[String(shift.modelIds)] || "No model",
+        model_ids: (shift.modelIds || []).map((id: any) => String(id)),
+        model_names: (shift.modelIds || []).map(
+            (id: any) => modelMap[String(id)] || "Unknown Model",
+        ),
         date: shift.startTime ? shift.startTime.split("T")[0] : shift.date,
         start_time: shift.startTime ? shift.startTime.substring(11, 16) : shift.startTime,
         end_time: shift.endTime ? shift.endTime.substring(11, 16) : shift.endTime,
@@ -201,9 +203,15 @@ export function WeeklyCalendar({
                         <Clock className="h-3 w-3" />
                         <span>{shift.start_time} - {shift.end_time}</span>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <UserCircle className="h-3 w-3" />
-                        <span className="truncate">{shift.model_name}</span>
+                      <div className="flex items-start gap-1">
+                        <UserCircle className="h-3 w-3 mt-0.5" />
+                        <div className="flex flex-col">
+                          {shift.model_names.map((name: string, idx: number) => (
+                            <span key={idx} className="truncate">
+                              {name}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                       {showChatterNames && (
                         <div className="flex items-center gap-1">
