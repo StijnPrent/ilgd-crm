@@ -143,8 +143,14 @@ class ApiClient {
   }
 
   /* ---------- Employee Earnings ---------- */
-  getEmployeeEarnings() {
-    return this.request("/employee-earnings")
+  getEmployeeEarnings(params?: { limit?: number; offset?: number; chatterId?: string; type?: string }) {
+    const search = new URLSearchParams()
+    if (params?.limit !== undefined) search.set("limit", String(params.limit))
+    if (params?.offset !== undefined) search.set("offset", String(params.offset))
+    if (params?.chatterId) search.set("chatterId", params.chatterId)
+    if (params?.type) search.set("type", params.type)
+    const query = search.toString() ? `?${search.toString()}` : ""
+    return this.request(`/employee-earnings${query}`)
   }
 
   getEmployeeEarningsByChatter(id: string) {
