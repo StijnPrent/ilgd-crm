@@ -95,7 +95,7 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
               : null
             const full_name = earning.chatterId
               ? chatterMap.get(String(earning.chatterId)) || "Wolf"
-              : "Unknown chatter"
+              : "Wolf"
             return {
               id: String(earning.id),
               date: earning.date,
@@ -281,7 +281,7 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
                     limit ? (
                       <div className="flex items-center gap-2">
                         <User className="h-4 w-4 text-muted-foreground" />
-                        {earning.chatter?.full_name ?? "Unknown chatter"}
+                        {earning.chatter?.full_name ?? "Wolf"}
                       </div>
                     ) : (
                       <Select

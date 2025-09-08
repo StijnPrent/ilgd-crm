@@ -280,7 +280,6 @@ export function ManagerDashboard() {
                             </div>
                             <div className="grid gap-6 md:grid-cols-2">
                                 <div>
-
                                     <EarningsOverview limit={5}/>
                                 </div>
                                 <div>
