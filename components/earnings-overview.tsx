@@ -33,6 +33,8 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
   const [typeFilter, setTypeFilter] = useState("all")
   const [hasMore, setHasMore] = useState(true)
   const offsetRef = useRef(0)
+  const hasMoreRef = useRef(true)
+  const loadingMoreRef = useRef(false)
   const [chatterMap, setChatterMap] = useState<Map<string, string>>(new Map())
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
 
@@ -124,22 +126,30 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
   )
 
   useEffect(() => {
+    hasMoreRef.current = hasMore
+  }, [hasMore])
+
+  useEffect(() => {
+    loadingMoreRef.current = loadingMore
+  }, [loadingMore])
+
+  useEffect(() => {
     if (chatterMap.size === 0) return
     loadEarnings(true)
   }, [chatterFilter, typeFilter, chatterMap, loadEarnings])
 
   useEffect(() => {
-    if (limit) return
+    if (limit || loading || !hasMore) return
     const node = loadMoreRef.current
     if (!node) return
     const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting && hasMore && !loadingMore) {
+      if (entries[0].isIntersecting && hasMoreRef.current && !loadingMoreRef.current) {
         loadEarnings()
       }
     })
     observer.observe(node)
     return () => observer.disconnect()
-  }, [limit, loadEarnings, hasMore, loadingMore])
+  }, [limit, loadEarnings, loading, hasMore])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("nl-NL", {
