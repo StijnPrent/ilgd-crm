@@ -32,7 +32,9 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
   const [chatterFilter, setChatterFilter] = useState("all")
   const [typeFilter, setTypeFilter] = useState("all")
   const [hasMore, setHasMore] = useState(true)
-  const [offset, setOffset] = useState(0)
+  const offsetRef = useRef(0)
+  const hasMoreRef = useRef(true)
+  const loadingMoreRef = useRef(false)
   const [chatterMap, setChatterMap] = useState<Map<string, string>>(new Map())
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
 
@@ -73,7 +75,7 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
     async (reset = false) => {
       if (reset) {
         setLoading(true)
-        setOffset(0)
+        offsetRef.current = 0
         setHasMore(true)
       } else {
         setLoadingMore(true)
@@ -81,7 +83,7 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
       try {
         const params: any = {
           limit: limit ?? 20,
-          offset: reset ? 0 : offset,
+          offset: offsetRef.current,
         }
         if (chatterFilter !== "all") params.chatterId = chatterFilter
         if (typeFilter !== "all") params.type = typeFilter
@@ -109,7 +111,9 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
               new Date(b.date).getTime() - new Date(a.date).getTime(),
           )
         setEarnings((prev) => (reset ? formatted : [...prev, ...formatted]))
-        setOffset((prev) => (reset ? formatted.length : prev + formatted.length))
+        offsetRef.current = reset
+          ? formatted.length
+          : offsetRef.current + formatted.length
         if (!data || data.length < (limit ?? 20)) setHasMore(false)
       } catch (error) {
         console.error("Error fetching earnings:", error)
@@ -118,8 +122,16 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
         setLoadingMore(false)
       }
     },
-    [limit, offset, chatterFilter, typeFilter, chatterMap],
+    [limit, chatterFilter, typeFilter, chatterMap],
   )
+
+  useEffect(() => {
+    hasMoreRef.current = hasMore
+  }, [hasMore])
+
+  useEffect(() => {
+    loadingMoreRef.current = loadingMore
+  }, [loadingMore])
 
   useEffect(() => {
     if (chatterMap.size === 0) return
@@ -127,17 +139,17 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
   }, [chatterFilter, typeFilter, chatterMap, loadEarnings])
 
   useEffect(() => {
-    if (limit) return
+    if (limit || loading || !hasMore) return
     const node = loadMoreRef.current
     if (!node) return
     const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting && hasMore && !loadingMore) {
+      if (entries[0].isIntersecting && hasMoreRef.current && !loadingMoreRef.current) {
         loadEarnings()
       }
     })
     observer.observe(node)
     return () => observer.disconnect()
-  }, [limit, loadEarnings, hasMore, loadingMore])
+  }, [limit, loadEarnings, loading, hasMore])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("nl-NL", {
