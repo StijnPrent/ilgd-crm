@@ -188,7 +188,7 @@ class ApiClient {
       from: typeof from === "string" ? from : from.toISOString(),
       to: typeof to === "string" ? to : to.toISOString(),
     }
-    return this.request(`/earnings/sync`, {
+    return this.request(`/employee-earnings/sync`, {
       method: "POST",
       body: JSON.stringify(payload),
     })
