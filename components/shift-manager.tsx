@@ -89,6 +89,7 @@ export function ShiftManager() {
                 api.getUsers(),
                 api.getModels(),
             ])
+            console.log(shiftsData)
 
             const userMap = new Map((usersData || []).map((u: any) => [String(u.id), u.fullName || ""]))
 
@@ -249,7 +250,7 @@ export function ShiftManager() {
             day: "numeric",
             hour: "2-digit",
             minute: "2-digit",
-            timeZone: "UTC",
+            timeZone: "Europe/Amsterdam",
         })
     }
 
@@ -369,13 +370,13 @@ export function ShiftManager() {
                                                     {new Date(shift.start_time).toLocaleTimeString("nl-NL", {
                                                         hour: "2-digit",
                                                         minute: "2-digit",
-                                                        timeZone: "UTC",
+                                                        timeZone: "Europe/Amsterdam",
                                                     })}{" "}
                                                     -{" "}
                                                     {new Date(shift.end_time).toLocaleTimeString("nl-NL", {
                                                         hour: "2-digit",
                                                         minute: "2-digit",
-                                                        timeZone: "UTC",
+                                                        timeZone: "Europe/Amsterdam",
                                                     })}
                                                 </div>
                                                 <button

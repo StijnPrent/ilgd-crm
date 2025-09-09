@@ -183,6 +183,17 @@ class ApiClient {
     return this.request(`/employee-earnings/${id}`, { method: "DELETE" })
   }
 
+  syncEarnings(from: string | Date, to: string | Date) {
+    const payload = {
+      from: typeof from === "string" ? from : from.toISOString(),
+      to: typeof to === "string" ? to : to.toISOString(),
+    }
+    return this.request(`/employee-earnings/sync`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    })
+  }
+
   /* ---------- Revenue ---------- */
   getRevenueEarnings() {
     return this.request("/revenue/earnings")
