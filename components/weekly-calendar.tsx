@@ -89,11 +89,12 @@ export function WeeklyCalendar({
         model_names: (shift.modelIds || []).map(
             (id: any) => modelMap[String(id)] || "Unknown Model",
         ),
-        date: shift.startTime ? shift.startTime.split("T")[0] : shift.date,
-        start_time: shift.startTime ? shift.startTime.substring(11, 16) : shift.startTime,
-        end_time: shift.endTime ? shift.endTime.substring(11, 16) : shift.endTime,
+        date: shift.startTime ? shift.startTime : shift.date,
+        start_time: shift.startTime,
+        end_time: shift.endTime,
         status: shift.status,
       }))
+
       console.log("Formatted shifts:", formattedShifts)
 
       const filteredShifts = userId
