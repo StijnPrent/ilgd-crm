@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DollarSign, Calendar, User, MessageSquare, Gift, Repeat, FileText } from "lucide-react"
 import { api } from "@/lib/api"
@@ -192,6 +193,19 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
     }
   }
 
+  const handleSync = async () => {
+    try {
+      const from = prompt("From date (YYYY-MM-DD):")
+      const to = prompt("To date (YYYY-MM-DD):")
+      if (!from || !to) return
+      await api.syncEarnings(from, to)
+      await loadEarnings(true)
+      await refresh()
+    } catch (error) {
+      console.error("Error syncing earnings:", error)
+    }
+  }
+
   if (loading) {
     return (
       <Card>
@@ -215,7 +229,7 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
         </CardTitle>
         <CardDescription>{limit ? `Latest ${limit} earnings entries` : "All earnings entries"}</CardDescription>
         {!limit && (
-          <div className="flex flex-col gap-4 mt-4 md:flex-row">
+          <div className="flex flex-col gap-4 mt-4 md:flex-row md:items-center">
             <Select value={chatterFilter} onValueChange={setChatterFilter}>
               <SelectTrigger className="w-[200px]">
                 <User className="h-4 w-4 text-muted-foreground" />
@@ -242,6 +256,7 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
                 <SelectItem value="payperpost">Pay per post</SelectItem>
               </SelectContent>
             </Select>
+            <Button onClick={handleSync} className="md:ml-auto">Sync Earnings</Button>
           </div>
         )}
       </CardHeader>
