@@ -81,19 +81,31 @@ export function WeeklyCalendar({
         modelMap[String(model.id)] = model.displayName || "Unknown Model"
       })
 
-      const formattedShifts = (shiftsData || []).map((shift: any) => ({
-        id: String(shift.id),
-        chatter_id: String(shift.chatterId),
-        chatter_name: chatterMap[String(shift.chatterId)] || "Unknown Chatter",
-        model_ids: (shift.modelIds || []).map((id: any) => String(id)),
-        model_names: (shift.modelIds || []).map(
+      const formattedShifts = (shiftsData || []).map((shift: any) => {
+        const startDate = shift.startTime
+          ? String(shift.startTime).slice(0, 10)
+          : String(shift.date)
+        const startTime = shift.startTime
+          ? String(shift.startTime).slice(11, 16)
+          : ""
+        const endTime = shift.endTime
+          ? String(shift.endTime).slice(11, 16)
+          : ""
+
+        return {
+          id: String(shift.id),
+          chatter_id: String(shift.chatterId),
+          chatter_name: chatterMap[String(shift.chatterId)] || "Unknown Chatter",
+          model_ids: (shift.modelIds || []).map((id: any) => String(id)),
+          model_names: (shift.modelIds || []).map(
             (id: any) => modelMap[String(id)] || "Unknown Model",
-        ),
-        date: shift.startTime ? shift.startTime : shift.date,
-        start_time: shift.startTime,
-        end_time: shift.endTime,
-        status: shift.status,
-      }))
+          ),
+          date: startDate,
+          start_time: startTime,
+          end_time: endTime,
+          status: shift.status,
+        }
+      })
 
       console.log("Formatted shifts:", formattedShifts)
 
