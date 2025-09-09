@@ -185,7 +185,7 @@ export function CommissionCalculator() {
         )
         if (totalEarnings > 0) {
           const commissionRate = chatter.commissionRate || 0
-          const platformFeeRate = chatter.platformFee || 0
+          const platformFeeRate = chatter.platformFee || 20
           const platformFeeAmount = totalEarnings * (platformFeeRate / 100)
           const netEarnings = totalEarnings - platformFeeAmount
           const commissionAmount = netEarnings * (commissionRate / 100)
