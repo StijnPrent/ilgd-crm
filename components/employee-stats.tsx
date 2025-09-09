@@ -75,9 +75,10 @@ export function EmployeeStats({ userId, refreshTrigger }: EmployeeStatsProps) {
 
         const currency = chatter?.currency || "EUR"
         const commissionRate = chatter?.commissionRate || 0
-        const platformFee = chatter?.platformFee || 0
+        const platformFee = chatter?.platformFee || 20
+        const platformTotal = monthTotal * (platformFee / 100)
 
-        const estimatedCommission = monthTotal * (commissionRate / 100)
+        const estimatedCommission = (monthTotal - platformTotal)  * (commissionRate / 100)
 
         const rankEntry = (leaderboard || []).find(
           (entry: any) => String(entry.chatterId) === String(userId),
