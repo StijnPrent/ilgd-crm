@@ -4,6 +4,17 @@ import { useEffect, useState, useRef, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { DollarSign, Calendar, User, MessageSquare, Gift, Repeat, FileText } from "lucide-react"
 import { api } from "@/lib/api"
 import { useEmployeeEarnings } from "@/hooks/use-employee-earnings"
@@ -38,6 +49,9 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
   const loadingMoreRef = useRef(false)
   const [chatterMap, setChatterMap] = useState<Map<string, string>>(new Map())
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
+  const [syncOpen, setSyncOpen] = useState(false)
+  const [syncFrom, setSyncFrom] = useState("")
+  const [syncTo, setSyncTo] = useState("")
 
   const { refresh } = useEmployeeEarnings()
 
@@ -195,10 +209,8 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
 
   const handleSync = async () => {
     try {
-      const from = prompt("From date (YYYY-MM-DD):")
-      const to = prompt("To date (YYYY-MM-DD):")
-      if (!from || !to) return
-      await api.syncEarnings(from, to)
+      if (!syncFrom || !syncTo) return
+      await api.syncEarnings(new Date(syncFrom), new Date(syncTo))
       await loadEarnings(true)
       await refresh()
     } catch (error) {
@@ -256,7 +268,52 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
                 <SelectItem value="payperpost">Pay per post</SelectItem>
               </SelectContent>
             </Select>
-            <Button onClick={handleSync} className="md:ml-auto">Sync Earnings</Button>
+            <Dialog open={syncOpen} onOpenChange={setSyncOpen}>
+              <DialogTrigger asChild>
+                <Button className="md:ml-auto">Sync Earnings</Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Sync Earnings</DialogTitle>
+                  <DialogDescription>
+                    Select the start and end date times.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="sync-from">From</Label>
+                    <Input
+                      id="sync-from"
+                      type="datetime-local"
+                      value={syncFrom}
+                      onChange={(e) => setSyncFrom(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="sync-to">To</Label>
+                    <Input
+                      id="sync-to"
+                      type="datetime-local"
+                      value={syncTo}
+                      onChange={(e) => setSyncTo(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="secondary" onClick={() => setSyncOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={async () => {
+                      await handleSync()
+                      setSyncOpen(false)
+                    }}
+                  >
+                    Sync
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         )}
       </CardHeader>
