@@ -1,9 +1,23 @@
 "use client"
 
-import { useEffect, useState, useRef, useCallback } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useEffect, useMemo, useState } from "react"
+
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import {
   Dialog,
   DialogContent,
@@ -15,10 +29,40 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { DollarSign, Calendar, User, MessageSquare, Gift, Repeat, FileText } from "lucide-react"
+import {
+  DollarSign,
+  Calendar,
+  User,
+  MessageSquare,
+  Gift,
+  Repeat,
+  FileText,
+  X,
+} from "lucide-react"
+import { Bar, BarChart, Cell, XAxis, YAxis } from "recharts"
+
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart"
 import { api } from "@/lib/api"
 import { useEmployeeEarnings } from "@/hooks/use-employee-earnings"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
 
 interface EarningsOverviewProps {
   limit?: number
@@ -37,23 +81,18 @@ interface EarningsData {
 }
 
 export function EarningsOverview({ limit }: EarningsOverviewProps) {
-  const [earnings, setEarnings] = useState<EarningsData[]>([])
-  const [loading, setLoading] = useState(true)
-  const [loadingMore, setLoadingMore] = useState(false)
+  const { earnings: allEarnings, loading, refresh } = useEmployeeEarnings()
   const [chatters, setChatters] = useState<{ id: string; full_name: string }[]>([])
+  const [chatterMap, setChatterMap] = useState<Map<string, string>>(new Map())
   const [chatterFilter, setChatterFilter] = useState("all")
   const [typeFilter, setTypeFilter] = useState("all")
-  const [hasMore, setHasMore] = useState(true)
-  const offsetRef = useRef(0)
-  const hasMoreRef = useRef(true)
-  const loadingMoreRef = useRef(false)
-  const [chatterMap, setChatterMap] = useState<Map<string, string>>(new Map())
-  const loadMoreRef = useRef<HTMLDivElement | null>(null)
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [hoveredBar, setHoveredBar] = useState<number | null>(null)
   const [syncOpen, setSyncOpen] = useState(false)
   const [syncFrom, setSyncFrom] = useState("")
   const [syncTo, setSyncTo] = useState("")
-
-  const { refresh } = useEmployeeEarnings()
+  const [page, setPage] = useState(1)
+  const pageSize = 20
 
   useEffect(() => {
     const loadChatters = async () => {
@@ -86,85 +125,76 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
     loadChatters()
   }, [])
 
-  const loadEarnings = useCallback(
-    async (reset = false) => {
-      if (reset) {
-        setLoading(true)
-        offsetRef.current = 0
-        setHasMore(true)
-      } else {
-        setLoadingMore(true)
-      }
-      try {
-        const params: any = {
-          limit: limit ?? 20,
-          offset: offsetRef.current,
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = now.getMonth()
+  const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`
+
+  const monthlyEarnings = useMemo(
+    () => (allEarnings || []).filter((e: any) => e.date?.startsWith(monthKey)),
+    [allEarnings, monthKey],
+  )
+
+  const baseEarnings = limit ? (allEarnings || []) : monthlyEarnings
+
+  const chartData = useMemo(() => {
+    const daysInMonth = new Date(year, month + 1, 0).getDate()
+    return Array.from({ length: daysInMonth }, (_, i) => {
+      const day = i + 1
+      const fullDate = `${monthKey}-${String(day).padStart(2, "0")}`
+      const dayEntries = monthlyEarnings.filter((e: any) =>
+        e.date.startsWith(fullDate),
+      )
+      const total = dayEntries.reduce(
+        (sum: number, e: any) => sum + Number(e.amount ?? 0),
+        0,
+      )
+      return { day, total, fullDate }
+    })
+  }, [monthlyEarnings, monthKey])
+
+  const filteredEarnings = useMemo(() => {
+    let data: EarningsData[] = baseEarnings
+    if (selectedDate) {
+      data = data.filter((e: any) => e.date.startsWith(selectedDate))
+    }
+    if (chatterFilter !== "all") {
+      data = data.filter((e: any) => String(e.chatterId) === chatterFilter)
+    }
+    if (typeFilter !== "all") {
+      data = data.filter((e: any) => e.type === typeFilter)
+    }
+    return data
+      .map((earning: any) => {
+        const chatterId = earning.chatterId ? String(earning.chatterId) : null
+        const full_name = earning.chatterId
+          ? chatterMap.get(String(earning.chatterId)) || "Wolf"
+          : "Wolf"
+        return {
+          id: String(earning.id),
+          date: earning.date,
+          amount: Number(earning.amount),
+          description: earning.description,
+          type: earning.type,
+          chatterId,
+          chatter: earning.chatterId ? { full_name } : null,
         }
-        if (chatterFilter !== "all") params.chatterId = chatterFilter
-        if (typeFilter !== "all") params.type = typeFilter
-        const data = await api.getEmployeeEarnings(params)
-        const formatted = (data || [])
-          .map((earning: any) => {
-            const chatterId = earning.chatterId
-              ? String(earning.chatterId)
-              : null
-            const full_name = earning.chatterId
-              ? chatterMap.get(String(earning.chatterId)) || "Wolf"
-              : "Wolf"
-            return {
-              id: String(earning.id),
-              date: earning.date,
-              amount: earning.amount,
-              description: earning.description,
-              type: earning.type,
-              chatterId,
-              chatter: earning.chatterId ? { full_name } : null,
-            }
-          })
-          .sort(
-            (a: any, b: any) =>
-              new Date(b.date).getTime() - new Date(a.date).getTime(),
-          )
-        setEarnings((prev) => (reset ? formatted : [...prev, ...formatted]))
-        offsetRef.current = reset
-          ? formatted.length
-          : offsetRef.current + formatted.length
-        if (!data || data.length < (limit ?? 20)) setHasMore(false)
-      } catch (error) {
-        console.error("Error fetching earnings:", error)
-      } finally {
-        if (reset) setLoading(false)
-        setLoadingMore(false)
-      }
-    },
-    [limit, chatterFilter, typeFilter, chatterMap],
+      })
+      .sort(
+        (a: any, b: any) =>
+          new Date(b.date).getTime() - new Date(a.date).getTime(),
+      )
+  }, [monthlyEarnings, selectedDate, chatterFilter, typeFilter, chatterMap])
+
+  const pageCount = Math.ceil(filteredEarnings.length / pageSize)
+  const paginated = filteredEarnings.slice(
+    (page - 1) * pageSize,
+    page * pageSize,
   )
 
   useEffect(() => {
-    hasMoreRef.current = hasMore
-  }, [hasMore])
-
-  useEffect(() => {
-    loadingMoreRef.current = loadingMore
-  }, [loadingMore])
-
-  useEffect(() => {
-    if (chatterMap.size === 0) return
-    loadEarnings(true)
-  }, [chatterFilter, typeFilter, chatterMap, loadEarnings])
-
-  useEffect(() => {
-    if (limit || loading || !hasMore) return
-    const node = loadMoreRef.current
-    if (!node) return
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting && hasMoreRef.current && !loadingMoreRef.current) {
-        loadEarnings()
-      }
-    })
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [limit, loadEarnings, loading, hasMore])
+    setPage(1)
+  }, [selectedDate, chatterFilter, typeFilter])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("nl-NL", {
@@ -186,21 +216,6 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
       await api.updateEmployeeEarning(earningId, {
         chatterId: chatterId === "unknown" ? null : chatterId,
       })
-      const selected = chatters.find((c) => c.id === chatterId)
-      setEarnings((prev) =>
-        prev.map((e) =>
-          e.id === earningId
-            ? {
-                ...e,
-                chatterId: chatterId === "unknown" ? null : chatterId,
-                chatter:
-                  chatterId === "unknown"
-                    ? null
-                    : { full_name: selected?.full_name || "" },
-              }
-            : e,
-        ),
-      )
       await refresh()
     } catch (error) {
       console.error("Error updating earning:", error)
@@ -211,14 +226,13 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
     try {
       if (!syncFrom || !syncTo) return
       await api.syncEarnings(new Date(syncFrom), new Date(syncTo))
-      await loadEarnings(true)
       await refresh()
     } catch (error) {
       console.error("Error syncing earnings:", error)
     }
   }
 
-  if (loading) {
+  if (loading || !allEarnings) {
     return (
       <Card>
         <CardContent className="p-6">
@@ -232,6 +246,89 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
     )
   }
 
+  if (limit) {
+    const limited = filteredEarnings.slice(0, limit)
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <DollarSign className="h-5 w-5" />
+            Earnings Overview
+          </CardTitle>
+          <CardDescription>
+            Latest {limit} earnings entries
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Chatter</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Description</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {limited.map((earning) => (
+                <TableRow key={earning.id}>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                      {formatDate(earning.date)}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {(() => {
+                      const iconMap: Record<string, JSX.Element> = {
+                        paypermessage: (
+                          <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                        ),
+                        tip: <Gift className="h-4 w-4 text-muted-foreground" />,
+                        subscriptionperiod: (
+                          <Repeat className="h-4 w-4 text-muted-foreground" />
+                        ),
+                        payperpost: (
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                        ),
+                      }
+                      return iconMap[earning.type] || null
+                    })()}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                      {earning.chatter?.full_name ?? "Wolf"}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1 font-semibold">
+                      <DollarSign className="h-4 w-4 text-green-600" />
+                      {formatCurrency(earning.amount)}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-muted-foreground">
+                      {earning.description || "No description"}
+                    </span>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const chartConfig = {
+    total: {
+      label: "Earnings",
+      color: "#6CE8F2",
+    },
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -239,85 +336,143 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
           <DollarSign className="h-5 w-5" />
           Earnings Overview
         </CardTitle>
-        <CardDescription>{limit ? `Latest ${limit} earnings entries` : "All earnings entries"}</CardDescription>
-        {!limit && (
-          <div className="flex flex-col gap-4 mt-4 md:flex-row md:items-center">
-            <Select value={chatterFilter} onValueChange={setChatterFilter}>
-              <SelectTrigger className="w-[200px]">
-                <User className="h-4 w-4 text-muted-foreground" />
-                <SelectValue placeholder="All chatters" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All chatters</SelectItem>
-                {chatters.map((chatter) => (
-                  <SelectItem key={chatter.id} value={chatter.id}>
-                    {chatter.full_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="All types" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All types</SelectItem>
-                <SelectItem value="paypermessage">Pay per message</SelectItem>
-                <SelectItem value="tip">Tip</SelectItem>
-                <SelectItem value="subscriptionperiod">Subscription period</SelectItem>
-                <SelectItem value="payperpost">Pay per post</SelectItem>
-              </SelectContent>
-            </Select>
-            <Dialog open={syncOpen} onOpenChange={setSyncOpen}>
-              <DialogTrigger asChild>
-                <Button className="md:ml-auto">Sync Earnings</Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Sync Earnings</DialogTitle>
-                  <DialogDescription>
-                    Select the start and end date times.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="sync-from">From</Label>
-                    <Input
-                      id="sync-from"
-                      type="datetime-local"
-                      value={syncFrom}
-                      onChange={(e) => setSyncFrom(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="sync-to">To</Label>
-                    <Input
-                      id="sync-to"
-                      type="datetime-local"
-                      value={syncTo}
-                      onChange={(e) => setSyncTo(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="secondary" onClick={() => setSyncOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={async () => {
-                      await handleSync()
-                      setSyncOpen(false)
-                    }}
-                  >
-                    Sync
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+        <CardDescription>
+          {now.toLocaleDateString("nl-NL", { month: "long", year: "numeric" })}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <ChartContainer config={chartConfig} className="h-64 w-full">
+          <BarChart data={chartData}>
+            <defs>
+              <linearGradient id="earningsGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#6CE8F2" />
+                <stop offset="100%" stopColor="#FFA6FF" />
+              </linearGradient>
+            </defs>
+            <XAxis dataKey="day" tickLine={false} axisLine={false} />
+            <YAxis tickLine={false} axisLine={false} width={40} />
+            <Bar dataKey="total">
+              {chartData.map((d, idx) => (
+                <Cell
+                  key={d.day}
+                  cursor="pointer"
+                  fill="url(#earningsGradient)"
+                  fillOpacity={hoveredBar === idx ? 0 : 1}
+                  onMouseEnter={() => setHoveredBar(idx)}
+                  onMouseLeave={() => setHoveredBar(null)}
+                  onClick={() => {
+                    setSelectedDate(d.fullDate)
+                    setHoveredBar(null)
+                  }}
+                />
+              ))}
+            </Bar>
+            <ChartTooltip
+              content={
+                <ChartTooltipContent
+                  formatter={(value) => formatCurrency(value as number)}
+                />
+              }
+            />
+          </BarChart>
+        </ChartContainer>
+
+        {selectedDate && (
+          <div className="flex items-center justify-between">
+            <h3 className="font-medium">
+              {new Date(selectedDate).toLocaleDateString("nl-NL", {
+                weekday: "long",
+                month: "long",
+                day: "numeric",
+              })}
+            </h3>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSelectedDate(null)}
+            >
+              <X className="h-4 w-4 mr-1" /> Back to month
+            </Button>
           </div>
         )}
-      </CardHeader>
-      <CardContent>
+
+        <div className="flex flex-col gap-4 md:flex-row md:items-center">
+          <Select value={chatterFilter} onValueChange={setChatterFilter}>
+            <SelectTrigger className="w-[200px]">
+              <User className="h-4 w-4 text-muted-foreground" />
+              <SelectValue placeholder="All chatters" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All chatters</SelectItem>
+              {chatters.map((chatter) => (
+                <SelectItem key={chatter.id} value={chatter.id}>
+                  {chatter.full_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="All types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All types</SelectItem>
+              <SelectItem value="paypermessage">Pay per message</SelectItem>
+              <SelectItem value="tip">Tip</SelectItem>
+              <SelectItem value="subscriptionperiod">
+                Subscription period
+              </SelectItem>
+              <SelectItem value="payperpost">Pay per post</SelectItem>
+            </SelectContent>
+          </Select>
+          <Dialog open={syncOpen} onOpenChange={setSyncOpen}>
+            <DialogTrigger asChild>
+              <Button className="md:ml-auto">Sync Earnings</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Sync Earnings</DialogTitle>
+                <DialogDescription>
+                  Select the start and end date times.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="sync-from">From</Label>
+                  <Input
+                    id="sync-from"
+                    type="datetime-local"
+                    value={syncFrom}
+                    onChange={(e) => setSyncFrom(e.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="sync-to">To</Label>
+                  <Input
+                    id="sync-to"
+                    type="datetime-local"
+                    value={syncTo}
+                    onChange={(e) => setSyncTo(e.target.value)}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="secondary" onClick={() => setSyncOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={async () => {
+                    await handleSync()
+                    setSyncOpen(false)
+                  }}
+                >
+                  Sync
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+
         <Table>
           <TableHeader>
             <TableRow>
@@ -329,7 +484,7 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {earnings.map((earning) => (
+            {paginated.map((earning) => (
               <TableRow key={earning.id}>
                 <TableCell>
                   <div className="flex items-center gap-2">
@@ -340,39 +495,40 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
                 <TableCell>
                   {(() => {
                     const iconMap: Record<string, JSX.Element> = {
-                      paypermessage: <MessageSquare className="h-4 w-4 text-muted-foreground" />,
+                      paypermessage: (
+                        <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                      ),
                       tip: <Gift className="h-4 w-4 text-muted-foreground" />,
-                      subscriptionperiod: <Repeat className="h-4 w-4 text-muted-foreground" />,
-                      payperpost: <FileText className="h-4 w-4 text-muted-foreground" />,
+                      subscriptionperiod: (
+                        <Repeat className="h-4 w-4 text-muted-foreground" />
+                      ),
+                      payperpost: (
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                      ),
                     }
                     return iconMap[earning.type] || null
                   })()}
                 </TableCell>
                 <TableCell>
                   {['paypermessage','tip'].includes(earning.type) ? (
-                    limit ? (
-                      <div className="flex items-center gap-2">
+                    <Select
+                      value={earning.chatterId ?? "unknown"}
+                      onValueChange={(value) =>
+                        handleChatterChange(earning.id, value)
+                      }
+                    >
+                      <SelectTrigger className="w-[200px]">
                         <User className="h-4 w-4 text-muted-foreground" />
-                        {earning.chatter?.full_name ?? "Wolf"}
-                      </div>
-                    ) : (
-                      <Select
-                        value={earning.chatterId ?? "unknown"}
-                        onValueChange={(value) => handleChatterChange(earning.id, value)}
-                      >
-                        <SelectTrigger className="w-[200px]">
-                          <User className="h-4 w-4 text-muted-foreground" />
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {chatters.map((chatter) => (
-                            <SelectItem key={chatter.id} value={chatter.id}>
-                              {chatter.full_name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {chatters.map((chatter) => (
+                          <SelectItem key={chatter.id} value={chatter.id}>
+                            {chatter.full_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   ) : (
                     <span className="text-muted-foreground">—</span>
                   )}
@@ -384,24 +540,65 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
                   </div>
                 </TableCell>
                 <TableCell>
-                  <span className="text-muted-foreground">{earning.description || "No description"}</span>
+                  <span className="text-muted-foreground">
+                    {earning.description || "No description"}
+                  </span>
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
-        {!limit && hasMore && <div ref={loadMoreRef} className="h-10" />}
-        {loadingMore && (
-          <p className="text-center py-2 text-sm text-muted-foreground">Loading...</p>
+
+        {pageCount > 1 && (
+          <Pagination className="pt-4">
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    setPage((p) => Math.max(1, p - 1))
+                  }}
+                />
+              </PaginationItem>
+              {Array.from({ length: pageCount }).map((_, i) => (
+                <PaginationItem key={i}>
+                  <PaginationLink
+                    href="#"
+                    isActive={page === i + 1}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      setPage(i + 1)
+                    }}
+                  >
+                    {i + 1}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    setPage((p) => Math.min(pageCount, p + 1))
+                  }}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
         )}
-        {earnings.length === 0 && (
+
+        {paginated.length === 0 && (
           <div className="text-center py-8 text-muted-foreground">
             <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <p>No earnings recorded yet.</p>
-            <p className="text-sm">Earnings will appear here once chatters start logging them.</p>
+            <p className="text-sm">
+              Earnings will appear here once chatters start logging them.
+            </p>
           </div>
         )}
       </CardContent>
     </Card>
   )
 }
+
