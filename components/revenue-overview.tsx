@@ -21,7 +21,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { DollarSign, X } from "lucide-react"
-import { Bar, BarChart, XAxis, YAxis } from "recharts"
+import { Bar, BarChart, Cell, XAxis, YAxis } from "recharts"
 
 import {
   ChartContainer,
@@ -51,6 +51,7 @@ export function RevenueOverview() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [platformFee, setPlatformFee] = useState(20)
   const [adjustments, setAdjustments] = useState<number[]>([])
+  const [hoveredBar, setHoveredBar] = useState<number | null>(null)
 
   useEffect(() => {
     const fetchRevenue = async () => {
@@ -190,7 +191,7 @@ export function RevenueOverview() {
   const chartConfig = {
     revenue: {
       label: "Revenue",
-      color: "hsl(var(--chart-1))",
+      color: "#6CE8F2",
     },
   }
 
@@ -207,17 +208,35 @@ export function RevenueOverview() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <ChartContainer config={chartConfig} className="h-64">
+        <ChartContainer
+          config={chartConfig}
+          className="h-64 w-full aspect-auto"
+        >
           <BarChart data={dailyData}>
+            <defs>
+              <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#6CE8F2" />
+                <stop offset="100%" stopColor="#FFA6FF" />
+              </linearGradient>
+            </defs>
             <XAxis dataKey="day" tickLine={false} axisLine={false} />
             <YAxis tickLine={false} axisLine={false} width={40} />
-            <Bar
-              dataKey="revenue"
-              fill="var(--color-revenue)"
-              onClick={(data: any) =>
-                data?.payload?.fullDate && setSelectedDate(data.payload.fullDate)
-              }
-            />
+            <Bar dataKey="revenue">
+              {dailyData.map((d, idx) => (
+                <Cell
+                  key={d.day}
+                  cursor="pointer"
+                  fill="url(#revenueGradient)"
+                  fillOpacity={hoveredBar === idx ? 0 : 1}
+                  onMouseEnter={() => setHoveredBar(idx)}
+                  onMouseLeave={() => setHoveredBar(null)}
+                  onClick={() => {
+                    setSelectedDate(d.fullDate)
+                    setHoveredBar(null)
+                  }}
+                />
+              ))}
+            </Bar>
             <ChartTooltip
               content={
                 <ChartTooltipContent
