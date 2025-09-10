@@ -146,10 +146,34 @@ export function RevenueOverview() {
   const selectedEntries = selectedDate
     ? dailyData.find((d) => d.fullDate === selectedDate)?.entries || []
     : []
+  const dayTotals = useMemo(() => {
+    return selectedEntries.reduce(
+      (acc, e) => {
+        const amount = e.amount
+        const net = amount * (1 - platformFee / 100)
+        const mComm = net * (e.modelCommissionRate / 100)
+        const cComm = net * (e.chatterCommissionRate / 100)
+        acc.total += amount
+        acc.platformFee += amount - net
+        acc.afterPlatform += net
+        acc.modelCommission += mComm
+        acc.chatterCommission += cComm
+        return acc
+      },
+      {
+        total: 0,
+        platformFee: 0,
+        afterPlatform: 0,
+        modelCommission: 0,
+        chatterCommission: 0,
+      },
+    )
+  }, [selectedEntries, platformFee])
 
-  const selectedTotal = selectedDate
-    ? dailyData.find((d) => d.fullDate === selectedDate)?.revenue || 0
-    : 0
+  const dayCompanyRevenue =
+    dayTotals.afterPlatform -
+    dayTotals.modelCommission -
+    dayTotals.chatterCommission
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat("nl-NL", {
@@ -256,7 +280,7 @@ export function RevenueOverview() {
                 size="sm"
                 onClick={() => setSelectedDate(null)}
               >
-                Back
+                Back to month
               </Button>
             </div>
             <Table>
@@ -285,21 +309,44 @@ export function RevenueOverview() {
                     </TableRow>
                   )
                 })}
-                {selectedEntries.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center">
-                      No entries
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-            <div className="text-right font-medium">
-              Total: {formatCurrency(selectedTotal)}
-            </div>
+            {selectedEntries.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={4} className="text-center">
+                  No entries
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+        <div className="space-y-2">
+          <div className="flex justify-between">
+            <span>Total earnings</span>
+            <span>{formatCurrency(dayTotals.total)}</span>
           </div>
-        ) : (
-          <div className="space-y-4">
+          <div className="flex justify-between">
+            <span>Platform fee ({platformFee}%)</span>
+            <span>-{formatCurrency(dayTotals.platformFee)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>After platform</span>
+            <span>{formatCurrency(dayTotals.afterPlatform)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Model commissions</span>
+            <span>-{formatCurrency(dayTotals.modelCommission)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Chatter commissions</span>
+            <span>-{formatCurrency(dayTotals.chatterCommission)}</span>
+          </div>
+          <div className="flex justify-between font-medium">
+            <span>Company revenue</span>
+            <span>{formatCurrency(dayCompanyRevenue)}</span>
+          </div>
+        </div>
+      </div>
+    ) : (
+      <div className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="platform-fee">Platform fee (%)</Label>
