@@ -25,8 +25,17 @@ export function ManagerStats() {
   const [loading, setLoading] = useState(true)
   const { earnings } = useEmployeeEarnings()
 
+  const formatDate = (date: string) => {
+    return new Date(date).toLocaleDateString("nl-NL", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    })
+  }
+
   useEffect(() => {
     if (earnings === null) return
+    console.log(earnings[2])
 
     const calculateRealStats = async () => {
       try {
@@ -34,29 +43,53 @@ export function ManagerStats() {
           api.getChatters(),
           api.getOnlineChatters(),
         ])
+        const TZ = "Europe/Amsterdam";
+        const ymdFmt = new Intl.DateTimeFormat("en-CA", {
+          timeZone: TZ,
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        });
+        const toYMD = (d: Date | string) => ymdFmt.format(new Date(d));
 
-        const today = new Date().toISOString().split("T")[0]
-        const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
-        const oneMonthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+        const nowLocal = new Date(new Date().toLocaleString("en-US", {timeZone: TZ}));
 
-        const todayEarnings = (earnings || [])
-          .filter((e: any) => e.date.split("T")[0] === today)
-          .reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
+        const weekStartLocal = new Date(nowLocal);
+        weekStartLocal.setHours(0, 0, 0, 0);
+        const mondayIndex = (weekStartLocal.getDay() + 6) % 7;
+        weekStartLocal.setDate(weekStartLocal.getDate() - mondayIndex);
 
-        const weekEarnings = (earnings || [])
-          .filter((e: any) => e.date.split("T")[0] >= oneWeekAgo)
-          .reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
+        const monthStartLocal = new Date(nowLocal.getFullYear(), nowLocal.getMonth(), 1);
+        monthStartLocal.setHours(0, 0, 0, 0);
 
-        const monthEarnings = (earnings || [])
-          .filter((e: any) => e.date.split("T")[0] >= oneMonthAgo)
-          .reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
+        const today = toYMD(nowLocal);
+        const weekStartYMD = toYMD(weekStartLocal);
+        const monthStartYMD = toYMD(monthStartLocal);
+
+        const normalized = (earnings || []).map((e: any) => ({
+          ...e,
+          _ymd: toYMD(e.date || e.createdAt),
+          _amount: Number(e.amount) || 0,
+        }));
+
+        const todayTotal = normalized
+            .filter(e => e._ymd === today)
+            .reduce((sum, e) => sum + e._amount, 0);
+
+        const weekTotal = normalized
+            .filter(e => e._ymd >= weekStartYMD)
+            .reduce((sum, e) => sum + e._amount, 0);
+
+        const monthTotal = normalized
+            .filter(e => e._ymd >= monthStartYMD)
+            .reduce((sum, e) => sum + e._amount, 0);
 
         setStats({
           totalChatters: (chatters || []).length,
           currentlyOnline: (onlineChatters || []).length,
-          totalEarningsToday: todayEarnings,
-          totalEarningsWeek: weekEarnings,
-          totalEarningsMonth: monthEarnings,
+          totalEarningsToday: todayTotal,
+          totalEarningsWeek: weekTotal,
+          totalEarningsMonth: monthTotal,
         })
       } catch (err) {
         console.error("Error calculating stats:", err)
