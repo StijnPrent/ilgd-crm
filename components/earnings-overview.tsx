@@ -154,6 +154,7 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
 
   const filteredEarnings = useMemo(() => {
     let data: EarningsData[] = baseEarnings
+    console.log(data)
     if (selectedDate) {
       data = data.filter((e: any) => e.date.startsWith(selectedDate))
     }
@@ -179,10 +180,6 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
           chatter: earning.chatterId ? { full_name } : null,
         }
       })
-      .sort(
-        (a: any, b: any) =>
-          new Date(b.date).getTime() - new Date(a.date).getTime(),
-      )
   }, [monthlyEarnings, selectedDate, chatterFilter, typeFilter, chatterMap])
 
   const pageCount = Math.ceil(filteredEarnings.length / pageSize)
@@ -202,13 +199,13 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
     }).format(amount)
   }
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString("nl-NL", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-    })
-  }
+  const formatDate = (s: string) => {
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return s; // fallback
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    return `${months[+m[2] - 1]} ${+m[3]}`; // e.g. "Sep 9"
+  };
+
 
   const handleChatterChange = async (earningId: string, chatterId: string) => {
     try {
