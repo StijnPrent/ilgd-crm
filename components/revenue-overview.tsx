@@ -112,10 +112,10 @@ export function RevenueOverview() {
     const monthTotals = useMemo(() => {
         return monthlyEntries.reduce(
             (acc, e) => {
-                const amount = e.amount
-                const net = amount * (1 - platformFee / 100)
-                const mComm = net * (e.modelCommissionRate / 100)
-                const cComm = net * (e.chatterCommissionRate / 100)
+                const amount = Number(e.amount)
+                const net = Number(amount * (1 - platformFee / 100))
+                const mComm = Number(net * (e.modelCommissionRate / 100))
+                const cComm = Number(net * (e.chatterCommissionRate / 100))
                 acc.total += amount
                 acc.platformFee += amount - net
                 acc.afterPlatform += net
@@ -149,10 +149,10 @@ export function RevenueOverview() {
     const dayTotals = useMemo(() => {
         return selectedEntries.reduce(
             (acc, e) => {
-                const amount = e.amount
-                const net = amount * (1 - platformFee / 100)
-                const mComm = net * (e.modelCommissionRate / 100)
-                const cComm = net * (e.chatterCommissionRate / 100)
+                const amount = Number(e.amount)
+                const net = Number(amount * (1 - platformFee / 100))
+                const mComm = Number(net * (e.modelCommissionRate / 100))
+                const cComm = Number(net * (e.chatterCommissionRate / 100))
                 acc.total += amount
                 acc.platformFee += amount - net
                 acc.afterPlatform += net
