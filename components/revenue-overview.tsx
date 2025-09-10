@@ -146,7 +146,6 @@ export function RevenueOverview() {
   const selectedEntries = selectedDate
     ? dailyData.find((d) => d.fullDate === selectedDate)?.entries || []
     : []
-
   const dayTotals = useMemo(() => {
     return selectedEntries.reduce(
       (acc, e) => {
