@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { api } from "@/lib/api" // make sure this path matches where you export your ApiClient
+import { api } from "@/lib/api"
+import Image from "next/image"; // make sure this path matches where you export your ApiClient
 
 export default function LoginPage() {
   const [username, setUsername] = useState("")
@@ -57,13 +58,14 @@ export default function LoginPage() {
         <div className="w-full max-w-sm">
           <Card>
             <CardHeader className="text-center">
+              <Image src="/logo.png" alt="Logo" width={90} height={90} className="mx-auto block" />
               <CardTitle className="text-2xl font-bold">Employee Dashboard</CardTitle>
               <CardDescription>Sign in to access your dashboard</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="username">Username or email</Label>
+                  <Label htmlFor="username">Username</Label>
                   <Input
                       id="username"
                       type="text"
