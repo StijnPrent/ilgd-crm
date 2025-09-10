@@ -35,9 +35,21 @@ export function EmployeeStats({userId, refreshTrigger}: EmployeeStatsProps) {
         platformFee: 20,
     })
     const [loading, setLoading] = useState(true)
+    const toYMD = (d: Date) => d.toISOString().split("T")[0];
+
+    function getWeekBoundsMondayToSunday(d: Date) {
+        const day = d.getDay();               // 0=Sun,1=Mon,...6=Sat
+        const diffToMonday = (day + 6) % 7;   // 0 if Monday, 1 if Tuesday, ... 6 if Sunday
+        const start = new Date(d);
+        start.setHours(0, 0, 0, 0);
+        start.setDate(start.getDate() - diffToMonday); // Monday
+        const end = new Date(start);
+        end.setDate(end.getDate() + 6);       // Sunday
+        return { start, end };
+    }
 
     useEffect(() => {
-        if (!userId) return
+        if (!userId) return;
 
         const fetchStats = async () => {
             try {
@@ -45,61 +57,45 @@ export function EmployeeStats({userId, refreshTrigger}: EmployeeStatsProps) {
                     api.getEmployeeEarningsByChatter(userId),
                     api.getChatter(userId).catch(() => null),
                     api.getEmployeeEarningsLeaderboard().catch(() => []),
-                ])
-                const TZ = "Europe/Amsterdam";
-                const ymdFmt = new Intl.DateTimeFormat("en-CA", {
-                    timeZone: TZ,
-                    year: "numeric",
-                    month: "2-digit",
-                    day: "2-digit",
-                });
-                const toYMD = (d: Date | string) => ymdFmt.format(new Date(d));
+                ]);
 
-                const nowLocal = new Date(new Date().toLocaleString("en-US", {timeZone: TZ}));
+                const todayYMD = toYMD(new Date());
+                const { start: weekStart, end: weekEnd } = getWeekBoundsMondayToSunday(new Date());
+                const weekStartYMD = toYMD(weekStart);
+                const weekEndYMD = toYMD(weekEnd);
 
-                const weekStartLocal = new Date(nowLocal);
-                weekStartLocal.setHours(0, 0, 0, 0);
-                const mondayIndex = (weekStartLocal.getDay() + 6) % 7;
-                weekStartLocal.setDate(weekStartLocal.getDate() - mondayIndex);
+                // keep whatever month logic you prefer; example keeps rolling 30 days:
+                const monthAgoYMD = toYMD(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
 
-                const monthStartLocal = new Date(nowLocal.getFullYear(), nowLocal.getMonth(), 1);
-                monthStartLocal.setHours(0, 0, 0, 0);
-
-                const today = toYMD(nowLocal);
-                const weekStartYMD = toYMD(weekStartLocal);
-                const monthStartYMD = toYMD(monthStartLocal);
-
-                const normalized = (earningsData || []).map((e: any) => ({
-                    ...e,
-                    _ymd: toYMD(e.date || e.createdAt),
-                    _amount: Number(e.amount) || 0,
+                const entries = (earningsData || []).map((e: any) => ({
+                    amount: Number(e.amount) || 0,
+                    ymd: String(e.date || "").slice(0, 10),
                 }));
 
-                const todayTotal = normalized
-                    .filter(e => e._ymd === today)
-                    .reduce((sum, e) => sum + e._amount, 0);
+                const todayTotal = entries
+                    .filter(e => e.ymd === todayYMD)
+                    .reduce((s, e) => s + e.amount, 0);
 
-                const weekTotal = normalized
-                    .filter(e => e._ymd >= weekStartYMD)
-                    .reduce((sum, e) => sum + e._amount, 0);
+                const weekTotal = entries
+                    .filter(e => e.ymd >= weekStartYMD && e.ymd <= weekEndYMD)
+                    .reduce((s, e) => s + e.amount, 0);
 
-                const monthTotal = normalized
-                    .filter(e => e._ymd >= monthStartYMD)
-                    .reduce((sum, e) => sum + e._amount, 0);
+                const monthTotal = entries
+                    .filter(e => e.ymd >= monthAgoYMD)
+                    .reduce((s, e) => s + e.amount, 0);
 
-                const allTimeTotal = normalized.reduce((sum, e) => sum + e._amount, 0);
+                const allTimeTotal = entries.reduce((s, e) => s + e.amount, 0);
 
-                const currency = chatter?.currency || "EUR"
-                const commissionRate = chatter?.commissionRate || 0
-                const platformFee = chatter?.platformFee || 20
-                const platformTotal = monthTotal * (platformFee / 100)
-
-                const estimatedCommission = (monthTotal - platformTotal) * (commissionRate / 100)
+                const currency = chatter?.currency || "EUR";
+                const commissionRate = chatter?.commissionRate || 0;
+                const platformFee = chatter?.platformFee || 20;
+                const platformTotal = monthTotal * (platformFee / 100);
+                const estimatedCommission = (monthTotal - platformTotal) * (commissionRate / 100);
 
                 const rankEntry = (leaderboard || []).find(
                     (entry: any) => String(entry.chatterId) === String(userId),
-                )
-                const currentRank = rankEntry?.rank || 0
+                );
+                const currentRank = rankEntry?.rank || 0;
 
                 setStats({
                     todayEarnings: todayTotal,
@@ -111,16 +107,16 @@ export function EmployeeStats({userId, refreshTrigger}: EmployeeStatsProps) {
                     currency,
                     commissionRate,
                     platformFee,
-                })
+                });
             } catch (err) {
-                console.error("Error fetching employee stats:", err)
+                console.error("Error fetching employee stats:", err);
             } finally {
-                setLoading(false)
+                setLoading(false);
             }
-        }
+        };
 
-        fetchStats()
-    }, [userId, refreshTrigger])
+        fetchStats();
+    }, [userId, refreshTrigger]);
 
     const formatCurrency = (amount: number) => {
         const map: Record<string, string> = {"€": "EUR", "$": "USD", "£": "GBP", EUR: "EUR", USD: "USD", GBP: "GBP"}
