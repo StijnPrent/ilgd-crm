@@ -30,7 +30,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
-  DollarSign,
   Calendar,
   User,
   MessageSquare,
@@ -252,7 +251,6 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5" />
             Earnings Overview
           </CardTitle>
           <CardDescription>
@@ -304,7 +302,6 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1 font-semibold">
-                      <DollarSign className="h-4 w-4 text-green-600" />
                       {formatCurrency(earning.amount)}
                     </div>
                   </TableCell>
@@ -333,7 +330,6 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <DollarSign className="h-5 w-5" />
           Earnings Overview
         </CardTitle>
         <CardDescription>
@@ -535,7 +531,6 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1 font-semibold">
-                    <DollarSign className="h-4 w-4 text-green-600" />
                     {formatCurrency(earning.amount)}
                   </div>
                 </TableCell>
@@ -590,7 +585,6 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
 
         {paginated.length === 0 && (
           <div className="text-center py-8 text-muted-foreground">
-            <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <p>No earnings recorded yet.</p>
             <p className="text-sm">
               Earnings will appear here once chatters start logging them.

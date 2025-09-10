@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { DollarSign, Plus } from "lucide-react"
+import { Plus } from "lucide-react"
 import { api } from "@/lib/api"
 
 interface EarningsEntryProps {
@@ -79,7 +79,6 @@ export function EarningsEntry({ userId, onEarningsAdded }: EarningsEntryProps) {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <DollarSign className="h-5 w-5" />
           Log Earnings
         </CardTitle>
         <CardDescription>Add your earnings for today</CardDescription>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Trophy, Medal, Award, DollarSign } from "lucide-react"
+import { Trophy, Medal, Award,  } from "lucide-react"
 import { api } from "@/lib/api"
 
 interface LeaderboardEntry {
@@ -118,7 +118,6 @@ export function Leaderboard({ limit, refreshTrigger }: LeaderboardProps) {
               </div>
               <div className="text-right">
                 <div className="flex items-center gap-1 text-lg font-bold">
-                  <DollarSign className="h-4 w-4" />
                   {formatCurrency(entry.monthlyAmount)}
                 </div>
                 <div className="text-sm text-muted-foreground">Monthly Earnings</div>

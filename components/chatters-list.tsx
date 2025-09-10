@@ -28,7 +28,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Search, Clock, DollarSign, Trash2, UserX, UserCheck } from "lucide-react"
+import { Plus, Search, Clock, Trash2, UserX, UserCheck } from "lucide-react"
 import { api } from "@/lib/api"
 import { useEmployeeEarnings } from "@/hooks/use-employee-earnings"
 

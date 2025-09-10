@@ -20,7 +20,7 @@ import {
 import {Input} from "@/components/ui/input"
 import {Label} from "@/components/ui/label"
 import {Button} from "@/components/ui/button"
-import {DollarSign, X} from "lucide-react"
+import {X} from "lucide-react"
 import {Bar, BarChart, Cell, XAxis, YAxis} from "recharts"
 
 import {
@@ -227,7 +227,6 @@ export function RevenueOverview() {
         <Card>
             <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                    <DollarSign className="h-5 w-5"/>
                     Revenue Overview
                 </CardTitle>
                 <CardDescription>
