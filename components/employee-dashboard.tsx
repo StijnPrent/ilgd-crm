@@ -11,7 +11,7 @@ import {ClockInOut} from "@/components/clock-in-out"
 import {EarningsEntry} from "@/components/earnings-entry"
 import {EmployeeShifts} from "@/components/employee-shifts"
 import {Leaderboard} from "@/components/leaderboard"
-import {DollarSign, Calendar, Award, User} from "lucide-react"
+import {Calendar, Award, User, Euro} from "lucide-react"
 import Image from "next/image"
 import {EmployeeEarningsHistory} from "@/components/employee-earnings-history"
 import {WeeklyCalendar} from "@/components/weekly-calendar"
@@ -216,7 +216,6 @@ export function EmployeeDashboard() {
                     <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="overview" className="space-y-6">
                         <TabsList className="grid w-full grid-cols-4">
                             <TabsTrigger value="overview" className="flex items-center gap-2">
-                                <DollarSign className="h-4 w-4"/>
                                 Overview
                             </TabsTrigger>
                             <TabsTrigger value="shifts" className="flex items-center gap-2">
@@ -224,7 +223,7 @@ export function EmployeeDashboard() {
                                 My Shifts
                             </TabsTrigger>
                             <TabsTrigger value="earnings" className="flex items-center gap-2">
-                                <DollarSign className="h-4 w-4"/>
+                                <Euro />
                                 Earnings
                             </TabsTrigger>
                             <TabsTrigger value="leaderboard" className="flex items-center gap-2">

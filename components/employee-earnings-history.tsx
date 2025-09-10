@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { DollarSign, Calendar } from "lucide-react"
+import { Calendar } from "lucide-react"
 import { api } from "@/lib/api"
 
 interface EmployeeEarningsHistoryProps {
@@ -77,7 +77,6 @@ export function EmployeeEarningsHistory({ userId, limit }: EmployeeEarningsHisto
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5" />
             Earnings History
           </CardTitle>
           <CardDescription>Your complete earnings record</CardDescription>
@@ -100,7 +99,6 @@ export function EmployeeEarningsHistory({ userId, limit }: EmployeeEarningsHisto
 
           {earnings.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
-              <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>No earnings recorded yet.</p>
               <p className="text-sm">Start logging your daily earnings to track your progress.</p>
             </div>

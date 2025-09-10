@@ -14,7 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Calculator, DollarSign, Calendar, CheckCircle, Clock, XCircle } from "lucide-react"
+import { Calculator, Calendar, CheckCircle, Clock, XCircle } from "lucide-react"
 import { api } from "@/lib/api"
 import { useEmployeeEarnings } from "@/hooks/use-employee-earnings"
 
@@ -456,14 +456,12 @@ export function CommissionCalculator() {
                 <TableCell>{commission.chatter.full_name}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1">
-                    <DollarSign className="h-4 w-4 text-muted-foreground" />
                     {formatCurrency(commission.total_earnings, commission.chatter.currency)}
                   </div>
                 </TableCell>
                 <TableCell>{(commission.commission_rate * 100).toFixed(1)}%</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1 font-semibold text-green-600">
-                    <DollarSign className="h-4 w-4" />
                     {formatCurrency(commission.commission_amount, commission.chatter.currency)}
                   </div>
                 </TableCell>
