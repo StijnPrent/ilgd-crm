@@ -128,13 +128,12 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
   const now = new Date()
   const year = now.getFullYear()
   const month = now.getMonth()
+  const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`
 
-  const monthlyEarnings = useMemo(() => {
-    return (allEarnings || []).filter((e: any) => {
-      const d = new Date(e.date)
-      return d.getFullYear() === year && d.getMonth() === month
-    })
-  }, [allEarnings, year, month])
+  const monthlyEarnings = useMemo(
+    () => (allEarnings || []).filter((e: any) => e.date?.startsWith(monthKey)),
+    [allEarnings, monthKey],
+  )
 
   const baseEarnings = limit ? (allEarnings || []) : monthlyEarnings
 
@@ -142,17 +141,17 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
     const daysInMonth = new Date(year, month + 1, 0).getDate()
     return Array.from({ length: daysInMonth }, (_, i) => {
       const day = i + 1
-      const fullDate = new Date(year, month, day).toISOString().split("T")[0]
+      const fullDate = `${monthKey}-${String(day).padStart(2, "0")}`
       const dayEntries = monthlyEarnings.filter((e: any) =>
         e.date.startsWith(fullDate),
       )
       const total = dayEntries.reduce(
-        (sum: number, e: any) => sum + Number(e.amount || 0),
+        (sum: number, e: any) => sum + Number(e.amount ?? 0),
         0,
       )
       return { day, total, fullDate }
     })
-  }, [monthlyEarnings, year, month])
+  }, [monthlyEarnings, monthKey])
 
   const filteredEarnings = useMemo(() => {
     let data: EarningsData[] = baseEarnings
