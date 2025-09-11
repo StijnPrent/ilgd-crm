@@ -46,7 +46,6 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart"
 import { api } from "@/lib/api"
-import { useEmployeeEarnings } from "@/hooks/use-employee-earnings"
 import {
   Select,
   SelectContent,
@@ -81,7 +80,10 @@ interface EarningsData {
 }
 
 export function EarningsOverview({ limit }: EarningsOverviewProps) {
-  const { earnings: allEarnings, loading, refresh } = useEmployeeEarnings()
+  const [earnings, setEarnings] = useState<EarningsData[]>([])
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [monthlyEarnings, setMonthlyEarnings] = useState<any[]>([])
   const [chatters, setChatters] = useState<{ id: string; full_name: string }[]>([])
   const [chatterMap, setChatterMap] = useState<Map<string, string>>(new Map())
   const [chatterFilter, setChatterFilter] = useState("all")
@@ -93,6 +95,57 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
   const [syncTo, setSyncTo] = useState("")
   const [page, setPage] = useState(1)
   const pageSize = 20
+
+  const mapEarning = (earning: any): EarningsData => {
+    const chatterId = earning.chatterId ? String(earning.chatterId) : null
+    const full_name = earning.chatterId
+      ? chatterMap.get(String(earning.chatterId)) || "Wolf"
+      : "Wolf"
+    return {
+      id: String(earning.id),
+      date: earning.date,
+      amount: Number(earning.amount),
+      description: earning.description,
+      type: earning.type,
+      chatterId,
+      chatter: earning.chatterId ? { full_name } : null,
+    }
+  }
+
+  const fetchMonthly = async () => {
+    try {
+      const res = await api.getEmployeeEarningsPaginated({ limit: 1000, offset: 0 })
+      const monthData = (res.data || []).filter((e: any) =>
+        e.date?.startsWith(monthKey),
+      )
+      setMonthlyEarnings(monthData)
+    } catch (error) {
+      console.error("Error loading monthly earnings:", error)
+    }
+  }
+
+  const fetchPage = async () => {
+    try {
+      setLoading(true)
+      const params: any = {
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
+      }
+      if (chatterFilter !== "all") params.chatterId = chatterFilter
+      if (typeFilter !== "all") params.type = typeFilter
+      const res = await api.getEmployeeEarningsPaginated(params)
+      let data = res.data || []
+      if (selectedDate) {
+        data = data.filter((e: any) => e.date.startsWith(selectedDate))
+      }
+      setEarnings(data.map(mapEarning))
+      setTotal(selectedDate ? data.length : res.total)
+    } catch (error) {
+      console.error("Error loading earnings:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
     const loadChatters = async () => {
@@ -125,17 +178,36 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
     loadChatters()
   }, [])
 
+  useEffect(() => {
+    if (limit) {
+      const loadLimited = async () => {
+        try {
+          setLoading(true)
+          const res = await api.getEmployeeEarningsPaginated({ limit, offset: 0 })
+          setEarnings(res.data.map(mapEarning))
+          setTotal(res.total)
+        } catch (error) {
+          console.error("Error loading earnings:", error)
+        } finally {
+          setLoading(false)
+        }
+      }
+      loadLimited()
+    } else {
+      fetchMonthly()
+    }
+  }, [limit, monthKey])
+
+  useEffect(() => {
+    if (!limit) {
+      fetchPage()
+    }
+  }, [page, chatterFilter, typeFilter, selectedDate, limit])
+
   const now = new Date()
   const year = now.getFullYear()
   const month = now.getMonth()
   const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`
-
-  const monthlyEarnings = useMemo(
-    () => (allEarnings || []).filter((e: any) => e.date?.startsWith(monthKey)),
-    [allEarnings, monthKey],
-  )
-
-  const baseEarnings = limit ? (allEarnings || []) : monthlyEarnings
 
   const chartData = useMemo(() => {
     const daysInMonth = new Date(year, month + 1, 0).getDate()
@@ -153,41 +225,7 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
     })
   }, [monthlyEarnings, monthKey])
 
-  const filteredEarnings = useMemo(() => {
-    let data: EarningsData[] = baseEarnings
-    console.log(data)
-    if (selectedDate) {
-      data = data.filter((e: any) => e.date.startsWith(selectedDate))
-    }
-    if (chatterFilter !== "all") {
-      data = data.filter((e: any) => String(e.chatterId) === chatterFilter)
-    }
-    if (typeFilter !== "all") {
-      data = data.filter((e: any) => e.type === typeFilter)
-    }
-    return data
-      .map((earning: any) => {
-        const chatterId = earning.chatterId ? String(earning.chatterId) : null
-        const full_name = earning.chatterId
-          ? chatterMap.get(String(earning.chatterId)) || "Wolf"
-          : "Wolf"
-        return {
-          id: String(earning.id),
-          date: earning.date,
-          amount: Number(earning.amount),
-          description: earning.description,
-          type: earning.type,
-          chatterId,
-          chatter: earning.chatterId ? { full_name } : null,
-        }
-      })
-  }, [monthlyEarnings, selectedDate, chatterFilter, typeFilter, chatterMap])
-
-  const pageCount = Math.ceil(filteredEarnings.length / pageSize)
-  const paginated = filteredEarnings.slice(
-    (page - 1) * pageSize,
-    page * pageSize,
-  )
+  const pageCount = Math.ceil(total / pageSize)
 
   const paginationNumbers = useMemo(() => {
     if (pageCount <= 5) {
@@ -236,7 +274,8 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
       await api.updateEmployeeEarning(earningId, {
         chatterId: chatterId === "unknown" ? null : chatterId,
       })
-      await refresh()
+      await fetchPage()
+      await fetchMonthly()
     } catch (error) {
       console.error("Error updating earning:", error)
     }
@@ -246,13 +285,14 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
     try {
       if (!syncFrom || !syncTo) return
       await api.syncEarnings(new Date(syncFrom), new Date(syncTo))
-      await refresh()
+      await fetchPage()
+      await fetchMonthly()
     } catch (error) {
       console.error("Error syncing earnings:", error)
     }
   }
 
-  if (loading || !allEarnings) {
+  if (loading) {
     return (
       <Card>
         <CardContent className="p-6">
@@ -267,7 +307,7 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
   }
 
   if (limit) {
-    const limited = filteredEarnings.slice(0, limit)
+    const limited = earnings.slice(0, limit)
     return (
       <Card>
         <CardHeader>
@@ -501,7 +541,7 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {paginated.map((earning) => (
+            {earnings.map((earning) => (
               <TableRow key={earning.id}>
                 <TableCell>
                   <div className="flex items-center gap-2">
@@ -608,7 +648,7 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
           </Pagination>
         )}
 
-        {paginated.length === 0 && (
+        {earnings.length === 0 && (
           <div className="text-center py-8 text-muted-foreground">
             <p>No earnings recorded yet.</p>
             <p className="text-sm">

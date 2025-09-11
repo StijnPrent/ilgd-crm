@@ -169,6 +169,35 @@ class ApiClient {
     return this.request(`/employee-earnings${query}`)
   }
 
+  async getEmployeeEarningsPaginated(params: {
+    limit: number
+    offset: number
+    chatterId?: string
+    type?: string
+  }) {
+    const search = new URLSearchParams()
+    search.set("limit", String(params.limit))
+    search.set("offset", String(params.offset))
+    if (params.chatterId) search.set("chatterId", params.chatterId)
+    if (params.type) search.set("type", params.type)
+    const query = `?${search.toString()}`
+
+    const response = await fetch(`${API_BASE_URL}/employee-earnings${query}`, {
+      headers: {
+        "Content-Type": "application/json",
+        ...this.getAuthHeaders(),
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.status} ${response.statusText}`)
+    }
+
+    const total = Number(response.headers.get("X-Total-Count") || 0)
+    const data = await response.json()
+    return { data, total }
+  }
+
   getEmployeeEarningsByChatter(id: string) {
     return this.request(`/employee-earnings/chatter/${id}`)
   }
