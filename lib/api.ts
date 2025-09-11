@@ -84,6 +84,22 @@ class ApiClient {
     return this.request(`/models/${id}`)
   }
 
+  /**
+   * Fetch models with their aggregated earnings.
+   * Expects the backend to return an array of objects in the following shape:
+   * [{
+   *   id: string,
+   *   displayName: string,
+  *   username: string,
+  *   commissionRate: number,
+  *   createdAt: string,
+  *   totalEarnings: number // total earnings before commissions
+  * }]
+  */
+  getModelsWithEarnings() {
+    return this.request("/models/earnings")
+  }
+
   createModel(modelData: any) {
     return this.request("/models", {
       method: "POST",
