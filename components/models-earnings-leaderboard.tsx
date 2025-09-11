@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table"
 import { api } from "@/lib/api"
+import {Crown, User } from "lucide-react"
 
 interface ModelEarnings {
   id: string
@@ -48,18 +49,25 @@ export function ModelsEarningsLeaderboard() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Username</TableHead>
-              <TableHead className="text-right">Total Earnings</TableHead>
+              <TableHead className='font-bold'>Name</TableHead>
+              <TableHead className="text-right font-bold">Total Earnings</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {models.map((model) => (
-              <TableRow key={model.id}>
-                <TableCell className="font-medium">{model.displayName}</TableCell>
-                <TableCell>{model.username}</TableCell>
-                <TableCell className="text-right">{formatCurrency(model.totalEarnings)}</TableCell>
-              </TableRow>
+            {models.map((model, index) => (
+                <TableRow key={model.id}>
+                  <TableCell className="font-medium flex items-center gap-2">
+                    {index === 0 ? (
+                        <Crown className="w-4 h-4 text-yellow-500" />
+                    ) : (
+                        <User className="w-4 h-4 text-gray-500" />
+                    )}
+                    {model.displayName}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {formatCurrency(model.totalEarnings)}
+                  </TableCell>
+                </TableRow>
             ))}
           </TableBody>
         </Table>

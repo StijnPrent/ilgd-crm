@@ -369,9 +369,13 @@ export function ManagerDashboard() {
                         </TabsContent>
 
                         <TabsContent value="models">
-                            <div className="grid gap-6">
-                                <ModelsList/>
-                                <ModelsEarningsLeaderboard/>
+                            <div className="grid md:grid-cols-3 gap-6">
+                                <div className="md:col-span-2">
+                                    <ModelsList />
+                                </div>
+                                <div className="md:col-span-1">
+                                    <ModelsEarningsLeaderboard />
+                                </div>
                             </div>
                         </TabsContent>
 
