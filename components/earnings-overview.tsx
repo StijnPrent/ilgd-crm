@@ -61,6 +61,7 @@ import {
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
+  PaginationEllipsis,
 } from "@/components/ui/pagination"
 
 interface EarningsOverviewProps {
@@ -187,6 +188,29 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
     (page - 1) * pageSize,
     page * pageSize,
   )
+
+  const paginationNumbers = useMemo(() => {
+    if (pageCount <= 5) {
+      return Array.from({ length: pageCount }, (_, i) => i + 1)
+    }
+
+    if (page <= 4) {
+      return [1, 2, 3, 4, "ellipsis", pageCount]
+    }
+
+    if (page >= pageCount - 3) {
+      return [
+        1,
+        "ellipsis",
+        pageCount - 3,
+        pageCount - 2,
+        pageCount - 1,
+        pageCount,
+      ]
+    }
+
+    return [1, "ellipsis", page - 1, page, page + 1, "ellipsis", pageCount]
+  }, [page, pageCount])
 
   useEffect(() => {
     setPage(1)
@@ -553,18 +577,22 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
                   }}
                 />
               </PaginationItem>
-              {Array.from({ length: pageCount }).map((_, i) => (
+              {paginationNumbers.map((p, i) => (
                 <PaginationItem key={i}>
-                  <PaginationLink
-                    href="#"
-                    isActive={page === i + 1}
-                    onClick={(e) => {
-                      e.preventDefault()
-                      setPage(i + 1)
-                    }}
-                  >
-                    {i + 1}
-                  </PaginationLink>
+                  {p === "ellipsis" ? (
+                    <PaginationEllipsis />
+                  ) : (
+                    <PaginationLink
+                      href="#"
+                      isActive={page === p}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        setPage(p)
+                      }}
+                    >
+                      {p}
+                    </PaginationLink>
+                  )}
                 </PaginationItem>
               ))}
               <PaginationItem>
