@@ -35,6 +35,7 @@ export function ClockInOut({ userId, onChange }: ClockInOutProps) {
   const [currentTime, setCurrentTime] = useState(new Date())
   const [currentShift, setCurrentShift] = useState<any>(null)
   const [showEarlyClockOut, setShowEarlyClockOut] = useState(false)
+  const [showShiftNotStarted, setShowShiftNotStarted] = useState(false)
 
   useEffect(() => {
     if (!userId) return
@@ -96,14 +97,14 @@ export function ClockInOut({ userId, onChange }: ClockInOutProps) {
   const handleClockIn = async () => {
     setActionLoading(true)
     try {
-      const shift = await fetchCurrentShift()
-      const now = new Date()
-      if (!shift || new Date(shift.startTime) > now) {
-        alert("You can only clock in when your shift has started.")
+      const shift = currentShift || (await fetchCurrentShift())
+      if (!shift) {
+        setShowShiftNotStarted(true)
         return
       }
       await api.clockIn(userId)
       await checkActiveEntry()
+      await fetchCurrentShift()
     } catch (error) {
       console.error("Error clocking in:", error)
     } finally {
@@ -281,6 +282,24 @@ export function ClockInOut({ userId, onChange }: ClockInOutProps) {
               }}
             >
               Clock Out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={showShiftNotStarted}
+        onOpenChange={setShowShiftNotStarted}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Shift not started</AlertDialogTitle>
+            <AlertDialogDescription>
+              You can only clock in once your shift has begun.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setShowShiftNotStarted(false)}>
+              OK
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
