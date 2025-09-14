@@ -81,7 +81,7 @@ interface EarningsData {
 
 export function EarningsOverview({ limit }: EarningsOverviewProps) {
   const [earnings, setEarnings] = useState<EarningsData[]>([])
-  const [total, setTotal] = useState(true)
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [monthlyEarnings, setMonthlyEarnings] = useState<any[]>([])
   const [chatters, setChatters] = useState<{ id: string; full_name: string }[]>([])
@@ -119,7 +119,7 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
   const fetchMonthly = async () => {
     try {
       const res = await api.getEmployeeEarningsPaginated({ limit: 1000, offset: 0 })
-      const monthData = (res.data || []).filter((e: any) =>
+      const monthData = (res || []).filter((e: any) =>
         e.date?.startsWith(monthKey),
       )
       setMonthlyEarnings(monthData)
@@ -137,13 +137,16 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
       }
       if (chatterFilter !== "all") params.chatterId = chatterFilter
       if (typeFilter !== "all") params.type = typeFilter
-      const res = await api.getEmployeeEarningsPaginated(params)
-      let data = res.data || []
+      const [res, total] = await Promise.all([
+        api.getEmployeeEarningsPaginated(params),
+        api.getTotalCount(),
+      ])
+      let data = res || []
       if (selectedDate) {
         data = data.filter((e: any) => e.date.startsWith(selectedDate))
       }
       setEarnings(data.map(mapEarning))
-      setTotal(selectedDate ? data.length : res.total)
+      setTotal(selectedDate ? data.length : total)
     } catch (error) {
       console.error("Error loading earnings:", error)
     } finally {
@@ -190,7 +193,7 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
           const res = await api.getEmployeeEarningsPaginated({ limit, offset: 0 })
           const total = await api.getTotalCount()
           console.log(res, total)
-          setEarnings(res.map(mapEarning))
+          setEarnings((res || []).map(mapEarning))
           setTotal(total)
         } catch (error) {
           console.error("Error loading earnings:", error)
