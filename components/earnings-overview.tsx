@@ -169,21 +169,20 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
       if (chatterFilter !== "all") params.chatterId = chatterFilter
       if (typeFilter !== "all") params.type = typeFilter
       if (modelFilter !== "all") params.modelId = modelFilter
+      if (selectedDate) params.date = selectedDate
       const countParams = {
         ...(chatterFilter !== "all" ? { chatterId: chatterFilter } : {}),
         ...(typeFilter !== "all" ? { type: typeFilter } : {}),
         ...(modelFilter !== "all" ? { modelId: modelFilter } : {}),
+        ...(selectedDate ? { date: selectedDate } : {}),
       }
       const [res, total] = await Promise.all([
         api.getEmployeeEarningsPaginated(params),
         api.getTotalCount(countParams),
       ])
-      let data = Array.isArray(res) ? res : res?.data || []
-      if (selectedDate) {
-        data = data.filter((e: any) => e.date.startsWith(selectedDate))
-      }
+      const data = Array.isArray(res) ? res : res?.data || []
       setEarnings(data.map(mapEarning))
-      setTotal(selectedDate ? data.length : total)
+      setTotal(total)
     } catch (error) {
       console.error("Error loading earnings:", error)
     } finally {
