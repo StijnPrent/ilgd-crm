@@ -137,7 +137,8 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
       if (typeFilter !== "all") params.type = typeFilter
       if (modelFilter !== "all") params.modelId = modelFilter
       const res = await api.getEmployeeEarningsPaginated(params)
-      const monthData = (res || []).filter((e: any) =>
+      const items = Array.isArray(res) ? res : res?.data || []
+      const monthData = items.filter((e: any) =>
         e.date?.startsWith(monthKey),
       )
       setMonthlyEarnings(monthData)
@@ -165,7 +166,7 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
         api.getEmployeeEarningsPaginated(params),
         api.getTotalCount(countParams),
       ])
-      let data = res || []
+      let data = Array.isArray(res) ? res : res?.data || []
       if (selectedDate) {
         data = data.filter((e: any) => e.date.startsWith(selectedDate))
       }
@@ -223,7 +224,8 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
           setLoading(true)
           const res = await api.getEmployeeEarningsPaginated({ limit, offset: 0 })
           const total = await api.getTotalCount()
-          setEarnings((res || []).map(mapEarning))
+          const items = Array.isArray(res) ? res : res?.data || []
+          setEarnings(items.map(mapEarning))
           setTotal(total)
         } catch (error) {
           console.error("Error loading earnings:", error)
