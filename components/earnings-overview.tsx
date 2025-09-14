@@ -136,8 +136,8 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
       if (chatterFilter !== "all") params.chatterId = chatterFilter
       if (typeFilter !== "all") params.type = typeFilter
       if (modelFilter !== "all") params.modelId = modelFilter
-      const res = await api.getEmployeeEarningsPaginated(params)
-      let items = Array.isArray(res) ? res : res?.data || []
+      const pageRes = await api.getEmployeeEarningsPaginated(params)
+      let items = Array.isArray(pageRes) ? pageRes : pageRes?.data || []
       // Ensure client-side filtering so the chart always reflects selections
       if (chatterFilter !== "all") {
         items = items.filter(
@@ -176,11 +176,11 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
         ...(modelFilter !== "all" ? { modelId: modelFilter } : {}),
         ...(selectedDate ? { date: selectedDate } : {}),
       }
-      const [res, total] = await Promise.all([
+      const [pageRes, totalCount] = await Promise.all([
         api.getEmployeeEarningsPaginated(params),
         api.getTotalCount(countParams),
       ])
-      let data = Array.isArray(res) ? res : res?.data || []
+      let data = Array.isArray(pageRes) ? pageRes : pageRes?.data || []
       if (chatterFilter !== "all") {
         data = data.filter((e: any) => String(e.chatterId) === chatterFilter)
       }
@@ -196,7 +196,7 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
       ])
       const data = Array.isArray(res) ? res : res?.data || []
       setEarnings(data.map(mapEarning))
-      setTotal(total)
+      setTotal(totalCount)
     } catch (error) {
       console.error("Error loading earnings:", error)
     } finally {
@@ -247,11 +247,11 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
       const loadLimited = async () => {
         try {
           setLoading(true)
-          const res = await api.getEmployeeEarningsPaginated({ limit, offset: 0 })
-          const total = await api.getTotalCount()
-          const items = Array.isArray(res) ? res : res?.data || []
+          const limitedRes = await api.getEmployeeEarningsPaginated({ limit, offset: 0 })
+          const totalCount = await api.getTotalCount()
+          const items = Array.isArray(limitedRes) ? limitedRes : limitedRes?.data || []
           setEarnings(items.map(mapEarning))
-          setTotal(total)
+          setTotal(totalCount)
         } catch (error) {
           console.error("Error loading earnings:", error)
         } finally {
