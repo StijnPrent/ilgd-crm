@@ -32,6 +32,7 @@ import { Label } from "@/components/ui/label"
 import {
   Calendar,
   User,
+  UserCircle,
   MessageSquare,
   Gift,
   Repeat,
@@ -77,17 +78,24 @@ interface EarningsData {
   chatter: {
     full_name: string
   } | null
+  modelId: string | null
+  model: {
+    display_name: string
+  } | null
 }
 
 export function EarningsOverview({ limit }: EarningsOverviewProps) {
   const [earnings, setEarnings] = useState<EarningsData[]>([])
-  const [total, setTotal] = useState(true)
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [monthlyEarnings, setMonthlyEarnings] = useState<any[]>([])
   const [chatters, setChatters] = useState<{ id: string; full_name: string }[]>([])
   const [chatterMap, setChatterMap] = useState<Map<string, string>>(new Map())
+  const [models, setModels] = useState<{ id: string; display_name: string }[]>([])
+  const [modelMap, setModelMap] = useState<Map<string, string>>(new Map())
   const [chatterFilter, setChatterFilter] = useState("all")
   const [typeFilter, setTypeFilter] = useState("all")
+  const [modelFilter, setModelFilter] = useState("all")
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [hoveredBar, setHoveredBar] = useState<number | null>(null)
   const [syncOpen, setSyncOpen] = useState(false)
@@ -105,6 +113,10 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
     const full_name = earning.chatterId
       ? chatterMap.get(String(earning.chatterId)) || "Wolf"
       : "Wolf"
+    const modelId = earning.modelId ? String(earning.modelId) : null
+    const display_name = earning.modelId
+      ? modelMap.get(String(earning.modelId)) || "Unknown"
+      : "Unknown"
     return {
       id: String(earning.id),
       date: earning.date,
@@ -113,16 +125,35 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
       type: earning.type,
       chatterId,
       chatter: earning.chatterId ? { full_name } : null,
+      modelId,
+      model: earning.modelId ? { display_name } : null,
     }
   }
 
   const fetchMonthly = async () => {
     try {
-      const res = await api.getEmployeeEarningsPaginated({ limit: 1000, offset: 0 })
-      const monthData = (res.data || []).filter((e: any) =>
-        e.date?.startsWith(monthKey),
-      )
-      setMonthlyEarnings(monthData)
+      const params: any = { limit: 1000, offset: 0 }
+      if (chatterFilter !== "all") params.chatterId = chatterFilter
+      if (typeFilter !== "all") params.type = typeFilter
+      if (modelFilter !== "all") params.modelId = modelFilter
+      const res = await api.getEmployeeEarningsPaginated(params)
+      let items = Array.isArray(res) ? res : res?.data || []
+      // Ensure client-side filtering so the chart always reflects selections
+      if (chatterFilter !== "all") {
+        items = items.filter(
+          (e: any) => String(e.chatterId) === chatterFilter,
+        )
+      }
+      if (typeFilter !== "all") {
+        items = items.filter((e: any) => e.type === typeFilter)
+      }
+      if (modelFilter !== "all") {
+        items = items.filter(
+          (e: any) => String(e.modelId) === modelFilter,
+        )
+      }
+      const monthData = items.filter((e: any) => e.date?.startsWith(monthKey))
+      setMonthlyEarnings(monthData.map(mapEarning))
     } catch (error) {
       console.error("Error loading monthly earnings:", error)
     }
@@ -137,13 +168,21 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
       }
       if (chatterFilter !== "all") params.chatterId = chatterFilter
       if (typeFilter !== "all") params.type = typeFilter
-      const res = await api.getEmployeeEarningsPaginated(params)
-      let data = res.data || []
-      if (selectedDate) {
-        data = data.filter((e: any) => e.date.startsWith(selectedDate))
+      if (modelFilter !== "all") params.modelId = modelFilter
+      if (selectedDate) params.date = selectedDate
+      const countParams = {
+        ...(chatterFilter !== "all" ? { chatterId: chatterFilter } : {}),
+        ...(typeFilter !== "all" ? { type: typeFilter } : {}),
+        ...(modelFilter !== "all" ? { modelId: modelFilter } : {}),
+        ...(selectedDate ? { date: selectedDate } : {}),
       }
+      const [res, total] = await Promise.all([
+        api.getEmployeeEarningsPaginated(params),
+        api.getTotalCount(countParams),
+      ])
+      const data = Array.isArray(res) ? res : res?.data || []
       setEarnings(data.map(mapEarning))
-      setTotal(selectedDate ? data.length : res.total)
+      setTotal(total)
     } catch (error) {
       console.error("Error loading earnings:", error)
     } finally {
@@ -152,11 +191,12 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
   }
 
   useEffect(() => {
-    const loadChatters = async () => {
+    const loadData = async () => {
       try {
-        const [chattersData, usersData] = await Promise.all([
+        const [chattersData, usersData, modelsData] = await Promise.all([
           api.getChatters(),
           api.getUsers(),
+          api.getModels(),
         ])
         const userMap = new Map(
           (usersData || []).map((u: any) => [String(u.id), u.fullName || ""]),
@@ -175,11 +215,17 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
             full_name: userMap.get(String(ch.id)) || "",
           })),
         ])
+        const modelList = (modelsData || []).map((m: any) => ({
+          id: String(m.id),
+          display_name: m.displayName,
+        }))
+        setModels(modelList)
+        setModelMap(new Map(modelList.map((m: any) => [m.id, m.display_name])))
       } catch (error) {
-        console.error("Error loading chatters:", error)
+        console.error("Error loading data:", error)
       }
     }
-    loadChatters()
+    loadData()
   }, [])
 
   useEffect(() => {
@@ -189,8 +235,8 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
           setLoading(true)
           const res = await api.getEmployeeEarningsPaginated({ limit, offset: 0 })
           const total = await api.getTotalCount()
-          console.log(res, total)
-          setEarnings(res.map(mapEarning))
+          const items = Array.isArray(res) ? res : res?.data || []
+          setEarnings(items.map(mapEarning))
           setTotal(total)
         } catch (error) {
           console.error("Error loading earnings:", error)
@@ -202,13 +248,13 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
     } else {
       fetchMonthly()
     }
-  }, [limit, monthKey])
+  }, [limit, monthKey, chatterFilter, typeFilter, modelFilter])
 
   useEffect(() => {
     if (!limit) {
       fetchPage()
     }
-  }, [page, chatterFilter, typeFilter, selectedDate, limit])
+  }, [page, chatterFilter, typeFilter, modelFilter, selectedDate, limit])
 
   const chartData = useMemo(() => {
     const daysInMonth = new Date(year, month + 1, 0).getDate()
@@ -253,7 +299,7 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
 
   useEffect(() => {
     setPage(1)
-  }, [selectedDate, chatterFilter, typeFilter])
+  }, [selectedDate, chatterFilter, typeFilter, modelFilter])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("nl-NL", {
@@ -325,6 +371,7 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
               <TableRow>
                 <TableHead>Date</TableHead>
                 <TableHead>Type</TableHead>
+                <TableHead>Model</TableHead>
                 <TableHead>Chatter</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Description</TableHead>
@@ -355,6 +402,12 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
                       }
                       return iconMap[earning.type] || null
                     })()}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <UserCircle className="h-4 w-4 text-muted-foreground" />
+                      {earning.model?.display_name ?? "Unknown"}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -399,62 +452,21 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <ChartContainer config={chartConfig} className="h-64 w-full">
-          <BarChart data={chartData}>
-            <defs>
-              <linearGradient id="earningsGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#6CE8F2" />
-                <stop offset="100%" stopColor="#FFA6FF" />
-              </linearGradient>
-            </defs>
-            <XAxis dataKey="day" tickLine={false} axisLine={false} />
-            <YAxis tickLine={false} axisLine={false} width={40} />
-            <Bar dataKey="total">
-              {chartData.map((d, idx) => (
-                <Cell
-                  key={d.day}
-                  cursor="pointer"
-                  fill="url(#earningsGradient)"
-                  fillOpacity={hoveredBar === idx ? 0 : 1}
-                  onMouseEnter={() => setHoveredBar(idx)}
-                  onMouseLeave={() => setHoveredBar(null)}
-                  onClick={() => {
-                    setSelectedDate(d.fullDate)
-                    setHoveredBar(null)
-                  }}
-                />
-              ))}
-            </Bar>
-            <ChartTooltip
-              content={
-                <ChartTooltipContent
-                  formatter={(value) => formatCurrency(value as number)}
-                />
-              }
-            />
-          </BarChart>
-        </ChartContainer>
-
-        {selectedDate && (
-          <div className="flex items-center justify-between">
-            <h3 className="font-medium">
-              {new Date(selectedDate).toLocaleDateString("nl-NL", {
-                weekday: "long",
-                month: "long",
-                day: "numeric",
-              })}
-            </h3>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectedDate(null)}
-            >
-              <X className="h-4 w-4 mr-1" /> Back to month
-            </Button>
-          </div>
-        )}
-
         <div className="flex flex-col gap-4 md:flex-row md:items-center">
+          <Select value={modelFilter} onValueChange={setModelFilter}>
+            <SelectTrigger className="w-[200px]">
+              <UserCircle className="h-4 w-4 text-muted-foreground" />
+              <SelectValue placeholder="All models" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All models</SelectItem>
+              {models.map((model) => (
+                <SelectItem key={model.id} value={model.id}>
+                  {model.display_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={chatterFilter} onValueChange={setChatterFilter}>
             <SelectTrigger className="w-[200px]">
               <User className="h-4 w-4 text-muted-foreground" />
@@ -531,11 +543,67 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
           </Dialog>
         </div>
 
+        <ChartContainer config={chartConfig} className="h-64 w-full">
+          <BarChart data={chartData}>
+            <defs>
+              <linearGradient id="earningsGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#6CE8F2" />
+                <stop offset="100%" stopColor="#FFA6FF" />
+              </linearGradient>
+            </defs>
+            <XAxis dataKey="day" tickLine={false} axisLine={false} />
+            <YAxis tickLine={false} axisLine={false} width={40} />
+            <Bar dataKey="total">
+              {chartData.map((d, idx) => (
+                <Cell
+                  key={d.day}
+                  cursor="pointer"
+                  fill="url(#earningsGradient)"
+                  fillOpacity={hoveredBar === idx ? 0 : 1}
+                  onMouseEnter={() => setHoveredBar(idx)}
+                  onMouseLeave={() => setHoveredBar(null)}
+                  onClick={() => {
+                    setSelectedDate(d.fullDate)
+                    setHoveredBar(null)
+                  }}
+                />
+              ))}
+            </Bar>
+            <ChartTooltip
+              content={
+                <ChartTooltipContent
+                  formatter={(value) => formatCurrency(value as number)}
+                />
+              }
+            />
+          </BarChart>
+        </ChartContainer>
+
+        {selectedDate && (
+          <div className="flex items-center justify-between">
+            <h3 className="font-medium">
+              {new Date(selectedDate).toLocaleDateString("nl-NL", {
+                weekday: "long",
+                month: "long",
+                day: "numeric",
+              })}
+            </h3>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSelectedDate(null)}
+            >
+              <X className="h-4 w-4 mr-1" /> Back to month
+            </Button>
+          </div>
+        )}
+
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Date</TableHead>
               <TableHead>Type</TableHead>
+              <TableHead>Model</TableHead>
               <TableHead>Chatter</TableHead>
               <TableHead>Amount</TableHead>
               <TableHead>Description</TableHead>
@@ -566,6 +634,12 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
                     }
                     return iconMap[earning.type] || null
                   })()}
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <UserCircle className="h-4 w-4 text-muted-foreground" />
+                    {earning.model?.display_name ?? "Unknown"}
+                  </div>
                 </TableCell>
                 <TableCell>
                   {['paypermessage','tip'].includes(earning.type) ? (
