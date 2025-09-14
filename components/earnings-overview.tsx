@@ -81,7 +81,7 @@ interface EarningsData {
 
 export function EarningsOverview({ limit }: EarningsOverviewProps) {
   const [earnings, setEarnings] = useState<EarningsData[]>([])
-  const [total, setTotal] = useState(0)
+  const [total, setTotal] = useState(true)
   const [loading, setLoading] = useState(true)
   const [monthlyEarnings, setMonthlyEarnings] = useState<any[]>([])
   const [chatters, setChatters] = useState<{ id: string; full_name: string }[]>([])
@@ -94,7 +94,11 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
   const [syncFrom, setSyncFrom] = useState("")
   const [syncTo, setSyncTo] = useState("")
   const [page, setPage] = useState(1)
-  const pageSize = 20
+  const pageSize = 10
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = now.getMonth()
+  const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`
 
   const mapEarning = (earning: any): EarningsData => {
     const chatterId = earning.chatterId ? String(earning.chatterId) : null
@@ -184,8 +188,10 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
         try {
           setLoading(true)
           const res = await api.getEmployeeEarningsPaginated({ limit, offset: 0 })
-          setEarnings(res.data.map(mapEarning))
-          setTotal(res.total)
+          const total = await api.getTotalCount()
+          console.log(res, total)
+          setEarnings(res.map(mapEarning))
+          setTotal(total)
         } catch (error) {
           console.error("Error loading earnings:", error)
         } finally {
@@ -203,11 +209,6 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
       fetchPage()
     }
   }, [page, chatterFilter, typeFilter, selectedDate, limit])
-
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = now.getMonth()
-  const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`
 
   const chartData = useMemo(() => {
     const daysInMonth = new Date(year, month + 1, 0).getDate()

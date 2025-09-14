@@ -181,9 +181,9 @@ class ApiClient {
       throw new Error(`API Error: ${response.status} ${response.statusText}`)
     }
 
-    const total = Number(response.headers.get("X-Total-Count") || 0)
     const data = await response.json()
-    return { data, total }
+    console.log(data)
+    return data
   }
 
   getEmployeeEarningsByChatter(id: string) {
@@ -196,6 +196,10 @@ class ApiClient {
 
   getEmployeeEarning(id: string) {
     return this.request(`/employee-earnings/${id}`)
+  }
+
+  getTotalCount() {
+    return this.request('/employee-earnings/totalCount')
   }
 
   addEmployeeEarning(data: any) {
