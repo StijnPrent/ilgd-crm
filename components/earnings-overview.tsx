@@ -180,6 +180,20 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
         api.getEmployeeEarningsPaginated(params),
         api.getTotalCount(countParams),
       ])
+      let data = Array.isArray(res) ? res : res?.data || []
+      if (chatterFilter !== "all") {
+        data = data.filter((e: any) => String(e.chatterId) === chatterFilter)
+      }
+      if (typeFilter !== "all") {
+        data = data.filter((e: any) => e.type === typeFilter)
+      }
+      if (modelFilter !== "all") {
+        data = data.filter((e: any) => String(e.modelId) === modelFilter)
+      }
+      const [res, total] = await Promise.all([
+        api.getEmployeeEarningsPaginated(params),
+        api.getTotalCount(countParams),
+      ])
       const data = Array.isArray(res) ? res : res?.data || []
       setEarnings(data.map(mapEarning))
       setTotal(total)
