@@ -147,12 +147,14 @@ class ApiClient {
   }
 
   /* ---------- Employee Earnings ---------- */
-  getEmployeeEarnings(params?: { limit?: number; offset?: number; chatterId?: string; type?: string }) {
+  getEmployeeEarnings(params?: { limit?: number; offset?: number; chatterId?: string; type?: string; modelId?: string; date?: string }) {
     const search = new URLSearchParams()
     if (params?.limit !== undefined) search.set("limit", String(params.limit))
     if (params?.offset !== undefined) search.set("offset", String(params.offset))
     if (params?.chatterId) search.set("chatterId", params.chatterId)
     if (params?.type) search.set("type", params.type)
+    if (params?.modelId) search.set("modelId", params.modelId)
+    if (params?.date) search.set("date", params.date)
     const query = search.toString() ? `?${search.toString()}` : ""
     return this.request(`/employee-earnings${query}`)
   }
@@ -162,12 +164,16 @@ class ApiClient {
     offset: number
     chatterId?: string
     type?: string
+    modelId?: string
+    date?: string
   }) {
     const search = new URLSearchParams()
     search.set("limit", String(params.limit))
     search.set("offset", String(params.offset))
     if (params.chatterId) search.set("chatterId", params.chatterId)
     if (params.type) search.set("type", params.type)
+    if (params.modelId) search.set("modelId", params.modelId)
+    if (params.date) search.set("date", params.date)
     const query = `?${search.toString()}`
 
     const response = await fetch(`${API_BASE_URL}/employee-earnings${query}`, {
@@ -182,7 +188,6 @@ class ApiClient {
     }
 
     const data = await response.json()
-    console.log(data)
     return data
   }
 
@@ -198,8 +203,14 @@ class ApiClient {
     return this.request(`/employee-earnings/${id}`)
   }
 
-  getTotalCount() {
-    return this.request('/employee-earnings/totalCount')
+  getTotalCount(params?: { chatterId?: string; type?: string; modelId?: string; date?: string }) {
+    const search = new URLSearchParams()
+    if (params?.chatterId) search.set("chatterId", params.chatterId)
+    if (params?.type) search.set("type", params.type)
+    if (params?.modelId) search.set("modelId", params.modelId)
+    if (params?.date) search.set("date", params.date)
+    const query = search.toString() ? `?${search.toString()}` : ""
+    return this.request(`/employee-earnings/totalCount${query}`)
   }
 
   addEmployeeEarning(data: any) {
