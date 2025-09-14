@@ -190,6 +190,11 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
       if (modelFilter !== "all") {
         data = data.filter((e: any) => String(e.modelId) === modelFilter)
       }
+      const [res, total] = await Promise.all([
+        api.getEmployeeEarningsPaginated(params),
+        api.getTotalCount(countParams),
+      ])
+      const data = Array.isArray(res) ? res : res?.data || []
       setEarnings(data.map(mapEarning))
       setTotal(total)
     } catch (error) {
