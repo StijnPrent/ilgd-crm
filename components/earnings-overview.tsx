@@ -137,11 +137,23 @@ export function EarningsOverview({ limit }: EarningsOverviewProps) {
       if (typeFilter !== "all") params.type = typeFilter
       if (modelFilter !== "all") params.modelId = modelFilter
       const res = await api.getEmployeeEarningsPaginated(params)
-      const items = Array.isArray(res) ? res : res?.data || []
-      const monthData = items.filter((e: any) =>
-        e.date?.startsWith(monthKey),
-      )
-      setMonthlyEarnings(monthData)
+      let items = Array.isArray(res) ? res : res?.data || []
+      // Ensure client-side filtering so the chart always reflects selections
+      if (chatterFilter !== "all") {
+        items = items.filter(
+          (e: any) => String(e.chatterId) === chatterFilter,
+        )
+      }
+      if (typeFilter !== "all") {
+        items = items.filter((e: any) => e.type === typeFilter)
+      }
+      if (modelFilter !== "all") {
+        items = items.filter(
+          (e: any) => String(e.modelId) === modelFilter,
+        )
+      }
+      const monthData = items.filter((e: any) => e.date?.startsWith(monthKey))
+      setMonthlyEarnings(monthData.map(mapEarning))
     } catch (error) {
       console.error("Error loading monthly earnings:", error)
     }
