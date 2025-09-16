@@ -128,14 +128,38 @@ const parseTotalCount = (value: any) => {
     return 0
 }
 
+const toStringId = (value: any): string | null => {
+    if (value === null || value === undefined) return null
+    if (typeof value === "object") {
+        if ("id" in value && value.id !== null && value.id !== undefined) {
+            return String(value.id)
+        }
+        return null
+    }
+    const stringValue = String(value)
+    return stringValue.length > 0 ? stringValue : null
+}
+
+const resolveId = (...values: any[]): string | null => {
+    for (const value of values) {
+        const id = toStringId(value)
+        if (id) return id
+    }
+    return null
+}
+
 const buildShiftLabel = (
     shift: any,
-    chatterLookup: Map<undefined, undefined>,
+    chatterLookup: Map<string, string>,
+    modelLookup: Map<string, string>,
 ) => {
     if (!shift) return `Shift #${shift?.id ?? ""}`
 
-    const start = shift.startTime ? new Date(shift.startTime) : shift.date ? new Date(shift.date) : null
-    const end = shift.endTime ? new Date(shift.endTime) : null
+    const startRaw = shift.startTime ?? shift.start_time ?? shift.date ?? null
+    const endRaw = shift.endTime ?? shift.end_time ?? null
+
+    const start = startRaw ? new Date(startRaw) : null
+    const end = endRaw ? new Date(endRaw) : null
 
     const dateLabel = start
         ? start.toLocaleDateString("nl-NL", {
@@ -157,15 +181,59 @@ const buildShiftLabel = (
     }
     const timeLabel = timeParts.join(" - ")
 
-    const chatterName = chatterLookup.get(String(shift.chatterId))
-    const modelNames = Array.isArray(shift.modelIds)
-        ? (shift.modelIds as any[])
-            .map((id) => modelLookup.get(String(id)))
-            .filter(Boolean)
-            .join(", ")
-        : ""
+    const chatterId = resolveId(shift.chatterId, shift.chatter_id, shift.chatter?.id)
+    const chatterName = chatterId
+        ? chatterLookup.get(chatterId) ?? shift.chatter?.full_name ?? shift.chatter?.fullName ?? ""
+        : shift.chatter?.full_name ?? shift.chatter?.fullName ?? chatterLookup.get("unknown") ?? ""
 
-    return [dateLabel, timeLabel, chatterName, modelNames].filter(Boolean).join(" · ")
+    const rawModelIds = Array.isArray(shift.modelIds)
+        ? shift.modelIds
+        : Array.isArray(shift.model_ids)
+            ? shift.model_ids
+            : []
+
+    const modelNames = rawModelIds
+        .map((value: any) =>
+            resolveId(value, value?.id, value?.modelId, value?.model_id),
+        )
+        .filter((id): id is string => Boolean(id))
+        .map((id) => {
+            if (modelLookup.has(id)) return modelLookup.get(id) as string
+            if (Array.isArray(shift.models)) {
+                const match = shift.models.find(
+                    (model: any) =>
+                        resolveId(
+                            model.id,
+                            model.modelId,
+                            model.model_id,
+                        ) === id,
+                )
+                if (match?.display_name || match?.displayName || match?.name) {
+                    return (
+                        match.display_name ?? match.displayName ?? match.name
+                    )
+                }
+            }
+            return null
+        })
+        .filter((name): name is string => Boolean(name))
+
+    let modelLabel = ""
+    if (modelNames.length > 0) {
+        const preview = modelNames.slice(0, 2).join(", ")
+        const remaining = modelNames.length - Math.min(modelNames.length, 2)
+        modelLabel = remaining > 0 ? `${preview} +${remaining}` : preview
+    }
+
+    return [dateLabel, timeLabel, chatterName, modelLabel]
+        .filter((value) => {
+            if (!value) return false
+            if (typeof value === "string") {
+                return value.trim().length > 0
+            }
+            return true
+        })
+        .join(" · ")
 }
 
 interface EarningsOverviewProps {
@@ -206,9 +274,9 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
     const [chatters, setChatters] = useState<{ id: string; full_name: string }[]>([])
     const [models, setModels] = useState<{ id: string; display_name: string }[]>([])
     const [shifts, setShifts] = useState<{ id: string; label: string }[]>([])
-    const [chatterMap, setChatterMap] = useState<Map<unknown, unknown>>(new Map())
-    const [modelMap, setModelMap] = useState<Map<unknown, unknown>>(new Map())
-    const [shiftMap, setShiftMap] = useState<Map<unknown, unknown>>(new Map())
+    const [chatterMap, setChatterMap] = useState<Map<string, string>>(new Map())
+    const [modelMap, setModelMap] = useState<Map<string, string>>(new Map())
+    const [shiftMap, setShiftMap] = useState<Map<string, string>>(new Map())
     const [filters, setFilters] = useState<FilterState>({
         shiftId: null,
         modelId: null,
@@ -236,29 +304,67 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
 
     const mapEarning = useCallback(
         (earning: any): EarningsData => {
-            const chatterId = earning.chatterId ? String(earning.chatterId) : null
-            const chatterName = chatterId
-                ? chatterMap.get(chatterId) ?? "Wolf"
-                : "Wolf"
-            const modelId = earning.modelId ? String(earning.modelId) : null
-            const modelName = modelId
-                ? modelMap.get(modelId) ?? "Unknown"
-                : "Unknown"
-            const shiftId = earning.shiftId ? String(earning.shiftId) : null
-            const shiftLabel = shiftId ? shiftMap.get(shiftId) ?? "" : ""
+            const chatterId = resolveId(
+                earning.chatterId,
+                earning.chatter_id,
+                earning.chatter?.id,
+            )
+            const chatterName =
+                (chatterId ? chatterMap.get(chatterId) : null) ??
+                earning.chatter?.full_name ??
+                earning.chatter?.fullName ??
+                chatterMap.get("unknown") ??
+                "Wolf"
+
+            const modelId = resolveId(
+                earning.modelId,
+                earning.model_id,
+                earning.model?.id,
+            )
+            const modelName =
+                (modelId ? modelMap.get(modelId) : null) ??
+                earning.model?.display_name ??
+                earning.model?.displayName ??
+                earning.model?.name ??
+                "Unknown"
+
+            const shiftId = resolveId(
+                earning.shiftId,
+                earning.shift_id,
+                earning.shift?.id,
+            )
+            let shiftLabel = shiftId ? shiftMap.get(shiftId) ?? "" : ""
+            if (!shiftLabel && earning.shift) {
+                shiftLabel = buildShiftLabel(earning.shift, chatterMap, modelMap)
+            }
+
+            const entryId =
+                resolveId(
+                    earning.id,
+                    earning.earningId,
+                    earning.earning_id,
+                    earning.transactionId,
+                    earning.transaction_id,
+                ) ??
+                String(
+                    earning.id ??
+                        earning.earningId ??
+                        earning.transactionId ??
+                        "",
+                )
 
             return {
-                id: String(earning.id),
+                id: entryId,
                 date: earning.date,
                 amount: Number(earning.amount),
                 description: earning.description,
                 type: earning.type,
                 chatterId,
-                chatter: chatterId ? {full_name: chatterName} : null,
+                chatter: chatterName ? {full_name: chatterName} : null,
                 modelId,
-                model: modelId ? {display_name: modelName} : null,
+                model: modelName ? {display_name: modelName} : null,
                 shiftId,
-                shift: shiftId && shiftLabel ? {label: shiftLabel} : null,
+                shift: shiftLabel ? {label: shiftLabel} : null,
             } as EarningsData
         },
         [chatterMap, modelMap, shiftMap],
@@ -338,10 +444,25 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
 
                 const chatterEntries = [
                     {id: "unknown", full_name: "Wolf"},
-                    ...activeChatters.map((chatter: any) => ({
-                        id: String(chatter.id),
-                        full_name: userMap.get(String(chatter.id)) || "",
-                    })),
+                    ...activeChatters.map((chatter: any) => {
+                        const id =
+                            resolveId(
+                                chatter.id,
+                                chatter.chatterId,
+                                chatter.userId,
+                                chatter.user_id,
+                            ) ?? String(chatter.id ?? "")
+                        const label =
+                            userMap.get(id) ??
+                            userMap.get(String(chatter.id ?? "")) ??
+                            chatter.full_name ??
+                            chatter.fullName ??
+                            ""
+                        return {
+                            id,
+                            full_name: label,
+                        }
+                    }),
                 ]
                 const chatterLookup = new Map(
                     chatterEntries.map((entry) => [entry.id, entry.full_name]),
@@ -351,8 +472,14 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
                 setChatterMap(chatterLookup)
 
                 const modelEntries = (modelsData || []).map((model: any) => ({
-                    id: String(model.id),
-                    display_name: model.displayName || model.name || "Unknown",
+                    id:
+                        resolveId(model.id, model.modelId, model.model_id) ??
+                        String(model.id ?? ""),
+                    display_name:
+                        model.displayName ||
+                        model.display_name ||
+                        model.name ||
+                        "Unknown",
                 }))
                 const modelLookup = new Map(
                     modelEntries.map((entry) => [entry.id, entry.display_name]),
@@ -360,11 +487,28 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
                 setModels(modelEntries)
                 setModelMap(modelLookup)
 
-                const shiftsList = (shiftsData || []).map((shift: any) => ({
-                    id: String(shift.id),
-                    label: buildShiftLabel(shift, chatterLookup),
+                const shiftEntries = (shiftsData || [])
+                    .map((shift: any) => {
+                        const id = resolveId(shift.id) ?? String(shift.id ?? "")
+                        const label = buildShiftLabel(shift, chatterLookup, modelLookup)
+                        const sortKeyRaw =
+                            shift.startTime ??
+                            shift.start_time ??
+                            shift.date ??
+                            null
+                        const sortKey = sortKeyRaw
+                            ? new Date(sortKeyRaw).getTime()
+                            : 0
+                        return {id, label, sortKey}
+                    })
+                    .filter((entry) => entry.id.trim().length > 0)
+                    .sort((a, b) => b.sortKey - a.sortKey)
+
+                const shiftsList = shiftEntries.map(({id, label}) => ({
+                    id: String(id),
+                    label,
                 }))
-                console.log(shiftsList, modelLookup, chatterLookup)
+
                 setShifts(shiftsList)
                 setShiftMap(new Map(shiftsList.map((entry) => [entry.id, entry.label])))
             } catch (error) {
@@ -729,7 +873,7 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
                             <DropdownMenuSub>
                                 <DropdownMenuSubTrigger>Shift</DropdownMenuSubTrigger>
                                 <DropdownMenuPortal>
-                                    <DropdownMenuSubContent className="w-64">
+                                    <DropdownMenuSubContent className="w-64 max-h-80 overflow-y-auto">
                                         <DropdownMenuRadioGroup
                                             value={filters.shiftId ?? "all"}
                                             onValueChange={(value) =>
@@ -754,7 +898,7 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
                             <DropdownMenuSub>
                                 <DropdownMenuSubTrigger>Model</DropdownMenuSubTrigger>
                                 <DropdownMenuPortal>
-                                    <DropdownMenuSubContent className="w-64">
+                                    <DropdownMenuSubContent className="w-64 max-h-80 overflow-y-auto">
                                         <DropdownMenuRadioGroup
                                             value={filters.modelId ?? "all"}
                                             onValueChange={(value) =>
@@ -779,7 +923,7 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
                             <DropdownMenuSub>
                                 <DropdownMenuSubTrigger>Chatter</DropdownMenuSubTrigger>
                                 <DropdownMenuPortal>
-                                    <DropdownMenuSubContent className="w-64">
+                                    <DropdownMenuSubContent className="w-64 max-h-80 overflow-y-auto">
                                         <DropdownMenuRadioGroup
                                             value={filters.chatterId ?? "all"}
                                             onValueChange={(value) =>
