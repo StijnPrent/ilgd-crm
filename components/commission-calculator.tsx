@@ -1,13 +1,22 @@
 "use client"
 
 import type { KeyboardEvent } from "react"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
 import { Calendar, Calculator } from "lucide-react"
 
 import { api } from "@/lib/api"
@@ -15,8 +24,7 @@ import { api } from "@/lib/api"
 interface Commission {
   id: string
   user_id: string
-  period_start: string
-  period_end: string
+  commission_date: string
   total_earnings: number
   commission_rate: number
   commission_amount: number
@@ -36,6 +44,8 @@ interface ChatterOption {
   currency: string
 }
 
+const PAGE_SIZE = 10
+
 const formatCurrency = (amount: number, currency = "€") => {
   const currencyCode = currency === "€" ? "EUR" : currency === "$" ? "USD" : currency
   const sanitizedAmount = Number.isFinite(amount) ? amount : 0
@@ -45,19 +55,37 @@ const formatCurrency = (amount: number, currency = "€") => {
   }).format(sanitizedAmount)
 }
 
-const formatPeriod = (start: string, end: string) => {
-  if (!start || !end) return "-"
-  const formatter = new Intl.DateTimeFormat("nl-NL", {
+const formatCommissionDate = (value: string) => {
+  if (!value) return "-"
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return "-"
+  return parsed.toLocaleDateString("nl-NL", {
     day: "2-digit",
     month: "short",
     year: "numeric",
   })
-  const startDate = new Date(start)
-  const endDate = new Date(end)
-  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
-    return "-"
+}
+
+const parseTotalCount = (value: any, fallback = 0) => {
+  if (typeof value === "number") return value
+  if (typeof value === "string") {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : fallback
   }
-  return `${formatter.format(startDate)} - ${formatter.format(endDate)}`
+  if (value && typeof value === "object") {
+    const possible =
+      value.total ??
+      value.count ??
+      value.meta?.total ??
+      value.pagination?.total ??
+      value.data
+    if (typeof possible === "number") return possible
+    if (typeof possible === "string") {
+      const parsed = Number(possible)
+      return Number.isFinite(parsed) ? parsed : fallback
+    }
+  }
+  return fallback
 }
 
 const parseBonusValue = (value: string | number | undefined) => {
@@ -80,119 +108,212 @@ export function CommissionCalculator() {
   const [chatters, setChatters] = useState<ChatterOption[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedChatter, setSelectedChatter] = useState("all")
+  const [page, setPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
   const [bonusInputs, setBonusInputs] = useState<Record<string, string>>({})
   const [bonusSaveState, setBonusSaveState] = useState<Record<string, "idle" | "saving" | "error">>({})
 
-  const fetchCommissions = useCallback(
-    async (filters?: { chatterId?: string }) => {
-      setLoading(true)
-      try {
-        const params = filters?.chatterId ? { chatterId: filters.chatterId } : undefined
-        const [commissionsData, chattersData, usersData] = await Promise.all([
+  const fetchCommissions = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params: {
+        limit: number
+        offset: number
+        chatterId?: string
+      } = {
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
+      }
+
+      if (selectedChatter !== "all") {
+        params.chatterId = selectedChatter
+      }
+
+      const totalCountPromise = api
+        .getCommissionsTotalCount(params)
+        .catch((error: unknown) => {
+          console.warn("Error fetching commission total count:", error)
+          return null
+        })
+
+      const [commissionsResponse, totalResponse, chattersData, usersData] =
+        await Promise.all([
           api.getCommissions(params),
+          totalCountPromise,
           api.getChatters(),
           api.getUsers(),
         ])
 
-        const userMap = new Map(
-          (usersData || []).map((u: any) => [
-            String(u.id),
-            u.fullName || u.full_name || "",
-          ]),
-        )
+      const userMap = new Map(
+        (usersData || []).map((u: any) => [
+          String(u.id),
+          u.fullName || u.full_name || "",
+        ]),
+      )
 
-        const chatterOptions: ChatterOption[] = (chattersData || []).map((ch: any) => ({
-          id: String(ch.id),
-          full_name:
-            userMap.get(String(ch.id)) ||
-            ch.fullName ||
-            ch.full_name ||
-            ch.name ||
+      const chatterOptions: ChatterOption[] = (chattersData || []).map((ch: any) => ({
+        id: String(ch.id),
+        full_name:
+          userMap.get(String(ch.id)) ||
+          ch.fullName ||
+          ch.full_name ||
+          ch.name ||
+          "",
+        currency: ch.currency || ch.currency_symbol || "€",
+      }))
+
+      setChatters(chatterOptions)
+
+      const chatterCurrency = new Map(
+        chatterOptions.map((chatter) => [chatter.id, chatter.currency]),
+      )
+
+      const commissionList = Array.isArray(commissionsResponse)
+        ? commissionsResponse
+        : commissionsResponse?.data ?? []
+
+      const formatted: Commission[] = commissionList.map((c: any) => {
+        const chatterId = String(
+          c.chatterId || c.chatter_id || c.user_id || c.userId || "",
+        )
+        const currency =
+          chatterCurrency.get(chatterId) ||
+          c.currency ||
+          c.currency_symbol ||
+          "€"
+        const commissionAmount = Number(
+          c.commission ?? c.commission_amount ?? 0,
+        )
+        const bonusAmount = parseBonusValue(
+          c.bonus ?? c.bonusAmount ?? c.bonus_amount,
+        )
+        const totalPayoutRaw =
+          c.totalPayout ?? c.total_payout ?? c.total ?? undefined
+        const totalPayout = Number.isFinite(Number(totalPayoutRaw))
+          ? Number(totalPayoutRaw)
+          : commissionAmount + bonusAmount
+
+        return {
+          id: String(c.id),
+          user_id: chatterId,
+          commission_date:
+            c.commissionDate ||
+            c.commission_date ||
+            c.date ||
+            c.shiftDate ||
+            c.shift_date ||
+            c.periodStart ||
+            c.period_start ||
+            c.createdAt ||
+            c.created_at ||
             "",
-          currency: ch.currency || ch.currency_symbol || "€",
-        }))
-
-        setChatters(chatterOptions)
-
-        const chatterCurrency = new Map(
-          chatterOptions.map((chatter) => [chatter.id, chatter.currency]),
-        )
-
-        const formatted: Commission[] = (commissionsData || []).map((c: any) => {
-          const chatterId = String(
-            c.chatterId || c.chatter_id || c.user_id || c.userId || "",
-          )
-          const currency =
-            chatterCurrency.get(chatterId) ||
-            c.currency ||
-            c.currency_symbol ||
-            "€"
-          const commissionAmount = Number(
-            c.commission ?? c.commission_amount ?? 0,
-          )
-          const bonusAmount = parseBonusValue(
-            c.bonus ?? c.bonusAmount ?? c.bonus_amount,
-          )
-          const totalPayoutRaw =
-            c.totalPayout ?? c.total_payout ?? c.total ?? undefined
-          const totalPayout = Number.isFinite(Number(totalPayoutRaw))
-            ? Number(totalPayoutRaw)
-            : commissionAmount + bonusAmount
-
-          return {
-            id: String(c.id),
-            user_id: chatterId,
-            period_start: c.periodStart || c.period_start || "",
-            period_end: c.periodEnd || c.period_end || "",
-            total_earnings: Number(c.earnings ?? c.total_earnings ?? 0),
-            commission_rate: Number(c.commissionRate ?? c.commission_rate ?? 0),
-            commission_amount: commissionAmount,
-            bonus_amount: Number.isFinite(bonusAmount) ? bonusAmount : 0,
-            total_payout:
-              Number.isFinite(totalPayout)
-                ? totalPayout
-                : commissionAmount + (Number.isFinite(bonusAmount) ? bonusAmount : 0),
-            status: c.status || "pending",
-            created_at: c.createdAt || c.created_at || "",
-            chatter: {
-              full_name:
-                userMap.get(chatterId) ||
-                c.chatter?.full_name ||
-                c.chatter?.fullName ||
-                c.chatterName ||
-                "",
-              currency,
-            },
-          }
-        })
-
-        setCommissions(formatted)
-
-        const initialBonusInputs = formatted.reduce(
-          (acc, commission) => {
-            acc[commission.id] = formatBonusValue(commission.bonus_amount)
-            return acc
+          total_earnings: Number(c.earnings ?? c.total_earnings ?? c.total ?? 0),
+          commission_rate: Number(c.commissionRate ?? c.commission_rate ?? 0),
+          commission_amount: commissionAmount,
+          bonus_amount: Number.isFinite(bonusAmount) ? bonusAmount : 0,
+          total_payout:
+            Number.isFinite(totalPayout)
+              ? totalPayout
+              : commissionAmount +
+                (Number.isFinite(bonusAmount) ? bonusAmount : 0),
+          status: c.status || "pending",
+          created_at: c.createdAt || c.created_at || "",
+          chatter: {
+            full_name:
+              userMap.get(chatterId) ||
+              c.chatter?.full_name ||
+              c.chatter?.fullName ||
+              c.chatterName ||
+              "",
+            currency,
           },
-          {} as Record<string, string>,
-        )
-        setBonusInputs(initialBonusInputs)
-        setBonusSaveState({})
-      } catch (error) {
-        console.error("Error fetching commissions:", error)
-        setCommissions([])
-        setBonusInputs({})
-      } finally {
-        setLoading(false)
-      }
-    },
-    [],
-  )
+        }
+      })
+
+      setCommissions(formatted)
+
+      const rawMetaTotal = Array.isArray(commissionsResponse)
+        ? undefined
+        : commissionsResponse?.total ??
+          commissionsResponse?.meta?.total ??
+          commissionsResponse?.meta?.count ??
+          commissionsResponse?.meta?.pagination?.total ??
+          commissionsResponse?.pagination?.total ??
+          commissionsResponse?.count ??
+          commissionsResponse?.data?.total
+
+      const fallbackTotal = (page - 1) * PAGE_SIZE + commissionList.length
+
+      const derivedTotal = parseTotalCount(
+        totalResponse,
+        parseTotalCount(rawMetaTotal, fallbackTotal),
+      )
+
+      setTotalCount(derivedTotal)
+
+      const initialBonusInputs = formatted.reduce(
+        (acc, commission) => {
+          acc[commission.id] = formatBonusValue(commission.bonus_amount)
+          return acc
+        },
+        {} as Record<string, string>,
+      )
+      setBonusInputs(initialBonusInputs)
+      setBonusSaveState({})
+    } catch (error) {
+      console.error("Error fetching commissions:", error)
+      setCommissions([])
+      setBonusInputs({})
+      setBonusSaveState({})
+      setTotalCount(0)
+    } finally {
+      setLoading(false)
+    }
+  }, [page, selectedChatter])
 
   useEffect(() => {
-    const params =
-      selectedChatter === "all" ? undefined : { chatterId: selectedChatter }
-    fetchCommissions(params)
-  }, [selectedChatter, fetchCommissions])
+    fetchCommissions()
+  }, [fetchCommissions])
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(totalCount / PAGE_SIZE) || 1)
+    if (page > maxPage) {
+      setPage(maxPage)
+    }
+  }, [page, totalCount])
+
+  const handleChatterFilterChange = useCallback((value: string) => {
+    setSelectedChatter(value)
+    setPage(1)
+  }, [])
+
+  const pageCount = useMemo(
+    () => Math.max(1, Math.ceil(totalCount / PAGE_SIZE) || 1),
+    [totalCount],
+  )
+
+  const paginationNumbers = useMemo(() => {
+    if (pageCount <= 5) {
+      return Array.from({ length: pageCount }, (_, index) => index + 1)
+    }
+
+    if (page <= 4) {
+      return [1, 2, 3, 4, "ellipsis", pageCount]
+    }
+
+    if (page >= pageCount - 3) {
+      return [
+        1,
+        "ellipsis",
+        pageCount - 3,
+        pageCount - 2,
+        pageCount - 1,
+        pageCount,
+      ]
+    }
+
+    return [1, "ellipsis", page - 1, page, page + 1, "ellipsis", pageCount]
+  }, [page, pageCount])
 
   const handleBonusInputChange = (id: string, value: string) => {
     setBonusInputs((prev) => ({ ...prev, [id]: value }))
@@ -300,9 +421,12 @@ export function CommissionCalculator() {
   const deleteCommission = async (commissionId: string) => {
     try {
       await api.deleteCommission(commissionId)
-      setCommissions((prev) =>
-        prev.filter((commission) => commission.id !== commissionId),
-      )
+      const isLastItemOnPage = commissions.length === 1
+      if (isLastItemOnPage && page > 1) {
+        setPage((current) => Math.max(1, current - 1))
+      } else {
+        await fetchCommissions()
+      }
     } catch (error) {
       console.error("Error deleting commission:", error)
     }
@@ -341,7 +465,7 @@ export function CommissionCalculator() {
             </span>
             <Select
               value={selectedChatter}
-              onValueChange={setSelectedChatter}
+              onValueChange={handleChatterFilterChange}
               disabled={chatters.length === 0}
             >
               <SelectTrigger>
@@ -363,7 +487,7 @@ export function CommissionCalculator() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Period</TableHead>
+              <TableHead>Date</TableHead>
               <TableHead>Chatter</TableHead>
               <TableHead>Earnings</TableHead>
               <TableHead>Commission Rate</TableHead>
@@ -389,10 +513,7 @@ export function CommissionCalculator() {
                     <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-muted-foreground" />
                       <span>
-                        {formatPeriod(
-                          commission.period_start,
-                          commission.period_end,
-                        )}
+                        {formatCommissionDate(commission.commission_date)}
                       </span>
                     </div>
                   </TableCell>
@@ -489,6 +610,49 @@ export function CommissionCalculator() {
             })}
           </TableBody>
         </Table>
+
+        {pageCount > 1 && totalCount > 0 && (
+          <Pagination className="pt-4">
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href="#"
+                  onClick={(event) => {
+                    event.preventDefault()
+                    setPage((current) => Math.max(1, current - 1))
+                  }}
+                />
+              </PaginationItem>
+              {paginationNumbers.map((paginationItem, index) => (
+                <PaginationItem key={`${paginationItem}-${index}`}>
+                  {paginationItem === "ellipsis" ? (
+                    <PaginationEllipsis />
+                  ) : (
+                    <PaginationLink
+                      href="#"
+                      isActive={page === paginationItem}
+                      onClick={(event) => {
+                        event.preventDefault()
+                        setPage(paginationItem as number)
+                      }}
+                    >
+                      {paginationItem}
+                    </PaginationLink>
+                  )}
+                </PaginationItem>
+              ))}
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(event) => {
+                    event.preventDefault()
+                    setPage((current) => Math.min(pageCount, current + 1))
+                  }}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        )}
 
         {commissions.length === 0 && (
           <div className="py-8 text-center text-muted-foreground">

@@ -293,13 +293,40 @@ class ApiClient {
   }
 
   /* ---------- Commissions ---------- */
-  getCommissions(params?: { chatterId?: string; periodStart?: string; periodEnd?: string }) {
+  getCommissions(params?: {
+    chatterId?: string
+    limit?: number
+    offset?: number
+    date?: string
+    from?: string
+    to?: string
+  }) {
     const search = new URLSearchParams()
     if (params?.chatterId) search.set("chatterId", params.chatterId)
-    if (params?.periodStart) search.set("periodStart", params.periodStart)
-    if (params?.periodEnd) search.set("periodEnd", params.periodEnd)
+    if (params?.limit !== undefined) search.set("limit", String(params.limit))
+    if (params?.offset !== undefined) search.set("offset", String(params.offset))
+    if (params?.date) search.set("date", params.date)
+    if (params?.from) search.set("from", params.from)
+    if (params?.to) search.set("to", params.to)
     const query = search.toString() ? `?${search.toString()}` : ""
     return this.request(`/commissions${query}`)
+  }
+
+  getCommissionsTotalCount(params?: {
+    chatterId?: string
+    date?: string
+    from?: string
+    to?: string
+    limit?: number
+    offset?: number
+  }) {
+    const search = new URLSearchParams()
+    if (params?.chatterId) search.set("chatterId", params.chatterId)
+    if (params?.date) search.set("date", params.date)
+    if (params?.from) search.set("from", params.from)
+    if (params?.to) search.set("to", params.to)
+    const query = search.toString() ? `?${search.toString()}` : ""
+    return this.request(`/commissions/totalCount${query}`)
   }
 
   createCommission(data: any) {
