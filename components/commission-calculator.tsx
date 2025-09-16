@@ -17,7 +17,8 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
-import { Calendar, Calculator } from "lucide-react"
+import {Calendar, Calculator, Clock, CheckCircle, XCircle, Percent} from "lucide-react"
+import { Badge } from "@/components/ui/badge";
 
 import { api } from "@/lib/api"
 
@@ -418,6 +419,35 @@ export function CommissionCalculator() {
     }
   }
 
+  const getStatusBadge = (status: string) => {
+    console.log(status)
+    switch (status) {
+      case "pending":
+        return (
+          <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+            <Clock className="h-3 w-3 mr-1" />
+            Pending
+          </Badge>
+        )
+      case "paid":
+        return (
+          <Badge className="bg-green-100 text-green-800">
+            <CheckCircle className="h-3 w-3 mr-1" />
+            Paid
+          </Badge>
+        )
+      case "cancelled":
+        return (
+          <Badge variant="destructive">
+            <XCircle className="h-3 w-3 mr-1" />
+            Cancelled
+          </Badge>
+        )
+      default:
+        return <Badge variant="outline">{status}</Badge>
+    }
+  }
+
   const deleteCommission = async (commissionId: string) => {
     try {
       await api.deleteCommission(commissionId)
@@ -452,8 +482,8 @@ export function CommissionCalculator() {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <Calculator className="h-5 w-5" />
-              Commission Calculator
+              <Percent className="h-5 w-5" />
+              Commissions
             </CardTitle>
             <CardDescription>
               Review automatically generated commissions and manage payouts.
@@ -494,7 +524,8 @@ export function CommissionCalculator() {
               <TableHead>Commission</TableHead>
               <TableHead>Bonus</TableHead>
               <TableHead>Total</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -551,6 +582,7 @@ export function CommissionCalculator() {
                           handleBonusKeyDown(event, commission)
                         }
                         disabled={bonusSaveState[commission.id] === "saving"}
+                        className="h-8 w-24 px-2 text-sm leading-none min-w-0"
                       />
                       {bonusSaveState[commission.id] === "saving" && (
                         <span className="text-xs text-muted-foreground">
@@ -570,6 +602,7 @@ export function CommissionCalculator() {
                       commission.chatter.currency,
                     )}
                   </TableCell>
+                  <TableCell>{getStatusBadge(commission.status)}</TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-2">
                       {commission.status === "pending" && (
