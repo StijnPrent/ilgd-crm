@@ -293,8 +293,13 @@ class ApiClient {
   }
 
   /* ---------- Commissions ---------- */
-  getCommissions() {
-    return this.request("/commissions")
+  getCommissions(params?: { chatterId?: string; periodStart?: string; periodEnd?: string }) {
+    const search = new URLSearchParams()
+    if (params?.chatterId) search.set("chatterId", params.chatterId)
+    if (params?.periodStart) search.set("periodStart", params.periodStart)
+    if (params?.periodEnd) search.set("periodEnd", params.periodEnd)
+    const query = search.toString() ? `?${search.toString()}` : ""
+    return this.request(`/commissions${query}`)
   }
 
   createCommission(data: any) {
