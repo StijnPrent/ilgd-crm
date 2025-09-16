@@ -34,7 +34,7 @@ import {
     Shield,
     User,
     PieChart,
-    Euro
+    Euro, Percent
 } from "lucide-react"
 import Image from "next/image"
 
@@ -278,6 +278,7 @@ export function ManagerDashboard() {
                                 Shifts
                             </TabsTrigger>
                             <TabsTrigger value="commissions" className="flex items-center gap-2">
+                                <Percent className="h-4 w-4"/>
                                 Commissions
                             </TabsTrigger>
                             <TabsTrigger value="revenue" className="flex items-center gap-2">

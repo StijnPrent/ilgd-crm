@@ -45,6 +45,7 @@ import {
     X,
     Filter,
     Clock,
+    Loader2,
 } from "lucide-react"
 import {Bar, BarChart, Cell, XAxis, YAxis} from "recharts"
 
@@ -212,6 +213,7 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
     const [selectedDate, setSelectedDate] = useState<string | null>(null)
     const [hoveredBar, setHoveredBar] = useState<number | null>(null)
     const [syncOpen, setSyncOpen] = useState(false)
+    const [syncLoading, setSyncLoading] = useState(false)
     const [syncFrom, setSyncFrom] = useState("")
     const [syncTo, setSyncTo] = useState("")
     const [page, setPage] = useState(1)
@@ -571,14 +573,21 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
     )
 
     const handleSync = useCallback(async () => {
+        if (!syncFrom || !syncTo || syncLoading) return false
+
+        setSyncLoading(true)
+
         try {
-            if (!syncFrom || !syncTo) return
             await api.syncEarnings(new Date(syncFrom), new Date(syncTo))
             await Promise.all([fetchTableData(), fetchChartData()])
+            return true
         } catch (error) {
             console.error("Error syncing earnings:", error)
+            return false
+        } finally {
+            setSyncLoading(false)
         }
-    }, [fetchChartData, fetchTableData, syncFrom, syncTo])
+    }, [fetchChartData, fetchTableData, syncFrom, syncTo, syncLoading])
 
     if (isCompact) {
         if (tableLoading) {
@@ -844,11 +853,23 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
                             </Badge>
                         ))}
                     </div>
-                    <Dialog open={syncOpen} onOpenChange={setSyncOpen}>
+                    <Dialog
+                        open={syncOpen}
+                        onOpenChange={(open) => {
+                            if (syncLoading) return
+                            setSyncOpen(open)
+                        }}
+                    >
                         <DialogTrigger asChild>
                             <Button className="md:ml-auto">Sync Earnings</Button>
                         </DialogTrigger>
-                        <DialogContent>
+                        <DialogContent aria-busy={syncLoading}>
+                            {syncLoading && (
+                                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-lg bg-background/80">
+                                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                                    <p className="text-sm font-medium">Syncing earnings...</p>
+                                </div>
+                            )}
                             <DialogHeader>
                                 <DialogTitle>Sync Earnings</DialogTitle>
                                 <DialogDescription>
@@ -863,6 +884,7 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
                                         type="datetime-local"
                                         value={syncFrom}
                                         onChange={(event) => setSyncFrom(event.target.value)}
+                                        disabled={syncLoading}
                                     />
                                 </div>
                                 <div className="flex flex-col gap-2">
@@ -872,20 +894,35 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
                                         type="datetime-local"
                                         value={syncTo}
                                         onChange={(event) => setSyncTo(event.target.value)}
+                                        disabled={syncLoading}
                                     />
                                 </div>
                             </div>
                             <DialogFooter>
-                                <Button variant="secondary" onClick={() => setSyncOpen(false)}>
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => setSyncOpen(false)}
+                                    disabled={syncLoading}
+                                >
                                     Cancel
                                 </Button>
                                 <Button
+                                    disabled={syncLoading || !syncFrom || !syncTo}
                                     onClick={async () => {
-                                        await handleSync()
-                                        setSyncOpen(false)
+                                        const success = await handleSync()
+                                        if (success) {
+                                            setSyncOpen(false)
+                                        }
                                     }}
                                 >
-                                    Sync
+                                    {syncLoading ? (
+                                        <span className="flex items-center gap-2">
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            Syncing...
+                                        </span>
+                                    ) : (
+                                        "Sync"
+                                    )}
                                 </Button>
                             </DialogFooter>
                         </DialogContent>
