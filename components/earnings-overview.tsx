@@ -863,7 +863,7 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
                         <DialogTrigger asChild>
                             <Button className="md:ml-auto">Sync Earnings</Button>
                         </DialogTrigger>
-                        <DialogContent className="relative" aria-busy={syncLoading}>
+                        <DialogContent aria-busy={syncLoading}>
                             {syncLoading && (
                                 <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-lg bg-background/80">
                                     <Loader2 className="h-5 w-5 animate-spin text-primary" />
