@@ -14,6 +14,7 @@ import {LogoutButton} from "@/components/logout-button"
 import {ManagerStats} from "@/components/manager-stats"
 import {ChattersList} from "@/components/chatters-list"
 import {ModelsList} from "@/components/models-list"
+import {ModelsEarningsLeaderboard} from "@/components/models-earnings-leaderboard"
 import {EarningsOverview} from "@/components/earnings-overview"
 import {ShiftManager} from "@/components/shift-manager"
 import {CommissionCalculator} from "@/components/commission-calculator"
@@ -368,7 +369,14 @@ export function ManagerDashboard() {
                         </TabsContent>
 
                         <TabsContent value="models">
-                            <ModelsList/>
+                            <div className="grid md:grid-cols-3 gap-6">
+                                <div className="md:col-span-2">
+                                    <ModelsList />
+                                </div>
+                                <div className="md:col-span-1">
+                                    <ModelsEarningsLeaderboard />
+                                </div>
+                            </div>
                         </TabsContent>
 
                         <TabsContent value="earnings">

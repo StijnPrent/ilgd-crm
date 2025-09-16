@@ -84,6 +84,10 @@ class ApiClient {
     return this.request(`/models/${id}`)
   }
 
+  getModelsWithEarnings() {
+    return this.request("/models/earnings")
+  }
+
   createModel(modelData: any) {
     return this.request("/models", {
       method: "POST",
@@ -143,14 +147,77 @@ class ApiClient {
   }
 
   /* ---------- Employee Earnings ---------- */
-  getEmployeeEarnings(params?: { limit?: number; offset?: number; chatterId?: string; type?: string }) {
+  getEmployeeEarnings(params?: {
+    limit?: number
+    offset?: number
+    chatterId?: string
+    type?: string
+    types?: string[]
+    modelId?: string
+    shiftId?: string
+    date?: string
+    from?: string
+    to?: string
+  }) {
     const search = new URLSearchParams()
     if (params?.limit !== undefined) search.set("limit", String(params.limit))
     if (params?.offset !== undefined) search.set("offset", String(params.offset))
     if (params?.chatterId) search.set("chatterId", params.chatterId)
-    if (params?.type) search.set("type", params.type)
+    if (params?.types?.length) {
+      params.types.forEach((type) => search.append("type", type))
+    } else if (params?.type) {
+      search.set("type", params.type)
+    }
+    if (params?.modelId) search.set("modelId", params.modelId)
+    if (params?.shiftId) search.set("shiftId", params.shiftId)
+    if (params?.date) search.set("date", params.date)
+    if (params?.from) search.set("from", params.from)
+    if (params?.to) search.set("to", params.to)
     const query = search.toString() ? `?${search.toString()}` : ""
     return this.request(`/employee-earnings${query}`)
+  }
+
+  async getEmployeeEarningsPaginated(params: {
+    limit: number
+    offset: number
+    chatterId?: string
+    type?: string
+    types?: string[]
+    modelId?: string
+    shiftId?: string
+    date?: string
+    from?: string
+    to?: string
+  }) {
+    const search = new URLSearchParams()
+    search.set("limit", String(params.limit))
+    search.set("offset", String(params.offset))
+    if (params.chatterId) search.set("chatterId", params.chatterId)
+    if (params.types?.length) {
+      params.types.forEach((type) => search.append("type", type))
+    } else if (params.type) {
+      search.set("type", params.type)
+    }
+    if (params.modelId) search.set("modelId", params.modelId)
+    if (params.shiftId) search.set("shiftId", params.shiftId)
+    if (params.date) search.set("date", params.date)
+    if (params.from) search.set("from", params.from)
+    if (params.to) search.set("to", params.to)
+    const query = `?${search.toString()}`
+
+    const response = await fetch(`${API_BASE_URL}/employee-earnings${query}`, {
+      headers: {
+        "Content-Type": "application/json",
+        ...this.getAuthHeaders(),
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.status} ${response.statusText}`)
+    }
+
+    const data = await response.json()
+    return data
   }
 
   getEmployeeEarningsByChatter(id: string) {
@@ -163,6 +230,32 @@ class ApiClient {
 
   getEmployeeEarning(id: string) {
     return this.request(`/employee-earnings/${id}`)
+  }
+
+  getTotalCount(params?: {
+    chatterId?: string
+    type?: string
+    types?: string[]
+    modelId?: string
+    shiftId?: string
+    date?: string
+    from?: string
+    to?: string
+  }) {
+    const search = new URLSearchParams()
+    if (params?.chatterId) search.set("chatterId", params.chatterId)
+    if (params?.types?.length) {
+      params.types.forEach((type) => search.append("type", type))
+    } else if (params?.type) {
+      search.set("type", params.type)
+    }
+    if (params?.modelId) search.set("modelId", params.modelId)
+    if (params?.shiftId) search.set("shiftId", params.shiftId)
+    if (params?.date) search.set("date", params.date)
+    if (params?.from) search.set("from", params.from)
+    if (params?.to) search.set("to", params.to)
+    const query = search.toString() ? `?${search.toString()}` : ""
+    return this.request(`/employee-earnings/totalCount${query}`)
   }
 
   addEmployeeEarning(data: any) {
