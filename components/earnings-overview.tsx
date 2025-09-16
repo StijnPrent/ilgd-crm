@@ -157,15 +157,9 @@ const buildShiftLabel = (
     }
     const timeLabel = timeParts.join(" - ")
 
-    const chatterName = chatterLookup.get(String(shift.chatterId))
-    const modelNames = Array.isArray(shift.modelIds)
-        ? (shift.modelIds as any[])
-            .map((id) => modelLookup.get(String(id)))
-            .filter(Boolean)
-            .join(", ")
-        : ""
+    const chatterName = chatterLookup.get(shift.chatterId)
 
-    return [dateLabel, timeLabel, chatterName, modelNames].filter(Boolean).join(" · ")
+    return [dateLabel, timeLabel, chatterName].filter(Boolean).join(" · ")
 }
 
 interface EarningsOverviewProps {
@@ -364,7 +358,6 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
                     id: String(shift.id),
                     label: buildShiftLabel(shift, chatterLookup),
                 }))
-                console.log(shiftsList, modelLookup, chatterLookup)
                 setShifts(shiftsList)
                 setShiftMap(new Map(shiftsList.map((entry) => [entry.id, entry.label])))
             } catch (error) {
