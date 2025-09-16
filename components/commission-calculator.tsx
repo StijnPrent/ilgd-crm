@@ -556,7 +556,7 @@ export function CommissionCalculator() {
                     )}
                   </TableCell>
                   <TableCell>
-                    {(commission.commission_rate * 100).toFixed(1)}%
+                    {commission.commission_rate.toFixed(1)}%
                   </TableCell>
                   <TableCell className="font-semibold text-green-600">
                     {formatCurrency(
