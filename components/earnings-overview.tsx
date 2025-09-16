@@ -201,7 +201,7 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
     const [models, setModels] = useState<{ id: string; display_name: string }[]>([])
     const [shifts, setShifts] = useState<{ id: string; label: string }[]>([])
     const [chatterMap, setChatterMap] = useState<Map<unknown, unknown>>(new Map())
-    const [modelMap, setModelMap] = useState<Map<unknown, unknown>>(new Map())
+    const [modelMap, setModelMap] = useState<Map<string, string>>(new Map())
     const [shiftMap, setShiftMap] = useState<Map<unknown, unknown>>(new Map())
     const [filters, setFilters] = useState<FilterState>({
         shiftId: null,
@@ -348,7 +348,7 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
                     id: String(model.id),
                     display_name: model.displayName || model.name || "Unknown",
                 }))
-                const modelLookup = new Map(
+                const modelLookup: Map<string, string> = new Map(
                     modelEntries.map((entry) => [entry.id, entry.display_name]),
                 )
                 setModels(modelEntries)
