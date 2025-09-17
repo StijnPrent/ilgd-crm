@@ -347,8 +347,13 @@ class ApiClient {
     return this.request(`/commissions/${id}`, { method: "DELETE" })
   }
 
-  getShifts() {
-    return this.request("/shifts")
+  getShifts(params?: { from?: string; to?: string; chatterId?: string }) {
+    const search = new URLSearchParams()
+    if (params?.from) search.set("from", params.from)
+    if (params?.to) search.set("to", params.to)
+    if (params?.chatterId) search.set("chatterId", params.chatterId)
+    const query = search.toString() ? `?${search.toString()}` : ""
+    return this.request(`/shifts${query}`)
   }
 
   getShift(id: string) {
