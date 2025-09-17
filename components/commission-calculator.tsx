@@ -3,11 +3,18 @@
 import type { KeyboardEvent } from "react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import {
   Pagination,
   PaginationContent,
@@ -17,19 +24,27 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
-import {Calendar, Calculator, Clock, CheckCircle, XCircle, Percent} from "lucide-react"
-import { Badge } from "@/components/ui/badge";
+import { Calendar, Calculator, Percent } from "lucide-react"
+
+import { format, endOfMonth, startOfMonth } from "date-fns"
 
 import { api } from "@/lib/api"
 
+type DatePreset =
+  | "all"
+  | "today"
+  | "first-half"
+  | "second-half"
+  | "custom-day"
+  | "custom-range"
+
 interface Commission {
   id: string
-  user_id: string
+  chatter_id: string
   commission_date: string
   total_earnings: number
   commission_rate: number
   commission_amount: number
-  status: string
   created_at: string
   chatter: {
     full_name: string
@@ -39,6 +54,13 @@ interface Commission {
   total_payout: number
 }
 
+interface CommissionTotals {
+  earnings: number
+  commission: number
+  bonus: number
+  payout: number
+}
+
 interface ChatterOption {
   id: string
   full_name: string
@@ -46,6 +68,7 @@ interface ChatterOption {
 }
 
 const PAGE_SIZE = 10
+const DATE_FORMAT = "yyyy-MM-dd"
 
 const formatCurrency = (amount: number, currency = "€") => {
   const currencyCode = currency === "€" ? "EUR" : currency === "$" ? "USD" : currency
@@ -112,7 +135,19 @@ export function CommissionCalculator() {
   const [page, setPage] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
   const [bonusInputs, setBonusInputs] = useState<Record<string, string>>({})
-  const [bonusSaveState, setBonusSaveState] = useState<Record<string, "idle" | "saving" | "error">>({})
+  const [bonusSaveState, setBonusSaveState] = useState<Record<
+    string,
+    "idle" | "saving" | "error"
+  >>({})
+  const [fromDate, setFromDate] = useState<string | undefined>()
+  const [toDate, setToDate] = useState<string | undefined>()
+  const [datePreset, setDatePreset] = useState<DatePreset>("all")
+  const [totals, setTotals] = useState<CommissionTotals>({
+    earnings: 0,
+    commission: 0,
+    bonus: 0,
+    payout: 0,
+  })
 
   const fetchCommissions = useCallback(async () => {
     setLoading(true)
@@ -121,6 +156,8 @@ export function CommissionCalculator() {
         limit: number
         offset: number
         chatterId?: string
+        from?: string
+        to?: string
       } = {
         limit: PAGE_SIZE,
         offset: (page - 1) * PAGE_SIZE,
@@ -128,6 +165,13 @@ export function CommissionCalculator() {
 
       if (selectedChatter !== "all") {
         params.chatterId = selectedChatter
+      }
+
+      if (fromDate) {
+        params.from = fromDate
+      }
+      if (toDate) {
+        params.to = toDate
       }
 
       const totalCountPromise = api
@@ -196,7 +240,7 @@ export function CommissionCalculator() {
 
         return {
           id: String(c.id),
-          user_id: chatterId,
+          chatter_id: chatterId,
           commission_date:
             c.commissionDate ||
             c.commission_date ||
@@ -217,7 +261,6 @@ export function CommissionCalculator() {
               ? totalPayout
               : commissionAmount +
                 (Number.isFinite(bonusAmount) ? bonusAmount : 0),
-          status: c.status || "pending",
           created_at: c.createdAt || c.created_at || "",
           chatter: {
             full_name:
@@ -232,6 +275,49 @@ export function CommissionCalculator() {
       })
 
       setCommissions(formatted)
+
+      const totalsFromResponse = Array.isArray(commissionsResponse)
+        ? undefined
+        : commissionsResponse?.totals || commissionsResponse?.summary
+
+      if (totalsFromResponse && typeof totalsFromResponse === "object") {
+        setTotals({
+          earnings: Number(totalsFromResponse.earnings ?? totalsFromResponse.totalEarnings ?? totalsFromResponse.total_earnings ?? 0),
+          commission: Number(
+            totalsFromResponse.commission ??
+              totalsFromResponse.totalCommission ??
+              totalsFromResponse.commission_amount ??
+              totalsFromResponse.total_commission ??
+              0,
+          ),
+          bonus: Number(
+            totalsFromResponse.bonus ??
+              totalsFromResponse.totalBonus ??
+              totalsFromResponse.bonus_amount ??
+              totalsFromResponse.total_bonus ??
+              0,
+          ),
+          payout: Number(
+            totalsFromResponse.total ??
+              totalsFromResponse.totalPayout ??
+              totalsFromResponse.total_payout ??
+              totalsFromResponse.payout ??
+              0,
+          ),
+        })
+      } else {
+        const aggregated = formatted.reduce(
+          (acc, item) => {
+            acc.earnings += item.total_earnings || 0
+            acc.commission += item.commission_amount || 0
+            acc.bonus += item.bonus_amount || 0
+            acc.payout += (item.commission_amount || 0) + (item.bonus_amount || 0)
+            return acc
+          },
+          { earnings: 0, commission: 0, bonus: 0, payout: 0 },
+        )
+        setTotals(aggregated)
+      }
 
       const rawMetaTotal = Array.isArray(commissionsResponse)
         ? undefined
@@ -267,10 +353,11 @@ export function CommissionCalculator() {
       setBonusInputs({})
       setBonusSaveState({})
       setTotalCount(0)
+      setTotals({ earnings: 0, commission: 0, bonus: 0, payout: 0 })
     } finally {
       setLoading(false)
     }
-  }, [page, selectedChatter])
+  }, [fromDate, page, selectedChatter, toDate])
 
   useEffect(() => {
     fetchCommissions()
@@ -288,10 +375,102 @@ export function CommissionCalculator() {
     setPage(1)
   }, [])
 
+  const applyDateRange = useCallback((from?: Date | string, to?: Date | string) => {
+    const normalize = (value?: Date | string) => {
+      if (!value) return undefined
+      if (value instanceof Date) {
+        return format(value, DATE_FORMAT)
+      }
+      return value
+    }
+
+    setFromDate(normalize(from))
+    setToDate(normalize(to))
+    setPage(1)
+  }, [])
+
+  const handleDatePresetChange = useCallback(
+    (value: DatePreset) => {
+      setDatePreset(value)
+      const now = new Date()
+
+      switch (value) {
+        case "all":
+          applyDateRange(undefined, undefined)
+          break
+        case "today": {
+          const today = new Date()
+          applyDateRange(today, today)
+          break
+        }
+        case "first-half": {
+          const start = startOfMonth(now)
+          const halfEnd = new Date(start)
+          halfEnd.setDate(15)
+          applyDateRange(start, halfEnd)
+          break
+        }
+        case "second-half": {
+          const start = new Date(now.getFullYear(), now.getMonth(), 16)
+          const end = endOfMonth(now)
+          applyDateRange(start, end)
+          break
+        }
+        case "custom-day": {
+          const today = new Date()
+          applyDateRange(today, today)
+          break
+        }
+        case "custom-range": {
+          const start = startOfMonth(now)
+          const end = endOfMonth(now)
+          applyDateRange(start, end)
+          break
+        }
+        default:
+          break
+      }
+    },
+    [applyDateRange],
+  )
+
+  const handleCustomDayChange = useCallback((value: string) => {
+    const normalized = value || undefined
+    setFromDate(normalized)
+    setToDate(normalized)
+    setPage(1)
+  }, [])
+
+  const handleCustomRangeChange = useCallback(
+    (type: "from" | "to", value: string) => {
+      const normalized = value || undefined
+      if (type === "from") {
+        setFromDate(normalized)
+      } else {
+        setToDate(normalized)
+      }
+      setPage(1)
+    },
+    [],
+  )
+
   const pageCount = useMemo(
     () => Math.max(1, Math.ceil(totalCount / PAGE_SIZE) || 1),
     [totalCount],
   )
+
+  const totalsCurrency = useMemo(() => {
+    if (commissions.length > 0) {
+      return commissions[0].chatter.currency
+    }
+    if (selectedChatter !== "all") {
+      const chatterCurrency = chatters.find(
+        (chatter) => chatter.id === selectedChatter,
+      )?.currency
+      if (chatterCurrency) return chatterCurrency
+    }
+    return "€"
+  }, [chatters, commissions, selectedChatter])
 
   const paginationNumbers = useMemo(() => {
     if (pageCount <= 5) {
@@ -401,67 +580,6 @@ export function CommissionCalculator() {
     }
   }
 
-  const updateCommissionStatus = async (
-    commissionId: string,
-    newStatus: string,
-  ) => {
-    try {
-      await api.updateCommission(commissionId, { status: newStatus })
-      setCommissions((prev) =>
-        prev.map((commission) =>
-          commission.id === commissionId
-            ? { ...commission, status: newStatus }
-            : commission,
-        ),
-      )
-    } catch (error) {
-      console.error("Error updating commission status:", error)
-    }
-  }
-
-  const getStatusBadge = (status: string) => {
-    console.log(status)
-    switch (status) {
-      case "pending":
-        return (
-          <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
-            <Clock className="h-3 w-3 mr-1" />
-            Pending
-          </Badge>
-        )
-      case "paid":
-        return (
-          <Badge className="bg-green-100 text-green-800">
-            <CheckCircle className="h-3 w-3 mr-1" />
-            Paid
-          </Badge>
-        )
-      case "cancelled":
-        return (
-          <Badge variant="destructive">
-            <XCircle className="h-3 w-3 mr-1" />
-            Cancelled
-          </Badge>
-        )
-      default:
-        return <Badge variant="outline">{status}</Badge>
-    }
-  }
-
-  const deleteCommission = async (commissionId: string) => {
-    try {
-      await api.deleteCommission(commissionId)
-      const isLastItemOnPage = commissions.length === 1
-      if (isLastItemOnPage && page > 1) {
-        setPage((current) => Math.max(1, current - 1))
-      } else {
-        await fetchCommissions()
-      }
-    } catch (error) {
-      console.error("Error deleting commission:", error)
-    }
-  }
-
   if (loading) {
     return (
       <Card>
@@ -479,37 +597,100 @@ export function CommissionCalculator() {
   return (
     <Card>
       <CardHeader>
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Percent className="h-5 w-5" />
-              Commissions
-            </CardTitle>
-            <CardDescription>
-              Review automatically generated commissions and manage payouts.
-            </CardDescription>
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Percent className="h-5 w-5" />
+                Commissions
+              </CardTitle>
+              <CardDescription>
+                Review generated commissions, adjust bonuses, and export totals for
+                the selected period.
+              </CardDescription>
+            </div>
           </div>
-          <div className="w-full md:w-64">
-            <span className="mb-1 block text-sm font-medium text-muted-foreground">
-              Filter by chatter
-            </span>
-            <Select
-              value={selectedChatter}
-              onValueChange={handleChatterFilterChange}
-              disabled={chatters.length === 0}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="All chatters" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All chatters</SelectItem>
-                {chatters.map((chatter) => (
-                  <SelectItem key={chatter.id} value={chatter.id}>
-                    {chatter.full_name || "Unknown"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-muted-foreground">
+                Filter by chatter
+              </span>
+              <Select
+                value={selectedChatter}
+                onValueChange={handleChatterFilterChange}
+                disabled={chatters.length === 0}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All chatters" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All chatters</SelectItem>
+                  {chatters.map((chatter) => (
+                    <SelectItem key={chatter.id} value={chatter.id}>
+                      {chatter.full_name || "Unknown"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-muted-foreground">
+                Date range
+              </span>
+              <Select value={datePreset} onValueChange={(value) => handleDatePresetChange(value as DatePreset)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All dates" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All dates</SelectItem>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="first-half">1 - 15 (current month)</SelectItem>
+                  <SelectItem value="second-half">16 - end (current month)</SelectItem>
+                  <SelectItem value="custom-day">Specific day</SelectItem>
+                  <SelectItem value="custom-range">Custom range</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {datePreset === "custom-day" && (
+              <div className="flex flex-col gap-2">
+                <span className="text-sm font-medium text-muted-foreground">
+                  Day
+                </span>
+                <Input
+                  type="date"
+                  value={fromDate ?? ""}
+                  onChange={(event) => handleCustomDayChange(event.target.value)}
+                />
+              </div>
+            )}
+            {datePreset === "custom-range" && (
+              <div className="grid gap-2 sm:grid-cols-2 lg:col-span-1">
+                <div className="flex flex-col gap-2">
+                  <span className="text-sm font-medium text-muted-foreground">
+                    From
+                  </span>
+                  <Input
+                    type="date"
+                    value={fromDate ?? ""}
+                    onChange={(event) =>
+                      handleCustomRangeChange("from", event.target.value)
+                    }
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <span className="text-sm font-medium text-muted-foreground">
+                    To
+                  </span>
+                  <Input
+                    type="date"
+                    value={toDate ?? ""}
+                    onChange={(event) =>
+                      handleCustomRangeChange("to", event.target.value)
+                    }
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </CardHeader>
@@ -524,8 +705,6 @@ export function CommissionCalculator() {
               <TableHead>Commission</TableHead>
               <TableHead>Bonus</TableHead>
               <TableHead>Total</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -602,46 +781,30 @@ export function CommissionCalculator() {
                       commission.chatter.currency,
                     )}
                   </TableCell>
-                  <TableCell>{getStatusBadge(commission.status)}</TableCell>
-                  <TableCell>
-                    <div className="flex justify-end gap-2">
-                      {commission.status === "pending" && (
-                        <>
-                          <Button
-                            size="sm"
-                            onClick={() =>
-                              updateCommissionStatus(commission.id, "paid")
-                            }
-                            className="bg-green-600 hover:bg-green-700"
-                          >
-                            Mark Paid
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => deleteCommission(commission.id)}
-                          >
-                            Cancel
-                          </Button>
-                        </>
-                      )}
-                      {commission.status === "paid" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() =>
-                            updateCommissionStatus(commission.id, "pending")
-                          }
-                        >
-                          Mark Pending
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
                 </TableRow>
               )
             })}
           </TableBody>
+          <TableFooter>
+            <TableRow>
+              <TableCell colSpan={2} className="font-semibold">
+                Totaal
+              </TableCell>
+              <TableCell className="font-semibold">
+                {formatCurrency(totals.earnings, totalsCurrency)}
+              </TableCell>
+              <TableCell></TableCell>
+              <TableCell className="font-semibold text-green-600">
+                {formatCurrency(totals.commission, totalsCurrency)}
+              </TableCell>
+              <TableCell className="font-semibold">
+                {formatCurrency(totals.bonus, totalsCurrency)}
+              </TableCell>
+              <TableCell className="font-semibold">
+                {formatCurrency(totals.payout, totalsCurrency)}
+              </TableCell>
+            </TableRow>
+          </TableFooter>
         </Table>
 
         {pageCount > 1 && totalCount > 0 && (
