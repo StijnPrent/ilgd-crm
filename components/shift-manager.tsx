@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
@@ -44,6 +45,8 @@ interface Shift {
     chatter: {
         full_name: string
     }
+    is_weekly: boolean
+    recurrence_parent_id: string | null
 }
 
 interface Chatter {
@@ -74,6 +77,8 @@ export function ShiftManager() {
         start_minute: "",
         end_hour: "",
         end_minute: "",
+        isWeekly: false,
+        recurrenceParentId: "",
     })
     const [isModelPopoverOpen, setIsModelPopoverOpen] = useState(false)
 
@@ -108,6 +113,8 @@ export function ShiftManager() {
                 status: shift.status,
                 created_at: shift.createdAt,
                 chatter: { full_name: chatterMap.get(String(shift.chatterId)) || "Unknown" },
+                is_weekly: Boolean(shift.isWeekly),
+                recurrence_parent_id: shift.recurrenceParentId ? String(shift.recurrenceParentId) : null,
             }))
 
             setShifts(formattedShifts)
@@ -151,10 +158,20 @@ export function ShiftManager() {
         const dayEnd = new Date(date)
         dayEnd.setHours(23, 59, 59, 999)
 
-        return shifts.filter((shift) => {
+        const dayShifts = shifts.filter((shift) => {
             const shiftStart = new Date(shift.start_time)
             return shiftStart >= dayStart && shiftStart <= dayEnd
         })
+
+        const overriddenTemplateIds = new Set(
+            dayShifts
+                .filter((shift) => !shift.is_weekly && shift.recurrence_parent_id)
+                .map((shift) => shift.recurrence_parent_id as string),
+        )
+
+        return dayShifts.filter(
+            (shift) => !(shift.is_weekly && overriddenTemplateIds.has(shift.id)),
+        )
     }
 
     const navigateWeek = (direction: "prev" | "next") => {
@@ -188,6 +205,10 @@ export function ShiftManager() {
                 end_time: endDateTime,
                 date: newShift.date,
                 status: "scheduled",
+                isWeekly: newShift.isWeekly,
+                ...(newShift.recurrenceParentId
+                    ? { recurrenceParentId: Number(newShift.recurrenceParentId) }
+                    : {}),
             })
 
             setNewShift({
@@ -199,6 +220,8 @@ export function ShiftManager() {
                 start_minute: "",
                 end_hour: "",
                 end_minute: "",
+                isWeekly: false,
+                recurrenceParentId: "",
             })
             setIsAddDialogOpen(false)
             fetchData()
@@ -284,6 +307,29 @@ export function ShiftManager() {
         }
     }
 
+    const renderShiftTypeBadge = (shift: Shift) => {
+        if (shift.is_weekly) {
+            return (
+                <Badge variant="outline" className="text-[10px] px-2 py-0.5">
+                    Weekly Template
+                </Badge>
+            )
+        }
+
+        if (shift.recurrence_parent_id) {
+            return (
+                <Badge
+                    variant="secondary"
+                    className="bg-blue-100 text-blue-800 text-[10px] px-2 py-0.5"
+                >
+                    Override
+                </Badge>
+            )
+        }
+
+        return null
+    }
+
     const generateTimeOptions = (type: "hour" | "minute") => {
         if (type === "hour") {
             return Array.from({ length: 24 }, (_, i) => {
@@ -314,6 +360,7 @@ export function ShiftManager() {
 
     const weekDays = getWeekDays(currentWeek)
     const dayNames = ["Ma", "Di", "Wo", "Do", "Vr", "Za", "Zo"]
+    const weeklyTemplates = shifts.filter((shift) => shift.is_weekly)
 
     return (
         <div className="space-y-6">
@@ -365,7 +412,10 @@ export function ShiftManager() {
                                                     updateShiftStatus(shift.id, shift.status === "scheduled" ? "active" : shift.status)
                                                 }
                                             >
-                                                <div className="font-medium truncate">{shift.chatter.full_name}</div>
+                                                <div className="flex items-start justify-between gap-1">
+                                                    <div className="font-medium truncate">{shift.chatter.full_name}</div>
+                                                    {renderShiftTypeBadge(shift)}
+                                                </div>
                                                 <div className="text-xs opacity-75">
                                                     {new Date(shift.start_time).toLocaleTimeString("nl-NL", {
                                                         hour: "2-digit",
@@ -540,6 +590,55 @@ export function ShiftManager() {
                                         />
                                     </div>
 
+                                    <div className="flex items-center justify-between gap-4 border rounded-lg px-3 py-2">
+                                        <div>
+                                            <Label htmlFor="isWeekly">Wekelijks herhalen?</Label>
+                                            <p className="text-xs text-muted-foreground">
+                                                Schakel in om deze shift als wekelijks sjabloon op te slaan.
+                                            </p>
+                                        </div>
+                                        <Switch
+                                            id="isWeekly"
+                                            checked={newShift.isWeekly}
+                                            onCheckedChange={(checked) =>
+                                                setNewShift((prev) => ({
+                                                    ...prev,
+                                                    isWeekly: checked,
+                                                    recurrenceParentId: checked ? "" : prev.recurrenceParentId,
+                                                }))
+                                            }
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <Label htmlFor="recurrence-parent">Overschrijf wekelijks sjabloon</Label>
+                                        <Select
+                                            value={newShift.recurrenceParentId}
+                                            onValueChange={(value) =>
+                                                setNewShift((prev) => ({
+                                                    ...prev,
+                                                    recurrenceParentId: value,
+                                                }))
+                                            }
+                                            disabled={newShift.isWeekly || weeklyTemplates.length === 0}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Geen override" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="">Geen override</SelectItem>
+                                                {weeklyTemplates.map((template) => (
+                                                    <SelectItem key={template.id} value={template.id}>
+                                                        #{template.id} • {formatDateTime(template.start_time)}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            Kies een sjabloon wanneer je een eenmalige override maakt.
+                                        </p>
+                                    </div>
+
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
                                             <Label>Start Tijd</Label>
@@ -662,7 +761,12 @@ export function ShiftManager() {
                                         </div>
                                     </TableCell>
                                     <TableCell>{formatDateTime(shift.end_time)}</TableCell>
-                                    <TableCell>{getStatusBadge(shift.status)}</TableCell>
+                                    <TableCell>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            {getStatusBadge(shift.status)}
+                                            {renderShiftTypeBadge(shift)}
+                                        </div>
+                                    </TableCell>
                                     <TableCell>
                                         <div className="flex gap-2">
                                             {shift.status === "scheduled" && (

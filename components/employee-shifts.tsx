@@ -15,6 +15,8 @@ interface Shift {
   start_time: string
   end_time: string
   status: string
+  is_weekly: boolean
+  recurrence_parent_id: string | null
 }
 
 export function EmployeeShifts({ userId }: EmployeeShiftsProps) {
@@ -27,15 +29,54 @@ export function EmployeeShifts({ userId }: EmployeeShiftsProps) {
     const fetchShifts = async () => {
       try {
         const shiftsData = await api.getShifts()
-        const userShifts = (shiftsData || [])
-          .filter((s: any) => String(s.chatter_id) === String(userId))
-          .map((s: any) => ({
-            id: String(s.id),
-            start_time: s.start_time,
-            end_time: s.end_time,
-            status: s.status,
-          }))
-        setShifts(userShifts)
+        const mappedShifts: Shift[] = (shiftsData || [])
+          .filter((s: any) => String(s.chatterId ?? s.chatter_id) === String(userId))
+          .map((s: any) => {
+            const start = (s.startTime ?? s.start_time ?? "") as string
+            const end = (s.endTime ?? s.end_time ?? "") as string
+
+            return {
+              id: String(s.id),
+              start_time: start,
+              end_time: end,
+              status: s.status,
+              is_weekly: Boolean(s.isWeekly ?? s.is_weekly),
+              recurrence_parent_id:
+                s.recurrenceParentId !== undefined && s.recurrenceParentId !== null
+                  ? String(s.recurrenceParentId)
+                  : s.recurrence_parent_id !== undefined && s.recurrence_parent_id !== null
+                    ? String(s.recurrence_parent_id)
+                    : null,
+            }
+          })
+
+        const getDateKey = (value: string) => {
+          const date = value ? new Date(value) : null
+          if (!date || Number.isNaN(date.getTime())) return null
+          return date.toISOString().split("T")[0]
+        }
+
+        const overridesByDate = new Map<string, Set<string>>()
+        mappedShifts.forEach((shift) => {
+          if (!shift.is_weekly && shift.recurrence_parent_id) {
+            const key = getDateKey(shift.start_time)
+            if (!key) return
+            if (!overridesByDate.has(key)) {
+              overridesByDate.set(key, new Set())
+            }
+            overridesByDate.get(key)!.add(shift.recurrence_parent_id)
+          }
+        })
+
+        const filteredShifts = mappedShifts.filter((shift) => {
+          if (!shift.is_weekly) return true
+          const key = getDateKey(shift.start_time)
+          if (!key) return true
+          const overrides = overridesByDate.get(key)
+          return !(overrides && overrides.has(shift.id))
+        })
+
+        setShifts(filteredShifts)
       } catch (error) {
         console.error("Error fetching shifts:", error)
       } finally {
@@ -69,6 +110,26 @@ export function EmployeeShifts({ userId }: EmployeeShiftsProps) {
       default:
         return <Badge variant="outline">{status}</Badge>
     }
+  }
+
+  const renderShiftTypeBadge = (shift: Shift) => {
+    if (shift.is_weekly) {
+      return (
+        <Badge variant="outline" className="text-xs px-2 py-0.5">
+          Weekly Template
+        </Badge>
+      )
+    }
+
+    if (shift.recurrence_parent_id) {
+      return (
+        <Badge variant="secondary" className="text-xs px-2 py-0.5 bg-blue-100 text-blue-800">
+          Override
+        </Badge>
+      )
+    }
+
+    return null
   }
 
   if (loading) {
@@ -107,7 +168,10 @@ export function EmployeeShifts({ userId }: EmployeeShiftsProps) {
                   </div>
                 </div>
               </div>
-              <div>{getStatusBadge(shift.status)}</div>
+              <div className="flex flex-col items-end gap-1">
+                {getStatusBadge(shift.status)}
+                {renderShiftTypeBadge(shift)}
+              </div>
             </div>
           ))}
         </div>
