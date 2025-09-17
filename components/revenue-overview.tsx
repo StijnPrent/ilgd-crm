@@ -376,10 +376,6 @@ export function RevenueOverview() {
                                 <span>Chatter commissions</span>
                                 <span>-{formatCurrency(monthTotals.chatterCommission)}</span>
                             </div>
-                            <div className="flex justify-between font-medium">
-                                <span>Company revenue</span>
-                                <span>{formatCurrency(companyRevenue)}</span>
-                            </div>
                             {adjustmentsTotal !== 0 && (
                                 <div className="flex justify-between">
                                     <span>Adjustments</span>
