@@ -291,12 +291,12 @@ export function ManagerDashboard() {
                             <div className="mb-6">
                                 <WeeklyCalendar showChatterNames compact/>
                             </div>
-                            <div className="grid gap-6 md:grid-cols-2">
-                                <div>
+                            <div className="grid gap-6 md:grid-cols-3">
+                                <div className="md:col-span-2">
                                     <EarningsOverview limit={5}/>
                                 </div>
-                                <div>
-                                    <Leaderboard limit={5}/>
+                                <div className="md:col-span-1">
+                                    <Leaderboard limit={3}/>
                                 </div>
                             </div>
                         </TabsContent>

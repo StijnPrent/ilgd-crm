@@ -635,6 +635,7 @@ export function CommissionCalculator() {
             </div>
           </div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+
             <div className="flex flex-col gap-2">
               <span className="text-sm font-medium text-muted-foreground">
                 Filter by chatter
