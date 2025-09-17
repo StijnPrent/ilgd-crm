@@ -145,6 +145,10 @@ export function RevenueOverview() {
         0,
     )
     const finalRevenue = companyRevenue + adjustmentsTotal
+    const profitMargin = monthTotals.total > 0
+        ? (finalRevenue / monthTotals.total) * 100
+        : 0
+
 
     const selectedEntries = selectedDate
         ? dailyData.find((d) => d.fullDate === selectedDate)?.entries || []
@@ -385,6 +389,10 @@ export function RevenueOverview() {
                   </span>
                                 </div>
                             )}
+                            <div className="flex justify-between">
+                                <span>Profit margin</span>
+                                <span>{profitMargin.toFixed(2)}%</span>
+                            </div>
                             <div className="flex justify-between font-bold">
                                 <span>Final revenue</span>
                                 <span>{formatCurrency(finalRevenue)}</span>
