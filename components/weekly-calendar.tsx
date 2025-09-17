@@ -1,6 +1,6 @@
 "use client"
 
-import {useEffect, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 import {Card, CardContent, CardHeader, CardTitle} from "@/components/ui/card"
 import {Button} from "@/components/ui/button"
 import {Badge} from "@/components/ui/badge"
@@ -77,13 +77,27 @@ export function WeeklyCalendar({
     const [shifts, setShifts] = useState<Shift[]>([])
     const [currentWeek, setCurrentWeek] = useState(new Date())
     const [loading, setLoading] = useState(true)
+    const [chatterNames, setChatterNames] = useState<Record<string, string>>({})
+    const [modelNames, setModelNames] = useState<Record<string, string>>({})
+    const [metaLoaded, setMetaLoaded] = useState(false)
+    const loadedRangeKeysRef = useRef<Set<string>>(new Set())
 
-    const getWeekDates = (date: Date) => {
+    const formatDate = useCallback((date: Date) => {
+        return date.toISOString().split("T")[0]
+    }, [])
+
+    const getStartOfWeek = useCallback((date: Date) => {
+        const start = new Date(date)
+        const day = start.getDay()
+        const diff = start.getDate() - day + (day === 0 ? -6 : 1)
+        start.setDate(diff)
+        start.setHours(0, 0, 0, 0)
+        return start
+    }, [])
+
+    const getWeekDates = useCallback((date: Date) => {
         const week = []
-        const startOfWeek = new Date(date)
-        const day = startOfWeek.getDay()
-        const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1) // Monday as first day
-        startOfWeek.setDate(diff)
+        const startOfWeek = getStartOfWeek(date)
 
         for (let i = 0; i < 7; i++) {
             const day = new Date(startOfWeek)
@@ -91,12 +105,11 @@ export function WeeklyCalendar({
             week.push(day)
         }
         return week
-    }
+    }, [getStartOfWeek])
 
-    const fetchShifts = async () => {
+    const fetchMeta = useCallback(async () => {
         try {
-            const [shiftsData, chattersData, usersData, modelsData] = await Promise.all([
-                api.getShifts(),
+            const [chattersData, usersData, modelsData] = await Promise.all([
                 api.getChatters(),
                 api.getUsers(),
                 api.getModels(),
@@ -108,8 +121,8 @@ export function WeeklyCalendar({
 
             const chatterMap: Record<string, string> = {}
             ;(chattersData || []).forEach((chatter: any) => {
-                const name: any = userMap.get(String(chatter.id)) || "Unknown Chatter"
-                chatterMap[String(chatter.id)] = name
+                const chatterId = String(chatter.id)
+                chatterMap[chatterId] = userMap.get(chatterId) || "Unknown Chatter"
             })
 
             const modelMap: Record<string, string> = {}
@@ -117,47 +130,129 @@ export function WeeklyCalendar({
                 modelMap[String(model.id)] = model.displayName || "Unknown Model"
             })
 
-            const formattedShifts = (shiftsData || []).map((shift: any) => {
-                const startDate = shift.startTime ? String(shift.startTime).slice(0, 10) : String(shift.date)
-                const startTime = shift.startTime ? String(shift.startTime).slice(11, 16) : ""
-                const endTime = shift.endTime ? String(shift.endTime).slice(11, 16) : ""
-
-                return {
-                    id: String(shift.id),
-                    chatter_id: String(shift.chatterId),
-                    chatter_name: chatterMap[String(shift.chatterId)] || "Unknown Chatter",
-                    model_ids: (shift.modelIds || []).map((id: any) => String(id)),
-                    model_names: (shift.modelIds || []).map((id: any) => modelMap[String(id)] || "Unknown Model"),
-                    date: startDate,
-                    start_time: startTime,
-                    end_time: endTime,
-                    status: shift.status,
-                }
-            })
-
-            const filteredShifts = userId
-                ? formattedShifts.filter((shift: Shift) => shift.chatter_id === String(userId))
-                : formattedShifts
-
-            setShifts(filteredShifts)
+            setChatterNames(chatterMap)
+            setModelNames(modelMap)
         } catch (error) {
-            console.error("[v0] WeeklyCalendar: Error loading shifts:", error)
-            setShifts([])
+            console.error("[v0] WeeklyCalendar: Error loading metadata:", error)
+            setChatterNames({})
+            setModelNames({})
         } finally {
-            setLoading(false)
+            setMetaLoaded(true)
         }
-    }
+    }, [])
+
+    const loadWeek = useCallback(
+        async (targetDate: Date, options?: { prefetch?: boolean; force?: boolean }) => {
+            const { prefetch = false, force = false } = options || {}
+            const weekStart = getStartOfWeek(targetDate)
+            const rangeStart = new Date(weekStart)
+            const rangeEnd = new Date(weekStart)
+            rangeEnd.setDate(rangeEnd.getDate() + 13)
+
+            const from = formatDate(rangeStart)
+            const to = formatDate(rangeEnd)
+            const rangeKey = `${from}_${to}_${userId ? String(userId) : "all"}`
+
+            if (!force && loadedRangeKeysRef.current.has(rangeKey)) {
+                if (!prefetch) {
+                    setLoading(false)
+                    const nextWeek = new Date(weekStart)
+                    nextWeek.setDate(nextWeek.getDate() + 7)
+                    void loadWeek(nextWeek, { prefetch: true })
+                }
+                return
+            }
+
+            if (!prefetch) {
+                setLoading(true)
+            }
+
+            try {
+                const shiftsData = await api.getShifts({
+                    from,
+                    to,
+                    chatterId: userId ? String(userId) : undefined,
+                })
+
+                const formattedShifts = (shiftsData || []).map((shift: any) => {
+                    const startDate = shift.startTime
+                        ? String(shift.startTime).slice(0, 10)
+                        : String(shift.date)
+                    const startTime = shift.startTime ? String(shift.startTime).slice(11, 16) : ""
+                    const endTime = shift.endTime ? String(shift.endTime).slice(11, 16) : ""
+                    const chatterId = String(shift.chatterId || shift.chatter_id || "")
+                    const modelIds = (shift.modelIds || []).map((id: any) => String(id))
+
+                    return {
+                        id: String(shift.id),
+                        chatter_id: chatterId,
+                        chatter_name: chatterNames[chatterId] || "Unknown Chatter",
+                        model_ids: modelIds,
+                        model_names: modelIds.map((id) => modelNames[id] || "Unknown Model"),
+                        date: startDate,
+                        start_time: startTime,
+                        end_time: endTime,
+                        status: shift.status || "scheduled",
+                    }
+                })
+
+                setShifts((prev) => {
+                    const base = force
+                        ? prev.filter((shift) => shift.date < from || shift.date > to)
+                        : prev
+                    const merged = new Map(base.map((shift) => [shift.id, shift]))
+                    formattedShifts.forEach((shift) => merged.set(shift.id, shift))
+                    return Array.from(merged.values())
+                })
+
+                loadedRangeKeysRef.current.add(rangeKey)
+
+                if (!prefetch) {
+                    setLoading(false)
+                    const nextWeek = new Date(weekStart)
+                    nextWeek.setDate(nextWeek.getDate() + 7)
+                    void loadWeek(nextWeek, { prefetch: true })
+                }
+            } catch (error) {
+                if (!prefetch) {
+                    console.error("[v0] WeeklyCalendar: Error loading shifts:", error)
+                    setLoading(false)
+                }
+            }
+        },
+        [chatterNames, formatDate, getStartOfWeek, modelNames, userId]
+    )
 
     useEffect(() => {
-        fetchShifts()
-    }, [userId, refreshTrigger])
+        setLoading(true)
+        void fetchMeta()
+    }, [fetchMeta])
+
+    useEffect(() => {
+        if (!metaLoaded) return
+        loadedRangeKeysRef.current.clear()
+        setShifts([])
+        setLoading(true)
+        void loadWeek(currentWeek, { force: true })
+    }, [metaLoaded, userId, refreshTrigger, loadWeek])
+
+    useEffect(() => {
+        if (!metaLoaded) return
+        void loadWeek(currentWeek)
+    }, [currentWeek, metaLoaded, loadWeek])
 
     const weekDates = getWeekDates(currentWeek)
     const today = new Date()
 
     const getShiftsForDate = (date: Date) => {
         const dateStr = date.toISOString().split("T")[0]
-        return shifts.filter((shift) => shift.date === dateStr)
+        return shifts
+            .filter(
+                (shift) =>
+                    shift.date === dateStr && (!userId || shift.chatter_id === String(userId))
+            )
+            .slice()
+            .sort((a, b) => a.start_time.localeCompare(b.start_time))
     }
 
     const getStatusColor = (status: string) => {
