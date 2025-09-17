@@ -297,12 +297,39 @@ export function ShiftManager() {
             )
     }
 
-    const sortedShifts = useMemo(
+    const currentWeekBounds = useMemo(() => {
+        const start = getStartOfWeek(currentWeek)
+        start.setHours(0, 0, 0, 0)
+        const end = new Date(start)
+        end.setDate(end.getDate() + 6)
+        end.setHours(23, 59, 59, 999)
+        return {
+            start,
+            end,
+        }
+    }, [currentWeek, getStartOfWeek])
+
+    const { start: currentWeekStart, end: currentWeekEnd } = currentWeekBounds
+
+    const currentWeekShifts = useMemo(
         () =>
-            [...shifts].sort(
-                (a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime(),
-            ),
-        [shifts],
+            shifts
+                .filter(
+                    (shift) => {
+                        const shiftDate = new Date(`${shift.date}T00:00:00`)
+                        return (
+                            shiftDate >= currentWeekStart &&
+                            shiftDate <= currentWeekEnd
+                        )
+                    },
+                )
+                .slice()
+                .sort(
+                    (a, b) =>
+                        new Date(a.start_time).getTime() -
+                        new Date(b.start_time).getTime(),
+                ),
+        [shifts, currentWeekEnd, currentWeekStart],
     )
 
     const navigateWeek = (direction: "prev" | "next") => {
@@ -667,7 +694,7 @@ export function ShiftManager() {
                             )
                         })}
                     </div>
-                    {sortedShifts.length === 0 && (
+                    {currentWeekShifts.length === 0 && (
                         <div className="text-center py-8 text-muted-foreground">
                             <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
                             <p>Geen shifts ingepland.</p>
@@ -1191,7 +1218,7 @@ export function ShiftManager() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {sortedShifts.map((shift) => (
+                            {currentWeekShifts.map((shift) => (
                                 <TableRow key={shift.id}>
                                     <TableCell>
                                         <div className="flex items-center gap-2">
@@ -1265,7 +1292,8 @@ export function ShiftManager() {
                         </TableBody>
                     </Table>
 
-                    {sortedShifts.length === 0 && (
+                    {currentWeekShifts.length === 0 && (
+
                         <div className="text-center py-8 text-muted-foreground">
                             <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
                             <p>Geen komende shifts ingepland.</p>
