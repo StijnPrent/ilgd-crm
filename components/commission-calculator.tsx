@@ -149,18 +149,26 @@ export function CommissionCalculator() {
     payout: 0,
   })
 
+  const dateFilterActive = useMemo(
+    () => Boolean(fromDate || toDate),
+    [fromDate, toDate],
+  )
+
   const fetchCommissions = useCallback(async () => {
+    const hasDateFilter = Boolean(fromDate || toDate)
     setLoading(true)
     try {
       const params: {
-        limit: number
-        offset: number
+        limit?: number
+        offset?: number
         chatterId?: string
         from?: string
         to?: string
-      } = {
-        limit: PAGE_SIZE,
-        offset: (page - 1) * PAGE_SIZE,
+      } = {}
+
+      if (!hasDateFilter) {
+        params.limit = PAGE_SIZE
+        params.offset = (page - 1) * PAGE_SIZE
       }
 
       if (selectedChatter !== "all") {
@@ -174,12 +182,14 @@ export function CommissionCalculator() {
         params.to = toDate
       }
 
-      const totalCountPromise = api
-        .getCommissionsTotalCount(params)
-        .catch((error: unknown) => {
-          console.warn("Error fetching commission total count:", error)
-          return null
-        })
+      const totalCountPromise = hasDateFilter
+        ? Promise.resolve(null)
+        : api
+            .getCommissionsTotalCount(params)
+            .catch((error: unknown) => {
+              console.warn("Error fetching commission total count:", error)
+              return null
+            })
 
       const [commissionsResponse, totalResponse, chattersData, usersData] =
         await Promise.all([
@@ -319,24 +329,28 @@ export function CommissionCalculator() {
         setTotals(aggregated)
       }
 
-      const rawMetaTotal = Array.isArray(commissionsResponse)
-        ? undefined
-        : commissionsResponse?.total ??
-          commissionsResponse?.meta?.total ??
-          commissionsResponse?.meta?.count ??
-          commissionsResponse?.meta?.pagination?.total ??
-          commissionsResponse?.pagination?.total ??
-          commissionsResponse?.count ??
-          commissionsResponse?.data?.total
+      if (hasDateFilter) {
+        setTotalCount(commissionList.length)
+      } else {
+        const rawMetaTotal = Array.isArray(commissionsResponse)
+          ? undefined
+          : commissionsResponse?.total ??
+            commissionsResponse?.meta?.total ??
+            commissionsResponse?.meta?.count ??
+            commissionsResponse?.meta?.pagination?.total ??
+            commissionsResponse?.pagination?.total ??
+            commissionsResponse?.count ??
+            commissionsResponse?.data?.total
 
-      const fallbackTotal = (page - 1) * PAGE_SIZE + commissionList.length
+        const fallbackTotal = (page - 1) * PAGE_SIZE + commissionList.length
 
-      const derivedTotal = parseTotalCount(
-        totalResponse,
-        parseTotalCount(rawMetaTotal, fallbackTotal),
-      )
+        const derivedTotal = parseTotalCount(
+          totalResponse,
+          parseTotalCount(rawMetaTotal, fallbackTotal),
+        )
 
-      setTotalCount(derivedTotal)
+        setTotalCount(derivedTotal)
+      }
 
       const initialBonusInputs = formatted.reduce(
         (acc, commission) => {
@@ -364,11 +378,18 @@ export function CommissionCalculator() {
   }, [fetchCommissions])
 
   useEffect(() => {
+    if (dateFilterActive) {
+      if (page !== 1) {
+        setPage(1)
+      }
+      return
+    }
+
     const maxPage = Math.max(1, Math.ceil(totalCount / PAGE_SIZE) || 1)
     if (page > maxPage) {
       setPage(maxPage)
     }
-  }, [page, totalCount])
+  }, [dateFilterActive, page, totalCount])
 
   const handleChatterFilterChange = useCallback((value: string) => {
     setSelectedChatter(value)
@@ -455,8 +476,11 @@ export function CommissionCalculator() {
   )
 
   const pageCount = useMemo(
-    () => Math.max(1, Math.ceil(totalCount / PAGE_SIZE) || 1),
-    [totalCount],
+    () =>
+      dateFilterActive
+        ? 1
+        : Math.max(1, Math.ceil(totalCount / PAGE_SIZE) || 1),
+    [dateFilterActive, totalCount],
   )
 
   const totalsCurrency = useMemo(() => {
@@ -610,7 +634,8 @@ export function CommissionCalculator() {
               </CardDescription>
             </div>
           </div>
-          <div className="flex flex-wrap gap-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+
             <div className="flex flex-col gap-2">
               <span className="text-sm font-medium text-muted-foreground">
                 Filter by chatter
@@ -807,7 +832,7 @@ export function CommissionCalculator() {
           </TableFooter>
         </Table>
 
-        {pageCount > 1 && totalCount > 0 && (
+        {!dateFilterActive && pageCount > 1 && totalCount > 0 && (
           <Pagination className="pt-4">
             <PaginationContent>
               <PaginationItem>
