@@ -17,6 +17,8 @@ interface Shift {
     start_time: string
     end_time: string
     status: "scheduled" | "active" | "completed" | "cancelled"
+    is_weekly: boolean
+    recurrence_parent_id: string | null
 }
 
 interface WeeklyCalendarProps {
@@ -132,6 +134,8 @@ export function WeeklyCalendar({
                     start_time: startTime,
                     end_time: endTime,
                     status: shift.status,
+                    is_weekly: Boolean(shift.isWeekly),
+                    recurrence_parent_id: shift.recurrenceParentId ? String(shift.recurrenceParentId) : null,
                 }
             })
 
@@ -157,7 +161,22 @@ export function WeeklyCalendar({
 
     const getShiftsForDate = (date: Date) => {
         const dateStr = date.toISOString().split("T")[0]
-        return shifts.filter((shift) => shift.date === dateStr)
+        const dayShifts = shifts.filter((shift) => shift.date === dateStr)
+
+        const overriddenTemplateIds = new Set(
+            dayShifts
+                .filter((shift) => !shift.is_weekly && shift.recurrence_parent_id)
+                .map((shift) => shift.recurrence_parent_id as string),
+        )
+
+        return dayShifts
+            .filter((shift) => !(shift.is_weekly && overriddenTemplateIds.has(shift.id)))
+            .sort((a, b) => {
+                if (!a.start_time && !b.start_time) return 0
+                if (!a.start_time) return 1
+                if (!b.start_time) return -1
+                return a.start_time.localeCompare(b.start_time)
+            })
     }
 
     const getStatusColor = (status: string) => {
@@ -173,6 +192,26 @@ export function WeeklyCalendar({
             default:
                 return "bg-gray-400 hover:bg-gray-500"
         }
+    }
+
+    const renderShiftTypeBadge = (shift: Shift) => {
+        if (shift.is_weekly) {
+            return (
+                <Badge variant="outline" className="text-[10px] px-2 py-0.5 bg-white/20">
+                    Weekly
+                </Badge>
+            )
+        }
+
+        if (shift.recurrence_parent_id) {
+            return (
+                <Badge variant="secondary" className="text-[10px] px-2 py-0.5 bg-blue-600/80">
+                    Override
+                </Badge>
+            )
+        }
+
+        return null
     }
 
     const navigateWeek = (direction: "prev" | "next") => {
@@ -244,11 +283,14 @@ export function WeeklyCalendar({
                                             )}`}
                                             onClick={() => onShiftClick?.(shift)}
                                         >
-                                            <div className="flex items-center gap-1 mb-1">
-                                                <Clock className="h-3 w-3"/>
-                                                <span>
+                                            <div className="flex items-center justify-between gap-2 mb-1">
+                                                <div className="flex items-center gap-1">
+                                                    <Clock className="h-3 w-3"/>
+                                                    <span>
                           {shift.start_time} - {shift.end_time}
                         </span>
+                                                </div>
+                                                {renderShiftTypeBadge(shift)}
                                             </div>
 
                                             <div className="flex items-start gap-1">
