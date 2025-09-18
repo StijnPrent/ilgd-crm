@@ -129,6 +129,18 @@ const parseTotalCount = (value: any) => {
     return 0
 }
 
+const getMonthKey = (date: Date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+
+const getMonthRange = (date: Date) => {
+    const key = getMonthKey(date)
+    const start = `${key}-01`
+    const end = new Date(date.getFullYear(), date.getMonth() + 1, 0)
+        .toISOString()
+        .split("T")[0]
+    return {key, start, end}
+}
+
 const buildShiftLabel = (
     shift: any,
     chatterLookup: Map<undefined, undefined>,
@@ -165,6 +177,9 @@ const buildShiftLabel = (
 
 interface EarningsOverviewProps {
     limit?: number
+    monthLabel?: string
+    monthStart?: string
+    monthEnd?: string
 }
 
 interface EarningsData {
@@ -194,7 +209,7 @@ interface FilterState {
     items: string[]
 }
 
-export function EarningsOverview({limit}: EarningsOverviewProps) {
+export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart, monthEnd}: EarningsOverviewProps) {
     const isCompact = typeof limit === "number"
     const [rawTableEarnings, setRawTableEarnings] = useState<any[]>([])
     const [rawMonthlyEarnings, setRawMonthlyEarnings] = useState<any[]>([])
@@ -221,14 +236,30 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
     const [tableLoading, setTableLoading] = useState(true)
     const [chartLoading, setChartLoading] = useState(!isCompact)
     const pageSize = DEFAULT_PAGE_SIZE
-    const now = new Date()
-    const year = now.getFullYear()
-    const month = now.getMonth()
-    const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`
-    const monthStart = `${monthKey}-01`
-    const monthEnd = new Date(year, month + 1, 0)
-        .toISOString()
-        .split("T")[0]
+    const fallbackDate = useMemo(() => {
+        const today = new Date()
+        return new Date(today.getFullYear(), today.getMonth(), 1)
+    }, [])
+    const baseMonthDate = useMemo(() => {
+        if (monthStart) {
+            const [yearStr, monthStr] = monthStart.split("-")
+            const parsedYear = Number(yearStr)
+            const parsedMonth = Number(monthStr) - 1
+            if (!Number.isNaN(parsedYear) && !Number.isNaN(parsedMonth)) {
+                return new Date(parsedYear, parsedMonth, 1)
+            }
+        }
+        return fallbackDate
+    }, [fallbackDate, monthStart])
+    const {key: monthKey, start: derivedMonthStart, end: derivedMonthEnd} = useMemo(
+        () => getMonthRange(baseMonthDate),
+        [baseMonthDate],
+    )
+    const rangeStart = monthStart ?? derivedMonthStart
+    const rangeEnd = monthEnd ?? derivedMonthEnd
+    const headerMonthLabel = monthLabelProp ?? baseMonthDate.toLocaleDateString("nl-NL", {month: "long", year: "numeric"})
+    const year = baseMonthDate.getFullYear()
+    const month = baseMonthDate.getMonth()
 
     const mapEarning = useCallback(
         (earning: any): EarningsData => {
@@ -382,6 +413,8 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
                 shiftId?: string
                 types?: string[]
                 date?: string
+                from?: string
+                to?: string
             } = {}
 
             if (filters.chatterId) {
@@ -399,10 +432,16 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
             if (options?.includeDate && selectedDate) {
                 params.date = selectedDate
             }
+            if (rangeStart) {
+                params.from = rangeStart
+            }
+            if (rangeEnd) {
+                params.to = rangeEnd
+            }
 
             return params
         },
-        [filters, selectedDate],
+        [filters, rangeEnd, rangeStart, selectedDate],
     )
 
     const fetchChartData = useCallback(async () => {
@@ -412,8 +451,8 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
             const response = await api.getEmployeeEarningsPaginated({
                 limit: 1000,
                 offset: 0,
-                from: monthStart,
-                to: monthEnd,
+                from: rangeStart,
+                to: rangeEnd,
                 ...buildQueryFilters(),
             })
             const items = Array.isArray(response) ? response : response?.data || []
@@ -425,15 +464,19 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
         } finally {
             setChartLoading(false)
         }
-    }, [buildQueryFilters, isCompact, monthEnd, monthKey, monthStart])
+    }, [buildQueryFilters, isCompact, monthKey, rangeEnd, rangeStart])
 
     const fetchTableData = useCallback(async () => {
         setTableLoading(true)
         try {
             if (isCompact && typeof limit === "number") {
                 const [listResponse, totalResponse] = await Promise.all([
-                    api.getEmployeeEarningsPaginated({limit, offset: 0}),
-                    api.getTotalCount(),
+                    api.getEmployeeEarningsPaginated({
+                        limit,
+                        offset: 0,
+                        ...buildQueryFilters(),
+                    }),
+                    api.getTotalCount(buildQueryFilters()),
                 ])
                 const listItems = Array.isArray(listResponse)
                     ? listResponse
@@ -476,12 +519,18 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
     }, [fetchChartData, isCompact])
 
     useEffect(() => {
+        setSelectedDate(null)
+    }, [rangeEnd, rangeStart])
+
+    useEffect(() => {
         setPage(1)
     }, [
         filters.chatterId,
         filters.modelId,
         filters.shiftId,
         filters.items.join("|"),
+        rangeEnd,
+        rangeStart,
         selectedDate,
     ])
 
@@ -613,7 +662,7 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
                         Earnings Overview
                     </CardTitle>
                     <CardDescription>
-                        Latest {limit} earnings entries
+                        Laatste {limit ?? DEFAULT_PAGE_SIZE} transacties in {headerMonthLabel}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -691,9 +740,7 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
                 <CardTitle className="flex items-center gap-2">
                     Earnings Overview
                 </CardTitle>
-                <CardDescription>
-                    {now.toLocaleDateString("nl-NL", {month: "long", year: "numeric"})}
-                </CardDescription>
+                <CardDescription>{headerMonthLabel}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center">

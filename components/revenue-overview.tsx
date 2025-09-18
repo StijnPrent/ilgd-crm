@@ -45,7 +45,13 @@ interface DailyData {
     entries: RevenueEntry[]
 }
 
-export function RevenueOverview() {
+interface RevenueOverviewProps {
+    monthStart?: string
+    monthEnd?: string
+    monthLabel?: string
+}
+
+export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverviewProps) {
     const [entries, setEntries] = useState<RevenueEntry[]>([])
     const [loading, setLoading] = useState(true)
     const [selectedDate, setSelectedDate] = useState<string | null>(null)
@@ -56,7 +62,7 @@ export function RevenueOverview() {
     useEffect(() => {
         const fetchRevenue = async () => {
             try {
-                const data = await api.getRevenueEarnings()
+                const data = await api.getRevenueEarnings({from: monthStart, to: monthEnd})
                 const formatted = (data || []).map((e: any) => ({
                     id: String(e.id),
                     date: e.date || e.created_at,
@@ -76,14 +82,34 @@ export function RevenueOverview() {
             }
         }
         fetchRevenue()
-    }, [])
+    }, [monthEnd, monthStart])
 
     const TZ = "Europe/Amsterdam";
 
-    const now = new Date(new Date().toLocaleString("en-US", {timeZone: TZ}));
-    const year = now.getFullYear()
-    const month = now.getMonth()
+    const fallbackMonth = useMemo(() => {
+        const zonedNow = new Date(new Date().toLocaleString("en-US", {timeZone: TZ}))
+        return new Date(zonedNow.getFullYear(), zonedNow.getMonth(), 1)
+    }, [])
+    const baseMonthDate = useMemo(() => {
+        if (monthStart) {
+            const [yearStr, monthStr] = monthStart.split("-")
+            const parsedYear = Number(yearStr)
+            const parsedMonth = Number(monthStr) - 1
+            if (!Number.isNaN(parsedYear) && !Number.isNaN(parsedMonth)) {
+                return new Date(parsedYear, parsedMonth, 1)
+            }
+        }
+        return fallbackMonth
+    }, [fallbackMonth, monthStart])
+
+    const year = baseMonthDate.getFullYear()
+    const month = baseMonthDate.getMonth()
     const daysInMonth = new Date(year, month + 1, 0).getDate()
+
+    const headerLabel = useMemo(
+        () => monthLabel ?? baseMonthDate.toLocaleDateString("nl-NL", {month: "long", year: "numeric"}),
+        [baseMonthDate, monthLabel],
+    )
 
     const monthlyEntries = useMemo(
         () =>
@@ -91,7 +117,7 @@ export function RevenueOverview() {
                 const d = new Date(e.date)
                 return d.getFullYear() === year && d.getMonth() === month
             }),
-        [entries, year, month],
+        [entries, month, year],
     )
 
     const dailyData: DailyData[] = useMemo(() => {
@@ -234,8 +260,7 @@ export function RevenueOverview() {
                     Profit Overview
                 </CardTitle>
                 <CardDescription>
-                    Company revenue for {" "}
-                    {now.toLocaleDateString("nl-NL", {month: "long", year: "numeric"})}
+                    Company revenue for {headerLabel}
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
