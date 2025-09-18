@@ -1353,10 +1353,10 @@ export function ShiftManager() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Chatter</TableHead>
-                                <TableHead>Models</TableHead>
+                                <TableHead className="hidden md:block">Models</TableHead>
                                 <TableHead>Start Tijd</TableHead>
-                                <TableHead>Eind Tijd</TableHead>
-                                <TableHead>Status</TableHead>
+                                <TableHead className="hidden md:block">Eind Tijd</TableHead>
+                                <TableHead className="hidden md:block">Status</TableHead>
                                 <TableHead>Acties</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -1369,7 +1369,7 @@ export function ShiftManager() {
                                             {shift.chatter.full_name}
                                         </div>
                                     </TableCell>
-                                    <TableCell>
+                                    <TableCell className="hidden md:block">
                                         <div className="flex flex-wrap gap-1">
                                             {shift.model_names.length === 0 && (
                                                 <Badge variant="outline" className="text-xs">
@@ -1389,8 +1389,8 @@ export function ShiftManager() {
                                             {formatDateTime(shift.start_time)}
                                         </div>
                                     </TableCell>
-                                    <TableCell>{formatDateTime(shift.end_time)}</TableCell>
-                                    <TableCell>{getStatusBadge(shift.status)}</TableCell>
+                                    <TableCell className="hidden md:block">{formatDateTime(shift.end_time)}</TableCell>
+                                    <TableCell className="hidden md:block">{getStatusBadge(shift.status)}</TableCell>
                                     <TableCell>
                                         <div className="flex gap-2">
                                             {shift.status === "scheduled" && (
@@ -1413,6 +1413,7 @@ export function ShiftManager() {
                                                 </Button>
                                             )}
                                             <Button
+                                                className="hidden md:block"
                                                 size="sm"
                                                 variant="secondary"
                                                 onClick={() => openEditDialog(shift)}

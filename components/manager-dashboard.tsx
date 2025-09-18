@@ -235,7 +235,7 @@ export function ManagerDashboard() {
                                 <p className="text-muted-foreground">Welcome back, {user?.profile?.full_name}</p>
                             </div>
                         </div>
-                        <div className="flex items-center gap-4">
+                        <div className="md:flex items-center gap-4 hidden">
                             <Badge variant="secondary" className="bg-green-100 text-green-800">
                                 <Settings className="h-3 w-3 mr-1"/>
                                 Manager
@@ -256,34 +256,46 @@ export function ManagerDashboard() {
 
                     {/* Tabs */}
                     <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="overview" className="space-y-6">
-                        <TabsList className="grid w-full grid-cols-7">
-                            <TabsTrigger value="overview" className="flex items-center gap-2">
-                                <TrendingUp className="h-4 w-4"/>
-                                Overview
+                        <TabsList
+                            className="
+    flex w-full overflow-x-auto gap-2 p-1
+    sm:gap-3
+    md:grid md:grid-cols-7 md:overflow-visible md:gap-0
+  "
+                        >
+                            <TabsTrigger value="overview" className="flex items-center gap-2 shrink-0 px-3 py-1.5 text-sm">
+                                <TrendingUp className="h-4 w-4" />
+                                <span className="hidden sm:inline">Overview</span>
                             </TabsTrigger>
-                            <TabsTrigger value="accounts" className="flex items-center gap-2">
-                                <UserPlus className="h-4 w-4"/>
-                                Accounts
+
+                            <TabsTrigger value="accounts" className="flex items-center gap-2 shrink-0 px-3 py-1.5 text-sm">
+                                <UserPlus className="h-4 w-4" />
+                                <span className="hidden sm:inline">Accounts</span>
                             </TabsTrigger>
-                            <TabsTrigger value="models" className="flex items-center gap-2">
-                                <User className="h-4 w-4"/>
-                                Models
+
+                            <TabsTrigger value="models" className="flex items-center gap-2 shrink-0 px-3 py-1.5 text-sm">
+                                <User className="h-4 w-4" />
+                                <span className="hidden sm:inline">Models</span>
                             </TabsTrigger>
-                            <TabsTrigger value="earnings" className="flex items-center gap-2">
-                                <Euro />
-                                Earnings
+
+                            <TabsTrigger value="earnings" className="flex items-center gap-2 shrink-0 px-3 py-1.5 text-sm">
+                                <Euro className="h-4 w-4" /> {/* fixed size */}
+                                <span className="hidden sm:inline">Earnings</span>
                             </TabsTrigger>
-                            <TabsTrigger value="shifts" className="flex items-center gap-2">
-                                <Calendar className="h-4 w-4"/>
-                                Shifts
+
+                            <TabsTrigger value="shifts" className="flex items-center gap-2 shrink-0 px-3 py-1.5 text-sm">
+                                <Calendar className="h-4 w-4" />
+                                <span className="hidden sm:inline">Shifts</span>
                             </TabsTrigger>
-                            <TabsTrigger value="commissions" className="flex items-center gap-2">
-                                <Percent className="h-4 w-4"/>
-                                Commissions
+
+                            <TabsTrigger value="commissions" className="flex items-center gap-2 shrink-0 px-3 py-1.5 text-sm">
+                                <Percent className="h-4 w-4" />
+                                <span className="hidden sm:inline">Commissions</span>
                             </TabsTrigger>
-                            <TabsTrigger value="revenue" className="flex items-center gap-2">
-                                <PieChart className="h-4 w-4"/>
-                                Revenue
+
+                            <TabsTrigger value="revenue" className="flex items-center gap-2 shrink-0 px-3 py-1.5 text-sm">
+                                <PieChart className="h-4 w-4" />
+                                <span className="hidden sm:inline">Revenue</span>
                             </TabsTrigger>
                         </TabsList>
 
