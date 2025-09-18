@@ -13,16 +13,22 @@ interface ModelEarnings {
   totalEarnings: number
 }
 
-export function ModelsEarningsLeaderboard() {
+interface ModelsEarningsLeaderboardProps {
+  monthStart?: string
+  monthEnd?: string
+  monthLabel?: string
+}
+
+export function ModelsEarningsLeaderboard({ monthStart, monthEnd, monthLabel }: ModelsEarningsLeaderboardProps) {
   const [models, setModels] = useState<ModelEarnings[]>([])
 
   useEffect(() => {
     fetchEarnings()
-  }, [])
+  }, [monthEnd, monthStart])
 
   const fetchEarnings = async () => {
     try {
-      const data = await api.getModelsWithEarnings()
+      const data = await api.getModelsWithEarnings({ from: monthStart, to: monthEnd })
       const parsed = (data || []).map((m: any) => ({
         id: String(m.id),
         displayName: m.displayName,
@@ -43,7 +49,9 @@ export function ModelsEarningsLeaderboard() {
     <Card>
       <CardHeader>
         <CardTitle>Model Earnings Leaderboard</CardTitle>
-        <CardDescription>Total earnings before commissions</CardDescription>
+        <CardDescription>
+          Totale omzet voor {monthLabel ?? "deze maand"}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <Table>

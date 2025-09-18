@@ -84,8 +84,12 @@ class ApiClient {
     return this.request(`/models/${id}`)
   }
 
-  getModelsWithEarnings() {
-    return this.request("/models/earnings")
+  getModelsWithEarnings(params?: { from?: string; to?: string }) {
+    const search = new URLSearchParams()
+    if (params?.from) search.set("from", params.from)
+    if (params?.to) search.set("to", params.to)
+    const query = search.toString() ? `?${search.toString()}` : ""
+    return this.request(`/models/earnings${query}`)
   }
 
   createModel(modelData: any) {
@@ -224,8 +228,12 @@ class ApiClient {
     return this.request(`/employee-earnings/chatter/${id}`)
   }
 
-  getEmployeeEarningsLeaderboard() {
-    return this.request("/employee-earnings/leaderboard")
+  getEmployeeEarningsLeaderboard(params?: { from?: string; to?: string }) {
+    const search = new URLSearchParams()
+    if (params?.from) search.set("from", params.from)
+    if (params?.to) search.set("to", params.to)
+    const query = search.toString() ? `?${search.toString()}` : ""
+    return this.request(`/employee-earnings/leaderboard${query}`)
   }
 
   getEmployeeEarning(id: string) {
@@ -288,8 +296,12 @@ class ApiClient {
   }
 
   /* ---------- Revenue ---------- */
-  getRevenueEarnings() {
-    return this.request("/revenue/earnings")
+  getRevenueEarnings(params?: { from?: string; to?: string }) {
+    const search = new URLSearchParams()
+    if (params?.from) search.set("from", params.from)
+    if (params?.to) search.set("to", params.to)
+    const query = search.toString() ? `?${search.toString()}` : ""
+    return this.request(`/revenue/earnings${query}`)
   }
 
   /* ---------- Commissions ---------- */
