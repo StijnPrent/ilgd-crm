@@ -357,12 +357,12 @@ export function ChattersList() {
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
-              <TableHead className="hidden md:block">Email</TableHead>
-              <TableHead className="hidden md:block">Status</TableHead>
-              <TableHead className="hidden md:block">Today</TableHead>
-              <TableHead className="hidden md:block">This Week</TableHead>
-              <TableHead className="hidden md:block">Settings</TableHead>
-              <TableHead className="hidden md:block">Joined</TableHead>
+              <TableHead className="hidden md:table-cell">Email</TableHead>
+              <TableHead className="hidden md:table-cell">Status</TableHead>
+              <TableHead className="hidden md:table-cell">Today</TableHead>
+              <TableHead className="hidden md:table-cell">This Week</TableHead>
+              <TableHead className="hidden md:table-cell">Settings</TableHead>
+              <TableHead className="hidden md:table-cell">Joined</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -370,8 +370,8 @@ export function ChattersList() {
             {filteredChatters.map((chatter) => (
               <TableRow key={chatter.id} className={chatter.status === "inactive" ? "opacity-60" : ""}>
                 <TableCell className="font-medium">{chatter.full_name}</TableCell>
-                <TableCell className="hidden md:block">{chatter.email}</TableCell>
-                <TableCell className="hidden md:block">
+                <TableCell className="hidden md:table-cell">{chatter.email}</TableCell>
+                <TableCell className="hidden md:table-cell">
                   <div className="flex items-center gap-2">
                     <Badge variant={chatter.isOnline ? "default" : "secondary"}>
                       <Clock className="h-3 w-3 mr-1" />
@@ -380,22 +380,22 @@ export function ChattersList() {
                     {chatter.status === "inactive" && <Badge variant="destructive">Inactive</Badge>}
                   </div>
                 </TableCell>
-                <TableCell className="hidden md:block">
+                <TableCell className="hidden md:table-cell">
                   <div className="flex items-center">
                     {formatCurrency(chatter.todayEarnings, chatter.currency)}
                   </div>
                 </TableCell>
-                <TableCell className="hidden md:block">
+                <TableCell className="hidden md:table-cell">
                   <div className="flex items-center">
                     {formatCurrency(chatter.weekEarnings, chatter.currency)}
                   </div>
                 </TableCell>
-                <TableCell className="hidden md:block">
+                <TableCell className="hidden md:table-cell">
                   <div className="text-sm text-muted-foreground">
                     {chatter.commission_rate}% comm, {chatter.platform_fee}% fee
                   </div>
                 </TableCell>
-                <TableCell className="hidden md:block">{new Date(chatter.created_at).toLocaleDateString("nl-NL")}</TableCell>
+                <TableCell className="hidden md:table-cell">{new Date(chatter.created_at).toLocaleDateString("nl-NL")}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
                     <Button

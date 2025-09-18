@@ -620,24 +620,24 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead className="hidden md:block">Date</TableHead>
-                                <TableHead className="hidden md:block">Type</TableHead>
+                                <TableHead className="hidden md:table-cell">Date</TableHead>
+                                <TableHead className="hidden md:table-cell">Type</TableHead>
                                 <TableHead>Model</TableHead>
                                 <TableHead>Chatter</TableHead>
                                 <TableHead>Amount</TableHead>
-                                <TableHead className="hidden md:block">Description</TableHead>
+                                <TableHead className="hidden md:table-cell">Description</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {limited.map((earning) => (
                                 <TableRow key={earning.id}>
-                                    <TableCell className="hidden md:block">
+                                    <TableCell className="hidden md:table-cell">
                                         <div className="flex items-center gap-2">
                                             <Calendar className="h-4 w-4 text-muted-foreground"/>
                                             {formatDate(earning.date)}
                                         </div>
                                     </TableCell>
-                                    <TableCell className="hidden md:block">
+                                    <TableCell className="hidden md:table-cell">
                                         {(() => {
                                             const iconMap: Record<string, JSX.Element> = {
                                                 paypermessage: (
@@ -671,7 +671,7 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
                                             {formatCurrency(earning.amount)}
                                         </div>
                                     </TableCell>
-                                    <TableCell className="hidden md:block">
+                                    <TableCell className="hidden md:table-cell">
                     <span className="text-muted-foreground">
                       {earning.description || "No description"}
                     </span>
@@ -988,12 +988,12 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead className="hidden md:block">Date</TableHead>
-                            <TableHead className="hidden md:block">Type</TableHead>
+                            <TableHead className="hidden md:table-cell">Date</TableHead>
+                            <TableHead className="hidden md:table-cell">Type</TableHead>
                             <TableHead>Model</TableHead>
                             <TableHead>Chatter</TableHead>
                             <TableHead>Amount</TableHead>
-                            <TableHead className="hidden md:block">Description</TableHead>
+                            <TableHead className="hidden md:table-cell">Description</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1010,13 +1010,13 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
                         ) : (
                             earnings.map((earning) => (
                                 <TableRow key={earning.id}>
-                                    <TableCell className="hidden md:block">
+                                    <TableCell className="hidden md:table-cell">
                                         <div className="flex items-center gap-2">
                                             <Calendar className="h-4 w-4 text-muted-foreground"/>
                                             {formatDate(earning.date)}
                                         </div>
                                     </TableCell>
-                                    <TableCell className="hidden md:block">
+                                    <TableCell className="hidden md:table-cell">
                                         {(() => {
                                             const iconMap: Record<string, JSX.Element> = {
                                                 paypermessage: (
@@ -1071,7 +1071,7 @@ export function EarningsOverview({limit}: EarningsOverviewProps) {
                                             {formatCurrency(earning.amount)}
                                         </div>
                                     </TableCell>
-                                    <TableCell className="hidden md:block">
+                                    <TableCell className="hidden md:table-cell">
                     <span className="text-muted-foreground">
                       {earning.description || "No description"}
                     </span>

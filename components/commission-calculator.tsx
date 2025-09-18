@@ -723,10 +723,10 @@ export function CommissionCalculator() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Date</TableHead>
+              <TableHead className="hidden md:table-cell">Date</TableHead>
               <TableHead>Chatter</TableHead>
-              <TableHead>Earnings</TableHead>
-              <TableHead>Commission Rate</TableHead>
+              <TableHead className="hidden md:table-cell">Earnings</TableHead>
+              <TableHead className="hidden md:table-cell">Commission Rate</TableHead>
               <TableHead>Commission</TableHead>
               <TableHead>Bonus</TableHead>
               <TableHead>Total</TableHead>
@@ -744,7 +744,7 @@ export function CommissionCalculator() {
 
               return (
                 <TableRow key={commission.id}>
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">
                     <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-muted-foreground" />
                       <span>
@@ -753,13 +753,13 @@ export function CommissionCalculator() {
                     </div>
                   </TableCell>
                   <TableCell>{commission.chatter.full_name || "—"}</TableCell>
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">
                     {formatCurrency(
                       commission.total_earnings,
                       commission.chatter.currency,
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">
                     {commission.commission_rate.toFixed(1)}%
                   </TableCell>
                   <TableCell className="font-semibold text-green-600">
@@ -815,14 +815,14 @@ export function CommissionCalculator() {
               <TableCell colSpan={2} className="font-semibold">
                 Totaal
               </TableCell>
-              <TableCell className="font-semibold">
+              <TableCell className="font-semibold hidden md:table-cell">
                 {formatCurrency(totals.earnings, totalsCurrency)}
               </TableCell>
               <TableCell></TableCell>
-              <TableCell className="font-semibold text-green-600">
+              <TableCell className="font-semibold text-green-600 hidden md:table-cell">
                 {formatCurrency(totals.commission, totalsCurrency)}
               </TableCell>
-              <TableCell className="font-semibold">
+              <TableCell className="font-semibold hidden md:table-cell">
                 {formatCurrency(totals.bonus, totalsCurrency)}
               </TableCell>
               <TableCell className="font-semibold">
