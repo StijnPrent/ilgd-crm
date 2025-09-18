@@ -1,11 +1,18 @@
 "use client"
 
-import {useCallback, useEffect, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {Card, CardContent, CardHeader, CardTitle} from "@/components/ui/card"
 import {Button} from "@/components/ui/button"
 import {Badge} from "@/components/ui/badge"
 import {ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Clock, User, UserCircle} from "lucide-react"
 import {api} from "@/lib/api"
+import {useIsMobile} from "@/hooks/use-mobile"
+
+const normalizeDate = (date: Date) => {
+    const normalized = new Date(date)
+    normalized.setHours(0, 0, 0, 0)
+    return normalized
+}
 
 interface Shift {
     id: string
@@ -75,15 +82,20 @@ export function WeeklyCalendar({
                                    onShiftClick,
                                }: WeeklyCalendarProps) {
     const [shifts, setShifts] = useState<Shift[]>([])
-    const [currentWeek, setCurrentWeek] = useState(new Date())
+    const [currentWeek, setCurrentWeek] = useState<Date>(() => normalizeDate(new Date()))
     const [loading, setLoading] = useState(true)
     const [chatterNames, setChatterNames] = useState<Record<string, string>>({})
     const [modelNames, setModelNames] = useState<Record<string, string>>({})
     const [metaLoaded, setMetaLoaded] = useState(false)
     const loadedRangeKeysRef = useRef<Set<string>>(new Set())
+    const isMobile = useIsMobile()
+    const [selectedDate, setSelectedDate] = useState<Date>(() => normalizeDate(new Date()))
 
     const formatDate = useCallback((date: Date) => {
-        return date.toISOString().split("T")[0]
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, "0")
+        const day = String(date.getDate()).padStart(2, "0")
+        return `${year}-${month}-${day}`
     }, [])
 
     const getStartOfWeek = useCallback((date: Date) => {
@@ -173,6 +185,7 @@ export function WeeklyCalendar({
                     to,
                     chatterId: userId ? String(userId) : undefined,
                 })
+                console.log("Fetched shifts:", shiftsData)
 
                 const formattedShifts = (shiftsData || []).map((shift: any) => {
                     const startDate = shift.startTime
@@ -241,19 +254,64 @@ export function WeeklyCalendar({
         void loadWeek(currentWeek)
     }, [currentWeek, metaLoaded, loadWeek])
 
-    const weekDates = getWeekDates(currentWeek)
-    const today = new Date()
+    const weekDates = useMemo(() => getWeekDates(currentWeek), [currentWeek, getWeekDates])
+    const today = useMemo(() => normalizeDate(new Date()), [])
 
-    const getShiftsForDate = (date: Date) => {
-        const dateStr = date.toISOString().split("T")[0]
-        return shifts
-            .filter(
-                (shift) =>
-                    shift.date === dateStr && (!userId || shift.chatter_id === String(userId))
-            )
-            .slice()
-            .sort((a, b) => a.start_time.localeCompare(b.start_time))
-    }
+    useEffect(() => {
+        const weekStart = weekDates[0]
+        const weekEnd = weekDates[weekDates.length - 1]
+        if (!weekStart || !weekEnd) {
+            return
+        }
+        const withinWeek =
+            selectedDate >= weekStart &&
+            selectedDate <= new Date(weekEnd.getFullYear(), weekEnd.getMonth(), weekEnd.getDate(), 23, 59, 59, 999)
+
+        if (withinWeek) {
+            return
+        }
+
+        const todayMatch = weekDates.find((date) => date.toDateString() === today.toDateString())
+        if (todayMatch) {
+            setSelectedDate(todayMatch)
+            return
+        }
+
+        if (weekStart) {
+            setSelectedDate(weekStart)
+        }
+    }, [today, weekDates, selectedDate])
+
+    useEffect(() => {
+        if (!isMobile) {
+            return
+        }
+
+        const todayMatch = weekDates.find((date) => date.toDateString() === today.toDateString())
+        if (todayMatch) {
+            setSelectedDate(todayMatch)
+        }
+    }, [isMobile, today, weekDates])
+
+    const getShiftsForDate = useCallback(
+        (date: Date) => {
+            const dateStr = formatDate(date)
+
+            return shifts
+                .filter(
+                    (shift) =>
+                        shift.date === dateStr && (!userId || shift.chatter_id === String(userId))
+                )
+                .slice()
+                .sort((a, b) => a.start_time.localeCompare(b.start_time))
+        },
+        [formatDate, shifts, userId]
+    )
+
+    const selectedDayShifts = useMemo(
+        () => getShiftsForDate(selectedDate),
+        [getShiftsForDate, selectedDate]
+    )
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -273,11 +331,30 @@ export function WeeklyCalendar({
     const navigateWeek = (direction: "prev" | "next") => {
         const newWeek = new Date(currentWeek)
         newWeek.setDate(currentWeek.getDate() + (direction === "next" ? 7 : -7))
-        setCurrentWeek(newWeek)
+        setCurrentWeek(normalizeDate(newWeek))
     }
 
     const goToCurrentWeek = () => {
-        setCurrentWeek(new Date())
+        const normalizedToday = normalizeDate(new Date())
+        setCurrentWeek(normalizedToday)
+        setSelectedDate(normalizedToday)
+    }
+
+    const navigateDay = (direction: "prev" | "next") => {
+        const delta = direction === "next" ? 1 : -1
+        const newDate = new Date(selectedDate)
+        newDate.setDate(selectedDate.getDate() + delta)
+        const normalized = normalizeDate(newDate)
+        setSelectedDate(normalized)
+        const weekStart = weekDates[0]
+        const weekEnd = weekDates[weekDates.length - 1]
+        if (weekStart && weekEnd) {
+            const weekEndBoundary = new Date(weekEnd)
+            weekEndBoundary.setHours(23, 59, 59, 999)
+            if (normalized < weekStart || normalized > weekEndBoundary) {
+                setCurrentWeek(normalized)
+            }
+        }
     }
 
     if (loading) {
@@ -313,64 +390,131 @@ export function WeeklyCalendar({
                 </div>
             </CardHeader>
             <CardContent className={compact ? "pt-0" : ""}>
-                <div className="grid grid-cols-7 gap-2">
-                    {weekDates.map((date, index) => {
-                        const dayShifts = getShiftsForDate(date)
-                        const isToday = date.toDateString() === today.toDateString()
-                        const dayName = date.toLocaleDateString("en", {weekday: "short"})
-                        const dayNumber = date.getDate()
-
-                        return (
-                            <div key={index} className="space-y-2">
-                                <div
-                                    className={`text-center p-2 rounded-lg ${
-                                        isToday ? "bg-primary text-primary-foreground" : "bg-muted"
-                                    }`}
-                                >
-                                    <div className="text-xs font-medium">{dayName}</div>
-                                    <div className="text-sm">{dayNumber}</div>
+                {isMobile ? (
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                            <Button variant="outline" size="sm" onClick={() => navigateDay("prev")}>
+                                <ChevronLeft className="h-4 w-4"/>
+                            </Button>
+                            <div className="text-center">
+                                <div className="text-sm font-medium">
+                                    {selectedDate.toLocaleDateString("en", {weekday: "long"})}
                                 </div>
-                                <div className="space-y-1 min-h-[100px]">
-                                    {dayShifts.map((shift) => (
-                                        <div
-                                            key={shift.id}
-                                            className={`p-2 rounded text-white text-xs cursor-pointer transition-colors ${getStatusColor(
-                                                shift.status
-                                            )}`}
-                                            onClick={() => onShiftClick?.(shift)}
-                                        >
-                                            <div className="flex items-center gap-1 mb-1">
-                                                <Clock className="h-3 w-3"/>
-                                                <span>
-                          {shift.start_time} - {shift.end_time}
-                        </span>
-                                            </div>
-
-                                            <div className="flex items-start gap-1">
-                                                <UserCircle className="h-3 w-3 mt-0.5"/>
-                                                {/* Collapsible names here */}
-                                                <CollapsibleNames names={shift.model_names} maxVisible={1}/>
-                                            </div>
-
-                                            {showChatterNames && (
-                                                <div className="flex items-center gap-1 mt-1">
-                                                    <User className="h-3 w-3"/>
-                                                    <span className="truncate">{shift.chatter_name}</span>
-                                                </div>
-                                            )}
-
-                                            {compact && (
-                                                <Badge variant="secondary" className="text-xs mt-1">
-                                                    {shift.status}
-                                                </Badge>
-                                            )}
-                                        </div>
-                                    ))}
+                                <div className="text-xs text-muted-foreground">
+                                    {selectedDate.toLocaleDateString("en", {
+                                        month: "short",
+                                        day: "numeric",
+                                        year: "numeric",
+                                    })}
                                 </div>
                             </div>
-                        )
-                    })}
-                </div>
+                            <Button variant="outline" size="sm" onClick={() => navigateDay("next")}>
+                                <ChevronRight className="h-4 w-4"/>
+                            </Button>
+                        </div>
+
+                        <div className="space-y-1">
+                            {selectedDayShifts.map((shift) => (
+                                <div
+                                    key={shift.id}
+                                    className={`p-2 rounded text-white text-xs cursor-pointer transition-colors ${getStatusColor(
+                                        shift.status
+                                    )}`}
+                                    onClick={() => onShiftClick?.(shift)}
+                                >
+                                    <div className="flex items-center gap-1 mb-1">
+                                        <Clock className="h-3 w-3"/>
+                                        <span>
+                                            {shift.start_time} - {shift.end_time}
+                                        </span>
+                                    </div>
+
+                                    <div className="flex items-start gap-1">
+                                        <UserCircle className="h-3 w-3 mt-0.5"/>
+                                        <CollapsibleNames names={shift.model_names} maxVisible={1}/>
+                                    </div>
+
+                                    {showChatterNames && (
+                                        <div className="flex items-center gap-1 mt-1">
+                                            <User className="h-3 w-3"/>
+                                            <span className="truncate">{shift.chatter_name}</span>
+                                        </div>
+                                    )}
+
+                                    {compact && (
+                                        <Badge variant="secondary" className="text-xs mt-1">
+                                            {shift.status}
+                                        </Badge>
+                                    )}
+                                </div>
+                            ))}
+
+                            {selectedDayShifts.length === 0 && (
+                                <div className="text-center text-xs text-muted-foreground py-6">
+                                    No shifts scheduled for this day.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-7 gap-2">
+                        {weekDates.map((date, index) => {
+                            const dayShifts = getShiftsForDate(date)
+                            const isToday = date.toDateString() === today.toDateString()
+                            const dayName = date.toLocaleDateString("en", {weekday: "short"})
+                            const dayNumber = date.getDate()
+
+                            return (
+                                <div key={index} className="space-y-2">
+                                    <div
+                                        className={`text-center p-2 rounded-lg ${
+                                            isToday ? "bg-primary text-primary-foreground" : "bg-muted"
+                                        }`}
+                                    >
+                                        <div className="text-xs font-medium">{dayName}</div>
+                                        <div className="text-sm">{dayNumber}</div>
+                                    </div>
+                                    <div className="space-y-1 min-h-[100px]">
+                                        {dayShifts.map((shift) => (
+                                            <div
+                                                key={shift.id}
+                                                className={`p-2 rounded text-white text-xs cursor-pointer transition-colors ${getStatusColor(
+                                                    shift.status
+                                                )}`}
+                                                onClick={() => onShiftClick?.(shift)}
+                                            >
+                                                <div className="flex items-center gap-1 mb-1">
+                                                    <Clock className="h-3 w-3"/>
+                                                    <span>
+                                                        {shift.start_time} - {shift.end_time}
+                                                    </span>
+                                                </div>
+
+                                                <div className="flex items-start gap-1">
+                                                    <UserCircle className="h-3 w-3 mt-0.5"/>
+                                                    <CollapsibleNames names={shift.model_names} maxVisible={1}/>
+                                                </div>
+
+                                                {showChatterNames && (
+                                                    <div className="flex items-center gap-1 mt-1">
+                                                        <User className="h-3 w-3"/>
+                                                        <span className="truncate">{shift.chatter_name}</span>
+                                                    </div>
+                                                )}
+
+                                                {compact && (
+                                                    <Badge variant="secondary" className="text-xs mt-1">
+                                                        {shift.status}
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                )}
                 {!compact && (
                     <div className="mt-4 flex items-center gap-4 text-sm text-muted-foreground">
                         <div className="flex items-center gap-2">

@@ -45,6 +45,13 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Switch } from "@/components/ui/switch"
+import { useIsMobile } from "@/hooks/use-mobile"
+
+const normalizeDate = (date: Date) => {
+    const normalized = new Date(date)
+    normalized.setHours(0, 0, 0, 0)
+    return normalized
+}
 
 interface Shift {
     id: string
@@ -80,7 +87,7 @@ export function ShiftManager() {
     const [loading, setLoading] = useState(true)
     const [metaLoaded, setMetaLoaded] = useState(false)
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-    const [currentWeek, setCurrentWeek] = useState(new Date())
+    const [currentWeek, setCurrentWeek] = useState<Date>(() => normalizeDate(new Date()))
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
     const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
     const [newShift, setNewShift] = useState({
@@ -107,6 +114,8 @@ export function ShiftManager() {
     })
     const [isEditModelPopoverOpen, setIsEditModelPopoverOpen] = useState(false)
     const loadedRangeKeysRef = useRef<Set<string>>(new Set())
+    const isMobile = useIsMobile()
+    const [selectedDate, setSelectedDate] = useState<Date>(() => normalizeDate(new Date()))
 
     const formatDate = useCallback((date: Date) => {
         const year = date.getFullYear()
@@ -338,7 +347,67 @@ export function ShiftManager() {
     const navigateWeek = (direction: "prev" | "next") => {
         const newWeek = new Date(currentWeek)
         newWeek.setDate(currentWeek.getDate() + (direction === "next" ? 7 : -7))
-        setCurrentWeek(newWeek)
+        setCurrentWeek(normalizeDate(newWeek))
+    }
+
+    const weekDays = useMemo(() => getWeekDays(currentWeek), [currentWeek, getWeekDays])
+    const today = useMemo(() => normalizeDate(new Date()), [])
+
+    useEffect(() => {
+        const weekStart = weekDays[0]
+        const weekEnd = weekDays[weekDays.length - 1]
+        if (!weekStart || !weekEnd) {
+            return
+        }
+
+        const weekEndBoundary = new Date(weekEnd)
+        weekEndBoundary.setHours(23, 59, 59, 999)
+
+        if (selectedDate >= weekStart && selectedDate <= weekEndBoundary) {
+            return
+        }
+
+        const todayMatch = weekDays.find((day) => day.toDateString() === today.toDateString())
+        if (todayMatch) {
+            setSelectedDate(todayMatch)
+            return
+        }
+
+        setSelectedDate(weekStart)
+    }, [selectedDate, today, weekDays])
+
+    useEffect(() => {
+        if (!isMobile) {
+            return
+        }
+
+        const todayMatch = weekDays.find((day) => day.toDateString() === today.toDateString())
+        if (todayMatch) {
+            setSelectedDate(todayMatch)
+        }
+    }, [isMobile, today, weekDays])
+
+    const selectedDayShifts = useMemo(
+        () => getShiftsForDay(selectedDate),
+        [getShiftsForDay, selectedDate],
+    )
+
+    const navigateDay = (direction: "prev" | "next") => {
+        const delta = direction === "next" ? 1 : -1
+        const newDate = new Date(selectedDate)
+        newDate.setDate(selectedDate.getDate() + delta)
+        const normalized = normalizeDate(newDate)
+        setSelectedDate(normalized)
+
+        const weekStart = weekDays[0]
+        const weekEnd = weekDays[weekDays.length - 1]
+        if (weekStart && weekEnd) {
+            const weekEndBoundary = new Date(weekEnd)
+            weekEndBoundary.setHours(23, 59, 59, 999)
+            if (normalized < weekStart || normalized > weekEndBoundary) {
+                setCurrentWeek(normalized)
+            }
+        }
     }
 
     const handleAddShift = async (e: React.FormEvent) => {
@@ -601,6 +670,8 @@ export function ShiftManager() {
         }
     }
 
+    const dayNames = ["Ma", "Di", "Wo", "Do", "Vr", "Za", "Zo"]
+
     if (loading) {
         return (
             <Card>
@@ -614,9 +685,6 @@ export function ShiftManager() {
             </Card>
         )
     }
-
-    const weekDays = getWeekDays(currentWeek)
-    const dayNames = ["Ma", "Di", "Wo", "Do", "Vr", "Za", "Zo"]
 
     return (
         <div className="space-y-6">
@@ -645,58 +713,130 @@ export function ShiftManager() {
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <div className="grid grid-cols-7 gap-2">
-                        {weekDays.map((day, index) => {
-                            const dayShifts = getShiftsForDay(day)
-                            const isToday = day.toDateString() === new Date().toDateString()
-
-                            return (
-                                <div
-                                    key={day.toISOString()}
-                                    className={`border rounded-lg p-3 min-h-[120px] ${isToday ? "bg-blue-50 border-blue-200" : "bg-white"}`}
-                                >
-                                    <div className="text-center mb-2">
-                                        <div className="text-xs font-medium text-muted-foreground">{dayNames[index]}</div>
-                                        <div className={`text-sm font-semibold ${isToday ? "text-blue-600" : ""}`}>{day.getDate()}</div>
+                    {isMobile ? (
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <Button variant="outline" size="sm" onClick={() => navigateDay("prev")}>
+                                    <ChevronLeft className="h-4 w-4" />
+                                </Button>
+                                <div className="text-center">
+                                    <div className="text-sm font-medium">
+                                        {selectedDate.toLocaleDateString("nl-NL", { weekday: "long" })}
                                     </div>
-                                    <div className="space-y-1">
-                                        {dayShifts.map((shift) => (
-                                            <div
-                                                key={shift.id}
-                                                className={`text-xs p-2 rounded border-l-2 cursor-pointer relative group ${getShiftBlockColor(shift.status)}`}
-                                                onClick={() => openEditDialog(shift)}
-                                            >
-                                                <div className="font-medium truncate">{shift.chatter.full_name}</div>
-                                                <div className="text-xs opacity-75">
-                                                    {new Date(shift.start_time).toLocaleTimeString("nl-NL", {
-                                                        hour: "2-digit",
-                                                        minute: "2-digit",
-                                                        timeZone: "Europe/Amsterdam",
-                                                    })}{" "}
-                                                    -{" "}
-                                                    {new Date(shift.end_time).toLocaleTimeString("nl-NL", {
-                                                        hour: "2-digit",
-                                                        minute: "2-digit",
-                                                        timeZone: "Europe/Amsterdam",
-                                                    })}
-                                                </div>
-                                                <button
-                                                    className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 hover:bg-red-600 text-white rounded-full p-1"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation()
-                                                        confirmDeleteShift(shift.id)
-                                                    }}
-                                                    title="Verwijder shift"
-                                                >
-                                                    <Trash2 className="h-3 w-3" />
-                                                </button>
-                                            </div>
-                                        ))}
+                                    <div className="text-xs text-muted-foreground">
+                                        {selectedDate.toLocaleDateString("nl-NL", {
+                                            day: "numeric",
+                                            month: "long",
+                                            year: "numeric",
+                                        })}
                                     </div>
                                 </div>
-                            )
-                        })}
-                    </div>
+                                <Button variant="outline" size="sm" onClick={() => navigateDay("next")}>
+                                    <ChevronRight className="h-4 w-4" />
+                                </Button>
+                            </div>
+
+                            <div className="space-y-2">
+                                {selectedDayShifts.map((shift) => (
+                                    <div
+                                        key={shift.id}
+                                        className={`relative rounded border p-3 text-sm cursor-pointer transition-colors group ${getShiftBlockColor(shift.status)}`}
+                                        onClick={() => openEditDialog(shift)}
+                                    >
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="font-semibold truncate">{shift.chatter.full_name}</span>
+                                            <span className="text-xs">
+                                                {new Date(shift.start_time).toLocaleTimeString("nl-NL", {
+                                                    hour: "2-digit",
+                                                    minute: "2-digit",
+                                                    timeZone: "Europe/Amsterdam",
+                                                })}{" "}-{" "}
+                                                {new Date(shift.end_time).toLocaleTimeString("nl-NL", {
+                                                    hour: "2-digit",
+                                                    minute: "2-digit",
+                                                    timeZone: "Europe/Amsterdam",
+                                                })}
+                                            </span>
+                                        </div>
+                                        {shift.model_names.length > 0 && (
+                                            <div className="text-xs text-muted-foreground mt-1 truncate">
+                                                Models: {shift.model_names.join(", ")}
+                                            </div>
+                                        )}
+                                        <button
+                                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 hover:bg-red-600 text-white rounded-full p-1"
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                confirmDeleteShift(shift.id)
+                                            }}
+                                            title="Verwijder shift"
+                                        >
+                                            <Trash2 className="h-3 w-3" />
+                                        </button>
+                                    </div>
+                                ))}
+
+                                {selectedDayShifts.length === 0 && (
+                                    <div className="text-center text-xs text-muted-foreground py-6">
+                                        Geen shifts gepland voor deze dag.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-7 gap-2">
+                            {weekDays.map((day, index) => {
+                                const dayShifts = getShiftsForDay(day)
+                                const isToday = day.toDateString() === new Date().toDateString()
+
+                                return (
+                                    <div
+                                        key={day.toISOString()}
+                                        className={`border rounded-lg p-3 min-h-[120px] ${isToday ? "bg-blue-50 border-blue-200" : "bg-white"}`}
+                                    >
+                                        <div className="text-center mb-2">
+                                            <div className="text-xs font-medium text-muted-foreground">{dayNames[index]}</div>
+                                            <div className={`text-sm font-semibold ${isToday ? "text-blue-600" : ""}`}>{day.getDate()}</div>
+                                        </div>
+                                        <div className="space-y-1">
+                                            {dayShifts.map((shift) => (
+                                                <div
+                                                    key={shift.id}
+                                                    className={`text-xs p-2 rounded border-l-2 cursor-pointer relative group ${getShiftBlockColor(shift.status)}`}
+                                                    onClick={() => openEditDialog(shift)}
+                                                >
+                                                    <div className="font-medium truncate">{shift.chatter.full_name}</div>
+                                                    <div className="text-xs opacity-75">
+                                                        {new Date(shift.start_time).toLocaleTimeString("nl-NL", {
+                                                            hour: "2-digit",
+                                                            minute: "2-digit",
+                                                            timeZone: "Europe/Amsterdam",
+                                                        })}{" "}
+                                                        -{" "}
+                                                        {new Date(shift.end_time).toLocaleTimeString("nl-NL", {
+                                                            hour: "2-digit",
+                                                            minute: "2-digit",
+                                                            timeZone: "Europe/Amsterdam",
+                                                        })}
+                                                    </div>
+                                                    <button
+                                                        className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 hover:bg-red-600 text-white rounded-full p-1"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            confirmDeleteShift(shift.id)
+                                                        }}
+                                                        title="Verwijder shift"
+                                                    >
+                                                        <Trash2 className="h-3 w-3" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    )}
                     {currentWeekShifts.length === 0 && (
                         <div className="text-center py-8 text-muted-foreground">
                             <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -1213,10 +1353,10 @@ export function ShiftManager() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Chatter</TableHead>
-                                <TableHead>Models</TableHead>
+                                <TableHead className="hidden md:table-cell">Models</TableHead>
                                 <TableHead>Start Tijd</TableHead>
-                                <TableHead>Eind Tijd</TableHead>
-                                <TableHead>Status</TableHead>
+                                <TableHead className="hidden md:table-cell">Eind Tijd</TableHead>
+                                <TableHead className="hidden md:table-cell">Status</TableHead>
                                 <TableHead>Acties</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -1229,7 +1369,7 @@ export function ShiftManager() {
                                             {shift.chatter.full_name}
                                         </div>
                                     </TableCell>
-                                    <TableCell>
+                                    <TableCell className="hidden md:table-cell">
                                         <div className="flex flex-wrap gap-1">
                                             {shift.model_names.length === 0 && (
                                                 <Badge variant="outline" className="text-xs">
@@ -1249,8 +1389,8 @@ export function ShiftManager() {
                                             {formatDateTime(shift.start_time)}
                                         </div>
                                     </TableCell>
-                                    <TableCell>{formatDateTime(shift.end_time)}</TableCell>
-                                    <TableCell>{getStatusBadge(shift.status)}</TableCell>
+                                    <TableCell className="hidden md:table-cell">{formatDateTime(shift.end_time)}</TableCell>
+                                    <TableCell className="hidden md:table-cell">{getStatusBadge(shift.status)}</TableCell>
                                     <TableCell>
                                         <div className="flex gap-2">
                                             {shift.status === "scheduled" && (
@@ -1273,6 +1413,7 @@ export function ShiftManager() {
                                                 </Button>
                                             )}
                                             <Button
+                                                className="hidden md:inline-flex"
                                                 size="sm"
                                                 variant="secondary"
                                                 onClick={() => openEditDialog(shift)}

@@ -170,9 +170,9 @@ export function ModelsList() {
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
-              <TableHead>Username</TableHead>
-              <TableHead>Commission</TableHead>
-              <TableHead>Created</TableHead>
+              <TableHead className="hidden md:table-cell">Username</TableHead>
+              <TableHead className="hidden md:table-cell">Commission</TableHead>
+              <TableHead className="hidden md:table-cell">Created</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -180,9 +180,9 @@ export function ModelsList() {
             {models.map((model) => (
               <TableRow key={model.id}>
                 <TableCell className="font-medium">{model.displayName}</TableCell>
-                <TableCell>{model.username}</TableCell>
-                <TableCell>{model.commissionRate}%</TableCell>
-                <TableCell>{new Date(model.createdAt).toLocaleDateString("nl-NL")}</TableCell>
+                <TableCell className="hidden md:table-cell">{model.username}</TableCell>
+                <TableCell className="hidden md:table-cell">{model.commissionRate}%</TableCell>
+                <TableCell className="hidden md:table-cell">{new Date(model.createdAt).toLocaleDateString("nl-NL")}</TableCell>
                 <TableCell className="flex gap-2">
                   <Button
                     variant="outline"

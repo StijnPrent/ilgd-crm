@@ -235,7 +235,7 @@ export function ManagerDashboard() {
                                 <p className="text-muted-foreground">Welcome back, {user?.profile?.full_name}</p>
                             </div>
                         </div>
-                        <div className="flex items-center gap-4">
+                        <div className="md:flex items-center gap-4 hidden">
                             <Badge variant="secondary" className="bg-green-100 text-green-800">
                                 <Settings className="h-3 w-3 mr-1"/>
                                 Manager
@@ -259,31 +259,32 @@ export function ManagerDashboard() {
                         <TabsList className="grid w-full grid-cols-7">
                             <TabsTrigger value="overview" className="flex items-center gap-2">
                                 <TrendingUp className="h-4 w-4"/>
-                                Overview
+                                <span className="hidden sm:inline">Overview</span>
                             </TabsTrigger>
                             <TabsTrigger value="accounts" className="flex items-center gap-2">
                                 <UserPlus className="h-4 w-4"/>
-                                Accounts
+                                <span className="hidden sm:inline">Accounts</span>
                             </TabsTrigger>
                             <TabsTrigger value="models" className="flex items-center gap-2">
                                 <User className="h-4 w-4"/>
-                                Models
+                                <span className="hidden sm:inline">Models</span>
                             </TabsTrigger>
+
                             <TabsTrigger value="earnings" className="flex items-center gap-2">
-                                <Euro />
-                                Earnings
+                                <Euro className="h-4 w-4"/> {/* fixed size */}
+                                <span className="hidden sm:inline">Earnings</span>
                             </TabsTrigger>
                             <TabsTrigger value="shifts" className="flex items-center gap-2">
                                 <Calendar className="h-4 w-4"/>
-                                Shifts
+                                <span className="hidden sm:inline">Shifts</span>
                             </TabsTrigger>
                             <TabsTrigger value="commissions" className="flex items-center gap-2">
                                 <Percent className="h-4 w-4"/>
-                                Commissions
+                                <span className="hidden sm:inline">Commissions</span>
                             </TabsTrigger>
                             <TabsTrigger value="revenue" className="flex items-center gap-2">
                                 <PieChart className="h-4 w-4"/>
-                                Revenue
+                                <span className="hidden sm:inline">Revenue</span>
                             </TabsTrigger>
                         </TabsList>
 
@@ -372,10 +373,10 @@ export function ManagerDashboard() {
                         <TabsContent value="models">
                             <div className="grid md:grid-cols-3 gap-6">
                                 <div className="md:col-span-2">
-                                    <ModelsList />
+                                    <ModelsList/>
                                 </div>
                                 <div className="md:col-span-1">
-                                    <ModelsEarningsLeaderboard />
+                                    <ModelsEarningsLeaderboard/>
                                 </div>
                             </div>
                         </TabsContent>
