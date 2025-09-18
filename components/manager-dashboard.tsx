@@ -284,7 +284,7 @@ export function ManagerDashboard() {
                             </TabsTrigger>
                             <TabsTrigger value="revenue" className="flex items-center gap-2">
                                 <PieChart className="h-4 w-4"/>
-                                <span className="hidden sm:inline">Revenue</span>
+                                <span className="hidden sm:inline">Profit</span>
                             </TabsTrigger>
                         </TabsList>
 

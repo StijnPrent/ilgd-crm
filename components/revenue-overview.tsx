@@ -231,7 +231,7 @@ export function RevenueOverview() {
         <Card>
             <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                    Revenue Overview
+                    Profit Overview
                 </CardTitle>
                 <CardDescription>
                     Company revenue for {" "}
