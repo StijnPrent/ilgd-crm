@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Users, Clock, TrendingUp } from "lucide-react"
 import { api } from "@/lib/api"
@@ -9,29 +9,33 @@ import { useEmployeeEarnings } from "@/hooks/use-employee-earnings"
 interface Stats {
   totalChatters: number
   currentlyOnline: number
-  totalEarningsToday: number
+  totalEarningsDay: number
   totalEarningsWeek: number
   totalEarningsMonth: number
+  dayLabel: string
 }
 
-export function ManagerStats() {
+interface ManagerStatsProps {
+  monthLabel: string
+  monthStart: string
+  monthEnd: string
+}
+
+export function ManagerStats({ monthLabel, monthStart, monthEnd }: ManagerStatsProps) {
   const [stats, setStats] = useState<Stats>({
     totalChatters: 0,
     currentlyOnline: 0,
-    totalEarningsToday: 0,
+    totalEarningsDay: 0,
     totalEarningsWeek: 0,
     totalEarningsMonth: 0,
+    dayLabel: "",
   })
   const [loading, setLoading] = useState(true)
   const { earnings } = useEmployeeEarnings()
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString("nl-NL", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-    })
-  }
+  const monthStartDate = useMemo(() => new Date(`${monthStart}T00:00:00`), [monthStart])
+  const monthEndDate = useMemo(() => new Date(`${monthEnd}T23:59:59`), [monthEnd])
+  const monthKey = monthStart.slice(0, 7)
 
   useEffect(() => {
     if (earnings === null) return
@@ -44,28 +48,54 @@ export function ManagerStats() {
           api.getOnlineChatters(),
         ])
 
-        const today = new Date().toISOString().split("T")[0]
-        const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
-        const oneMonthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+        const today = new Date()
+        const currentMonthKey = today.toISOString().slice(0, 7)
+        const focusDate = (() => {
+          if (currentMonthKey === monthKey) {
+            return today
+          }
+          const fallback = new Date(monthEndDate)
+          if (fallback < monthStartDate) return monthStartDate
+          if (fallback > monthEndDate) return monthEndDate
+          return fallback
+        })()
+        focusDate.setHours(0, 0, 0, 0)
 
-        const todayEarnings = (earnings || [])
-          .filter((e: any) => e.date.split("T")[0] === today)
+        const focusDateIso = focusDate.toISOString().split("T")[0]
+        const weekStartDate = new Date(focusDate)
+        weekStartDate.setDate(focusDate.getDate() - 6)
+        if (weekStartDate < monthStartDate) {
+          weekStartDate.setTime(monthStartDate.getTime())
+        }
+        const weekStartIso = weekStartDate.toISOString().split("T")[0]
+
+        const dayEarnings = (earnings || [])
+          .filter((e: any) => (e.date || "").split("T")[0] === focusDateIso)
           .reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
 
         const weekEarnings = (earnings || [])
-          .filter((e: any) => e.date.split("T")[0] >= oneWeekAgo)
+          .filter((e: any) => {
+            const date = (e.date || "").split("T")[0]
+            return date >= weekStartIso && date <= focusDateIso
+          })
           .reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
 
-        const monthEarnings = (earnings || [])
-          .filter((e: any) => e.date.split("T")[0] >= oneMonthAgo)
-          .reduce((sum: number, e: any) => sum + (e.amount || 0), 0)
+        const monthEarnings = (earnings || []).reduce(
+          (sum: number, e: any) => sum + (e.amount || 0),
+          0,
+        )
 
         setStats({
           totalChatters: (chatters || []).length,
           currentlyOnline: (onlineChatters || []).length,
-          totalEarningsToday: todayEarnings,
+          totalEarningsDay: dayEarnings,
           totalEarningsWeek: weekEarnings,
           totalEarningsMonth: monthEarnings,
+          dayLabel: focusDate.toLocaleDateString("nl-NL", {
+            weekday: "short",
+            day: "numeric",
+            month: "short",
+          }),
         })
       } catch (err) {
         console.error("Error calculating stats:", err)
@@ -75,7 +105,7 @@ export function ManagerStats() {
     }
 
     calculateRealStats()
-  }, [earnings])
+  }, [earnings, monthEndDate, monthKey, monthStartDate])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("nl-NL", {
@@ -127,22 +157,22 @@ export function ManagerStats() {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Today's Earnings</CardTitle>
+          <CardTitle className="text-sm font-medium">Dagomzet</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{formatCurrency(stats.totalEarningsToday)}</div>
-          <p className="text-xs text-muted-foreground">Total revenue today</p>
+          <div className="text-2xl font-bold">{formatCurrency(stats.totalEarningsDay)}</div>
+          <p className="text-xs text-muted-foreground">voor {stats.dayLabel}</p>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">This Month</CardTitle>
+          <CardTitle className="text-sm font-medium">{monthLabel}</CardTitle>
           <TrendingUp className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{formatCurrency(stats.totalEarningsMonth)}</div>
-          <p className="text-xs text-muted-foreground">+{formatCurrency(stats.totalEarningsWeek)} this week</p>
+          <p className="text-xs text-muted-foreground">{formatCurrency(stats.totalEarningsWeek)} laatste 7 dagen</p>
         </CardContent>
       </Card>
     </div>

@@ -17,19 +17,25 @@ interface LeaderboardEntry {
 interface LeaderboardProps {
   limit?: number
   refreshTrigger?: number
+  monthStart?: string
+  monthEnd?: string
+  monthLabel?: string
 }
 
-export function Leaderboard({ limit, refreshTrigger }: LeaderboardProps) {
+export function Leaderboard({ limit, refreshTrigger, monthStart, monthEnd, monthLabel }: LeaderboardProps) {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetchLeaderboard()
-  }, [refreshTrigger])
+  }, [refreshTrigger, monthEnd, monthStart])
 
   const fetchLeaderboard = async () => {
     try {
-      const data = await api.getEmployeeEarningsLeaderboard()
+      const data = await api.getEmployeeEarningsLeaderboard({
+        from: monthStart,
+        to: monthEnd,
+      })
       const limitedData = limit ? (data || []).slice(0, limit) : data || []
       setLeaderboard(limitedData)
     } catch (error) {
@@ -93,7 +99,9 @@ export function Leaderboard({ limit, refreshTrigger }: LeaderboardProps) {
           <Trophy className="h-5 w-5" />
           Leaderboard
         </CardTitle>
-        <CardDescription>Top performing chatters ranked by monthly earnings</CardDescription>
+        <CardDescription>
+          Top performing chatters in {monthLabel ?? "deze maand"}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">

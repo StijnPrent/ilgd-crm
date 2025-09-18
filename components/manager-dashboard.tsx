@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import {useEffect, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 import {useRouter, useSearchParams} from "next/navigation"
 
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "@/components/ui/card"
@@ -34,11 +34,15 @@ import {
     Shield,
     User,
     PieChart,
-    Euro, Percent
+    Euro,
+    Percent,
+    ChevronLeft,
+    ChevronRight,
 } from "lucide-react"
 import Image from "next/image"
 
 import {api} from "@/lib/api"
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select"
 
 /** Tiny JWT decoder so we can recover userId if localStorage is stale */
 function decodeJwtPayload<T = any>(token: string): T | null {
@@ -55,12 +59,77 @@ function decodeJwtPayload<T = any>(token: string): T | null {
     }
 }
 
+const formatMonthKey = (date: Date) => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, "0")
+    return `${year}-${month}`
+}
+
+const formatMonthLabel = (date: Date) =>
+    date.toLocaleDateString("nl-NL", {month: "long", year: "numeric"})
+
 export function ManagerDashboard() {
     const [user, setUser] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const searchParams = useSearchParams()
     const initialTab = searchParams.get('tab') ?? 'overview'
     const [activeTab, setActiveTab] = useState<string>(initialTab)
+
+    const [selectedMonth, setSelectedMonth] = useState<Date>(() => {
+        const now = new Date()
+        return new Date(now.getFullYear(), now.getMonth(), 1)
+    })
+
+    const monthKey = useMemo(() => formatMonthKey(selectedMonth), [selectedMonth])
+    const monthStart = useMemo(() => `${monthKey}-01`, [monthKey])
+    const monthEnd = useMemo(() => {
+        const end = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0)
+        return end.toISOString().split("T")[0]
+    }, [selectedMonth])
+    const monthLabel = useMemo(() => formatMonthLabel(selectedMonth), [selectedMonth])
+
+    const monthOptions = useMemo(() => {
+        const reference = new Date()
+        reference.setDate(1)
+        return Array.from({length: 12}, (_, index) => {
+            const date = new Date(reference.getFullYear(), reference.getMonth() - index, 1)
+            return {
+                value: formatMonthKey(date),
+                label: formatMonthLabel(date),
+            }
+        })
+    }, [])
+
+    const earliestMonthValue = monthOptions[monthOptions.length - 1]?.value ?? monthKey
+    const latestMonthValue = monthOptions[0]?.value ?? monthKey
+
+    const goToPreviousMonth = useCallback(() => {
+        setSelectedMonth((current) => {
+            const candidate = new Date(current.getFullYear(), current.getMonth() - 1, 1)
+            if (formatMonthKey(candidate) < earliestMonthValue) {
+                return current
+            }
+            return candidate
+        })
+    }, [earliestMonthValue])
+
+    const goToNextMonth = useCallback(() => {
+        setSelectedMonth((current) => {
+            const candidate = new Date(current.getFullYear(), current.getMonth() + 1, 1)
+            if (formatMonthKey(candidate) > latestMonthValue) {
+                return current
+            }
+            return candidate
+        })
+    }, [latestMonthValue])
+
+    const handleMonthSelect = useCallback((value: string) => {
+        const [yearStr, monthStr] = value.split("-")
+        const year = Number(yearStr)
+        const monthIndex = Number(monthStr) - 1
+        if (Number.isNaN(year) || Number.isNaN(monthIndex)) return
+        setSelectedMonth(new Date(year, monthIndex, 1))
+    }, [])
 
     const [managerForm, setManagerForm] = useState({username: "", password: "", fullName: ""})
     const [isCreatingManager, setIsCreatingManager] = useState(false)
@@ -248,10 +317,50 @@ export function ManagerDashboard() {
 
             {/* Main Content */}
             <main className="container mx-auto px-4 py-6">
-                <EmployeeEarningsProvider>
+                <EmployeeEarningsProvider from={monthStart} to={monthEnd}>
+                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-8">
+                        <div>
+                            <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+                                Data range
+                            </p>
+                            <h2 className="text-2xl font-semibold text-foreground">{monthLabel}</h2>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={goToPreviousMonth}
+                                disabled={monthKey === earliestMonthValue}
+                                aria-label="Vorige maand"
+                            >
+                                <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                            <Select value={monthKey} onValueChange={handleMonthSelect}>
+                                <SelectTrigger className="w-[200px]">
+                                    <SelectValue placeholder="Kies maand" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {monthOptions.map((option) => (
+                                        <SelectItem key={option.value} value={option.value}>
+                                            {option.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={goToNextMonth}
+                                disabled={monthKey === latestMonthValue}
+                                aria-label="Volgende maand"
+                            >
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    </div>
                     {/* Stats Overview */}
                     <div className="mb-8">
-                        <ManagerStats/>
+                        <ManagerStats monthLabel={monthLabel} monthStart={monthStart} monthEnd={monthEnd}/>
                     </div>
 
                     {/* Tabs */}
@@ -294,10 +403,20 @@ export function ManagerDashboard() {
                             </div>
                             <div className="grid gap-6 md:grid-cols-3">
                                 <div className="md:col-span-2">
-                                    <EarningsOverview limit={5}/>
+                                    <EarningsOverview
+                                        limit={5}
+                                        monthLabel={monthLabel}
+                                        monthStart={monthStart}
+                                        monthEnd={monthEnd}
+                                    />
                                 </div>
                                 <div className="md:col-span-1">
-                                    <Leaderboard limit={3}/>
+                                    <Leaderboard
+                                        limit={3}
+                                        monthLabel={monthLabel}
+                                        monthStart={monthStart}
+                                        monthEnd={monthEnd}
+                                    />
                                 </div>
                             </div>
                         </TabsContent>
@@ -376,13 +495,13 @@ export function ManagerDashboard() {
                                     <ModelsList/>
                                 </div>
                                 <div className="md:col-span-1">
-                                    <ModelsEarningsLeaderboard/>
+                                    <ModelsEarningsLeaderboard monthStart={monthStart} monthEnd={monthEnd} monthLabel={monthLabel}/>
                                 </div>
                             </div>
                         </TabsContent>
 
                         <TabsContent value="earnings">
-                            <EarningsOverview/>
+                            <EarningsOverview monthLabel={monthLabel} monthStart={monthStart} monthEnd={monthEnd}/>
                         </TabsContent>
 
                         <TabsContent value="shifts">
@@ -393,7 +512,7 @@ export function ManagerDashboard() {
                             <CommissionCalculator/>
                         </TabsContent>
                         <TabsContent value="revenue">
-                            <RevenueOverview/>
+                            <RevenueOverview monthLabel={monthLabel} monthStart={monthStart} monthEnd={monthEnd}/>
                         </TabsContent>
                     </Tabs>
                 </EmployeeEarningsProvider>
