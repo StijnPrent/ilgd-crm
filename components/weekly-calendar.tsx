@@ -185,7 +185,6 @@ export function WeeklyCalendar({
                     to,
                     chatterId: userId ? String(userId) : undefined,
                 })
-                console.log("Fetched shifts:", shiftsData)
 
                 const formattedShifts = (shiftsData || []).map((shift: any) => {
                     const startDate = shift.startTime

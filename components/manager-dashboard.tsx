@@ -404,11 +404,6 @@ export function ManagerDashboard() {
                             </div>
                             <div className="grid gap-6 lg:grid-cols-3">
                                 <div className="space-y-6 lg:col-span-2">
-                                    <EarningsProfitTrend
-                                        monthLabel={monthLabel}
-                                        monthStart={monthStart}
-                                        monthEnd={monthEnd}
-                                    />
                                     <EarningsOverview
                                         limit={5}
                                         monthLabel={monthLabel}
@@ -424,6 +419,13 @@ export function ManagerDashboard() {
                                         monthEnd={monthEnd}
                                     />
                                 </div>
+                            </div>
+                            <div className="mt-6">
+                                <EarningsProfitTrend
+                                    monthLabel={monthLabel}
+                                    monthStart={monthStart}
+                                    monthEnd={monthEnd}
+                                />
                             </div>
                         </TabsContent>
 

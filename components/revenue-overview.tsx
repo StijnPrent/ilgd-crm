@@ -181,18 +181,22 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
         : []
 
     const dayTotals = useMemo(() => {
-        return selectedEntries.reduce(
+        // 1) Aggregate raw day sums
+        const sums = selectedEntries.reduce(
             (acc, e) => {
-                const amount = Number(e.amount)
-                const net = amount * (1 - platformFee / 100)
-                const mComm = net * (e.modelCommissionRate / 100)
-                const cComm = net * (e.chatterCommissionRate / 100)
-                acc.total += amount
-                acc.platformFee += amount - net
-                acc.afterPlatform += net
-                acc.modelCommission += mComm
-                acc.chatterCommission += cComm
-                return acc
+                const amount = Number(e.amount) || 0;
+                const net = amount * (1 - platformFee / 100);
+                const mRate = Number(e.modelCommissionRate) || 0;
+                const cRate = Number(e.chatterCommissionRate) || 0;
+                const mComm = net * (mRate / 100);
+                const cComm = net * (cRate / 100);
+
+                acc.total += amount;
+                acc.platformFee += amount - net;
+                acc.afterPlatform += net;
+                acc.modelCommission += mComm;
+                acc.chatterCommission += cComm;
+                return acc;
             },
             {
                 total: 0,
@@ -200,9 +204,32 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
                 afterPlatform: 0,
                 modelCommission: 0,
                 chatterCommission: 0,
-            },
-        )
-    }, [selectedEntries, platformFee])
+            }
+        );
+
+        // 2) Derived fields
+        const companyRevenue =
+            sums.afterPlatform - sums.modelCommission - sums.chatterCommission;
+
+        // If you have per-day adjustments:
+        // const dayAdjustmentsTotal =
+        //   (adjustmentsByDate?.[selectedDate]?.reduce?.((s: number, v: number) => s + (v || 0), 0)) ?? 0;
+
+        // If you don't track daily adjustments, use 0:
+        const dayAdjustmentsTotal = 0;
+
+        const finalRevenue = companyRevenue + dayAdjustmentsTotal;
+
+        const profitMargin = sums.total > 0 ? (finalRevenue / sums.total) * 100 : 0;
+
+        return {
+            ...sums,
+            companyRevenue,
+            finalRevenue,
+            profitMargin,        // e.g. 23.45 (percent)
+            dayAdjustmentsTotal, // included for completeness
+        };
+    }, [selectedEntries, platformFee /*, adjustmentsByDate, selectedDate */]);
 
     const dayCompanyRevenue =
         dayTotals.afterPlatform -
@@ -248,7 +275,7 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
 
     const chartConfig = {
         revenue: {
-            label: "Revenue",
+            label: "Profit",
             color: "#6CE8F2",
         },
     }
@@ -337,8 +364,12 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
                                 <span>-{formatCurrency(dayTotals.chatterCommission)}</span>
                             </div>
                             <div className="flex justify-between font-medium">
-                                <span>Company revenue</span>
+                                <span>Company profit</span>
                                 <span>{formatCurrency(dayCompanyRevenue)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span>Profit margin</span>
+                                <span>{dayTotals.profitMargin.toFixed(2)}%</span>
                             </div>
                         </div>
                     </div>
@@ -414,13 +445,13 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
                   </span>
                                 </div>
                             )}
+                            <div className="flex justify-between font-bold">
+                                <span>Final profit</span>
+                                <span>{formatCurrency(finalRevenue)}</span>
+                            </div>
                             <div className="flex justify-between">
                                 <span>Profit margin</span>
                                 <span>{profitMargin.toFixed(2)}%</span>
-                            </div>
-                            <div className="flex justify-between font-bold">
-                                <span>Final revenue</span>
-                                <span>{formatCurrency(finalRevenue)}</span>
                             </div>
                         </div>
                     </div>
