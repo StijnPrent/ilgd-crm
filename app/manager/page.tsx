@@ -24,15 +24,14 @@ export default function ManagerPage() {
 
     try {
       const user = JSON.parse(userStr)
-      console.log("[v0] Parsed user data:", user)
       if (user.role !== "manager") {
-        console.log("[v0] User is not a manager, redirecting to login")
+        console.log("[ilgd] User is not a manager, redirecting to login")
         router.replace("/auth/login")
         return
       }
-      console.log("[v0] Manager authenticated successfully")
+      console.log("[ilgd] Manager authenticated successfully")
     } catch (error) {
-      console.log("[v0] Error parsing user data:", error)
+      console.log("[ilgd] Error parsing user data:", error)
       router.replace("/auth/login")
       return
     }

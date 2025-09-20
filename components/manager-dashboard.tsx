@@ -16,6 +16,7 @@ import {ChattersList} from "@/components/chatters-list"
 import {ModelsList} from "@/components/models-list"
 import {ModelsEarningsLeaderboard} from "@/components/models-earnings-leaderboard"
 import {EarningsOverview} from "@/components/earnings-overview"
+import {EarningsProfitTrend} from "@/components/earnings-profit-trend"
 import {ShiftManager} from "@/components/shift-manager"
 import {CommissionCalculator} from "@/components/commission-calculator"
 import {Leaderboard} from "@/components/leaderboard"
@@ -401,8 +402,8 @@ export function ManagerDashboard() {
                             <div className="mb-6">
                                 <WeeklyCalendar showChatterNames compact/>
                             </div>
-                            <div className="grid gap-6 md:grid-cols-3">
-                                <div className="md:col-span-2">
+                            <div className="grid gap-6 lg:grid-cols-3">
+                                <div className="space-y-6 lg:col-span-2">
                                     <EarningsOverview
                                         limit={5}
                                         monthLabel={monthLabel}
@@ -410,7 +411,7 @@ export function ManagerDashboard() {
                                         monthEnd={monthEnd}
                                     />
                                 </div>
-                                <div className="md:col-span-1">
+                                <div className="lg:col-span-1">
                                     <Leaderboard
                                         limit={3}
                                         monthLabel={monthLabel}
@@ -418,6 +419,13 @@ export function ManagerDashboard() {
                                         monthEnd={monthEnd}
                                     />
                                 </div>
+                            </div>
+                            <div className="mt-6">
+                                <EarningsProfitTrend
+                                    monthLabel={monthLabel}
+                                    monthStart={monthStart}
+                                    monthEnd={monthEnd}
+                                />
                             </div>
                         </TabsContent>
 

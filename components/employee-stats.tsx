@@ -149,7 +149,7 @@ export function EmployeeStats({userId, refreshTrigger}: EmployeeStatsProps) {
                 </CardHeader>
                 <CardContent>
                     <div className="text-2xl font-bold">{formatCurrency(stats.todayEarnings)}</div>
-                    <p className="text-xs text-muted-foreground">Revenue generated today</p>
+                    <p className="text-xs text-muted-foreground">Profit generated today</p>
                 </CardContent>
             </Card>
 
@@ -171,7 +171,7 @@ export function EmployeeStats({userId, refreshTrigger}: EmployeeStatsProps) {
                 </CardHeader>
                 <CardContent>
                     <div className="text-2xl font-bold text-green-600">{formatCurrency(stats.estimatedCommission)}</div>
-                    <p className="text-xs text-muted-foreground">From {formatCurrency(stats.monthEarnings)} revenue</p>
+                    <p className="text-xs text-muted-foreground">From {formatCurrency(stats.monthEarnings)} profit</p>
                 </CardContent>
             </Card>
 

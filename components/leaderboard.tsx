@@ -36,6 +36,7 @@ export function Leaderboard({ limit, refreshTrigger, monthStart, monthEnd, month
         from: monthStart,
         to: monthEnd,
       })
+      console.log(data)
       const limitedData = limit ? (data || []).slice(0, limit) : data || []
       setLeaderboard(limitedData)
     } catch (error) {
