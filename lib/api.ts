@@ -304,6 +304,14 @@ class ApiClient {
     return this.request(`/revenue/earnings${query}`)
   }
 
+  getRevenueStats(params?: { from?: string; to?: string }) {
+    const search = new URLSearchParams()
+    if (params?.from) search.set("from", params.from)
+    if (params?.to) search.set("to", params.to)
+    const query = search.toString() ? `?${search.toString()}` : ""
+    return this.request(`/revenue/stats${query}`)
+  }
+
   /* ---------- Commissions ---------- */
   getCommissions(params?: {
     chatterId?: string
