@@ -182,6 +182,16 @@ export function EarningsProfitTrend({monthStart, monthEnd, monthLabel}: Earnings
 
     const rangeInfo = useMemo(() => getRangeInfo(range, monthStart, monthEnd), [range, monthEnd, monthStart])
 
+    const percentageFormatter = useMemo(
+        () =>
+            new Intl.NumberFormat("nl-NL", {
+                style: "percent",
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 1,
+            }),
+        [],
+    )
+
     const periodLabel = useMemo(() => {
         if (rangeInfo.interval === "month") {
             const startDate = rangeInfo.start
@@ -320,8 +330,13 @@ export function EarningsProfitTrend({monthStart, monthEnd, monthLabel}: Earnings
             const label = key === "earnings" ? "Earnings" : "Profit"
 
             if (key === "profit") {
-                const differenceValue = (point?.earnings ?? 0) - (point?.profit ?? 0)
-                const formattedDifference = formatCurrencyValue(differenceValue)
+                const earningsValue = point?.earnings ?? 0
+                const profitValue = point?.profit ?? 0
+                const margin = earningsValue !== 0 ? profitValue / earningsValue : null
+                const formattedMargin =
+                    margin != null && Number.isFinite(margin)
+                        ? percentageFormatter.format(margin)
+                        : "—"
 
                 return (
                     <div className="flex w-full flex-col gap-1">
@@ -330,8 +345,8 @@ export function EarningsProfitTrend({monthStart, monthEnd, monthLabel}: Earnings
                             <span className="text-foreground font-mono font-medium tabular-nums">{formattedValue}</span>
                         </div>
                         <div className="flex items-center justify-between gap-2">
-                            <span className="text-muted-foreground">Difference</span>
-                            <span className="text-foreground font-mono font-medium tabular-nums">{formattedDifference}</span>
+                            <span className="text-muted-foreground">Profit margin</span>
+                            <span className="text-foreground font-mono font-medium tabular-nums">{formattedMargin}</span>
                         </div>
                     </div>
                 )
@@ -344,7 +359,7 @@ export function EarningsProfitTrend({monthStart, monthEnd, monthLabel}: Earnings
                 </div>
             )
         },
-        [formatCurrencyValue],
+        [formatCurrencyValue, percentageFormatter],
     )
 
     const handleRangeChange = (value: string) => {
