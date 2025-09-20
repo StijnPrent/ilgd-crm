@@ -306,6 +306,47 @@ export function EarningsProfitTrend({monthStart, monthEnd, monthLabel}: Earnings
         [],
     )
 
+    const tooltipFormatter = useCallback(
+        (
+            value: number | string | Array<number | string>,
+            name?: string | number,
+            _item?: unknown,
+            _index?: number,
+            point?: ChartPoint,
+        ) => {
+            const numericValue = typeof value === "number" ? value : Number(value)
+            const formattedValue = formatCurrencyValue(Number.isFinite(numericValue) ? numericValue : 0)
+            const key = typeof name === "string" ? name : name != null ? String(name) : ""
+            const label = key === "earnings" ? "Earnings" : "Profit"
+
+            if (key === "profit") {
+                const differenceValue = (point?.earnings ?? 0) - (point?.profit ?? 0)
+                const formattedDifference = formatCurrencyValue(differenceValue)
+
+                return (
+                    <div className="flex w-full flex-col gap-1">
+                        <div className="flex items-center justify-between gap-2">
+                            <span className="text-muted-foreground">{label}</span>
+                            <span className="text-foreground font-mono font-medium tabular-nums">{formattedValue}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                            <span className="text-muted-foreground">Difference</span>
+                            <span className="text-foreground font-mono font-medium tabular-nums">{formattedDifference}</span>
+                        </div>
+                    </div>
+                )
+            }
+
+            return (
+                <div className="flex w-full items-center justify-between gap-2">
+                    <span className="text-muted-foreground">{label}</span>
+                    <span className="text-foreground font-mono font-medium tabular-nums">{formattedValue}</span>
+                </div>
+            )
+        },
+        [formatCurrencyValue],
+    )
+
     const handleRangeChange = (value: string) => {
         if (!value) return
         if (value === range) return
@@ -365,10 +406,7 @@ export function EarningsProfitTrend({monthStart, monthEnd, monthLabel}: Earnings
                                 content={
                                     <ChartTooltipContent
                                         labelFormatter={(_, payload) => payload?.[0]?.payload?.tooltipLabel}
-                                        formatter={(value, name) => [
-                                            formatCurrencyValue(value as number),
-                                            name === "earnings" ? "Earnings" : "Profit",
-                                        ]}
+                                        formatter={tooltipFormatter}
                                     />
                                 }
                             />
