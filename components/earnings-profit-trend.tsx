@@ -182,6 +182,16 @@ export function EarningsProfitTrend({monthStart, monthEnd, monthLabel}: Earnings
 
     const rangeInfo = useMemo(() => getRangeInfo(range, monthStart, monthEnd), [range, monthEnd, monthStart])
 
+    const percentageFormatter = useMemo(
+        () =>
+            new Intl.NumberFormat("nl-NL", {
+                style: "percent",
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 1,
+            }),
+        [],
+    )
+
     const periodLabel = useMemo(() => {
         if (rangeInfo.interval === "month") {
             const startDate = rangeInfo.start
@@ -306,6 +316,52 @@ export function EarningsProfitTrend({monthStart, monthEnd, monthLabel}: Earnings
         [],
     )
 
+    const tooltipFormatter = useCallback(
+        (
+            value: number | string | Array<number | string>,
+            name?: string | number,
+            _item?: unknown,
+            _index?: number,
+            point?: ChartPoint,
+        ) => {
+            const numericValue = typeof value === "number" ? value : Number(value)
+            const formattedValue = formatCurrencyValue(Number.isFinite(numericValue) ? numericValue : 0)
+            const key = typeof name === "string" ? name : name != null ? String(name) : ""
+            const label = key === "earnings" ? "Earnings" : "Profit"
+
+            if (key === "profit") {
+                const earningsValue = point?.earnings ?? 0
+                const profitValue = point?.profit ?? 0
+                const margin = earningsValue !== 0 ? profitValue / earningsValue : null
+                const formattedMargin =
+                    margin != null && Number.isFinite(margin)
+                        ? percentageFormatter.format(margin)
+                        : "—"
+
+                return (
+                    <div className="flex w-full flex-col gap-1">
+                        <div className="flex items-center justify-between gap-2">
+                            <span className="text-muted-foreground">{label}</span>
+                            <span className="text-foreground font-mono font-medium tabular-nums">{formattedValue}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                            <span className="text-muted-foreground">Profit margin</span>
+                            <span className="text-foreground font-mono font-medium tabular-nums">{formattedMargin}</span>
+                        </div>
+                    </div>
+                )
+            }
+
+            return (
+                <div className="flex w-full items-center justify-between gap-2">
+                    <span className="text-muted-foreground">{label}</span>
+                    <span className="text-foreground font-mono font-medium tabular-nums">{formattedValue}</span>
+                </div>
+            )
+        },
+        [formatCurrencyValue, percentageFormatter],
+    )
+
     const handleRangeChange = (value: string) => {
         if (!value) return
         if (value === range) return
@@ -365,10 +421,7 @@ export function EarningsProfitTrend({monthStart, monthEnd, monthLabel}: Earnings
                                 content={
                                     <ChartTooltipContent
                                         labelFormatter={(_, payload) => payload?.[0]?.payload?.tooltipLabel}
-                                        formatter={(value, name) => [
-                                            formatCurrencyValue(value as number),
-                                            name === "earnings" ? "Earnings" : "Profit",
-                                        ]}
+                                        formatter={tooltipFormatter}
                                     />
                                 }
                             />
