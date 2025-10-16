@@ -34,28 +34,15 @@ const COOKIE_FIELDS: CookieField[] = [
     key: "sessionid",
     label: "Session ID",
     description:
-      "Dit token verandert het vaakst. Als Face2Face verzoeken stoppen met werken, ververs dan alleen deze waarde.",
+      "Dit token verandert het vaakst. Als F2F verzoeken stoppen met werken, ververs dan alleen deze waarde.",
   },
   {
     key: "shield_FPC",
     label: "shield_FPC",
   },
   {
-    key: "splash",
-    label: "splash",
-    description: "Laat deze doorgaans op 'true' staan.",
-  },
-  {
     key: "csrftoken",
     label: "csrftoken",
-  },
-  {
-    key: "intercom-device-id-r1f7b1gp",
-    label: "intercom-device-id-r1f7b1gp",
-  },
-  {
-    key: "intercom-session-r1f7b1gp",
-    label: "intercom-session-r1f7b1gp",
   },
 ]
 
@@ -284,12 +271,12 @@ export default function ManagerSettingsPage() {
   )
 
   const statusMessage = useMemo(() => {
-    if (loading) return "De huidige Face2Face cookies worden geladen..."
+    if (loading) return "De huidige F2F cookies worden geladen..."
     if (lastUpdated) {
       const relative = formatDistanceToNow(lastUpdated, { addSuffix: true })
       return `Laatst bijgewerkt ${relative} (${lastUpdated.toLocaleString()})`
     }
-    return "Er zijn nog geen Face2Face cookies opgeslagen."
+    return "Er zijn nog geen F2F cookies opgeslagen."
   }, [lastUpdated, loading])
 
   const handleReset = () => {
@@ -326,12 +313,12 @@ export default function ManagerSettingsPage() {
       setLastUpdated(normalized.updatedAt ?? new Date())
       toast({
         title: "F2F cookies opgeslagen",
-        description: "De Face2Face tokens zijn bijgewerkt voor alle automations.",
+        description: "De F2F tokens zijn bijgewerkt voor alle automations.",
       })
     } catch (error) {
       console.error("[settings] Failed to save F2F cookies", error)
       const message =
-        (error as Error)?.message ?? "Het opslaan van de Face2Face cookies is mislukt. Probeer het opnieuw."
+        (error as Error)?.message ?? "Het opslaan van de F2F cookies is mislukt. Probeer het opnieuw."
       setLoadError(message)
       toast({
         variant: "destructive",
@@ -360,9 +347,9 @@ export default function ManagerSettingsPage() {
             <div className="flex items-center">
               <SettingsIcon className="mr-3 h-10 w-10 rounded-full border p-2 text-primary" aria-hidden="true" />
               <div>
-                <h1 className="text-2xl font-bold text-foreground">Face2Face instellingen</h1>
+                <h1 className="text-2xl font-bold text-foreground">F2F instellingen</h1>
                 <p className="text-muted-foreground">
-                  Beheer hier de cookies die nodig zijn voor de Face2Face automations.
+                  Beheer hier de cookies die nodig zijn voor de F2F automations.
                 </p>
               </div>
             </div>
@@ -400,7 +387,7 @@ export default function ManagerSettingsPage() {
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>
-              <BreadcrumbPage>Face2Face instellingen</BreadcrumbPage>
+              <BreadcrumbPage>F2F instellingen</BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
@@ -408,10 +395,10 @@ export default function ManagerSettingsPage() {
         <div className="space-y-6">
           <Alert>
             <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-            <AlertTitle>Nieuwe Face2Face tokens nodig?</AlertTitle>
+            <AlertTitle>Nieuwe F2F tokens nodig?</AlertTitle>
             <AlertDescription>
-              Werken de Face2Face verzoeken niet meer? Meestal is alleen de{" "}
-              <span className="font-semibold">Session ID</span> verlopen. Kopieer een nieuwe Session ID uit Face2Face, vul dat veld
+              Werken de F2F verzoeken niet meer? Meestal is alleen de{" "}
+              <span className="font-semibold">Session ID</span> verlopen. Kopieer een nieuwe Session ID uit F2F, vul dat veld
               hieronder opnieuw in en sla de wijzigingen op. De overige waarden blijven doorgaans gelijk.
             </AlertDescription>
           </Alert>
@@ -439,7 +426,7 @@ export default function ManagerSettingsPage() {
                 <form onSubmit={handleSubmit} className="space-y-6">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="max-w-xl space-y-1 text-sm">
-                      <p className="font-medium text-foreground">Face2Face cookies</p>
+                      <p className="font-medium text-foreground">F2F cookies</p>
                       <p className="text-xs text-muted-foreground">
                         Vul elke cookie afzonderlijk in. Wij voegen de puntkomma&apos;s automatisch toe bij het opslaan.
                       </p>
@@ -492,7 +479,7 @@ export default function ManagerSettingsPage() {
                   ) : null}
 
                   <p className="text-xs text-muted-foreground">
-                    De waarden worden opgeslagen in de database en gedeeld met alle Face2Face synchronisaties.
+                    De waarden worden opgeslagen in de database en gedeeld met alle F2F synchronisaties.
                   </p>
 
                   <div className="flex flex-wrap items-center gap-3">

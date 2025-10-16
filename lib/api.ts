@@ -177,6 +177,7 @@ class ApiClient {
     if (params?.date) search.set("date", params.date)
     if (params?.from) search.set("from", params.from)
     if (params?.to) search.set("to", params.to)
+    console.log(params?.to)
     const query = search.toString() ? `?${search.toString()}` : ""
     return this.request(`/employee-earnings${query}`)
   }
