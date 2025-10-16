@@ -135,9 +135,10 @@ const getMonthKey = (date: Date) =>
 const getMonthRange = (date: Date) => {
     const key = getMonthKey(date)
     const start = `${key}-01`
-    const end = new Date(date.getFullYear(), date.getMonth() + 1, 0)
-        .toISOString()
-        .split("T")[0]
+    const endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0)
+    const end = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}-${String(
+        endDate.getDate(),
+    ).padStart(2, "0")}`
     return {key, start, end}
 }
 
