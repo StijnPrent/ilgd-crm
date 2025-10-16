@@ -416,6 +416,18 @@ class ApiClient {
   getActiveTimeEntry(chatterId: string) {
     return this.request(`/shifts/time-entry/active/${chatterId}`)
   }
+
+  /* ---------- Face2Face Automation Settings ---------- */
+  getF2FCookies() {
+    return this.request(`/settings/f2f-cookies`)
+  }
+
+  updateF2FCookies(data: { cookies: string }) {
+    return this.request(`/settings/f2f-cookies`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    })
+  }
 }
 
 export const api = new ApiClient()
