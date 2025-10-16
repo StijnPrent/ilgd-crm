@@ -86,7 +86,10 @@ export function ManagerDashboard() {
     const monthStart = useMemo(() => `${monthKey}-01`, [monthKey])
     const monthEnd = useMemo(() => {
         const end = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0)
-        return end.toISOString().split("T")[0]
+        const year = end.getFullYear()
+        const month = String(end.getMonth() + 1).padStart(2, "0")
+        const day = String(end.getDate()).padStart(2, "0")
+        return `${year}-${month}-${day}`
     }, [selectedMonth])
     const monthLabel = useMemo(() => formatMonthLabel(selectedMonth), [selectedMonth])
 
