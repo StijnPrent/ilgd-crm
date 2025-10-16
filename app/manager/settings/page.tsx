@@ -11,14 +11,122 @@ import { Badge } from "@/components/ui/badge"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { LogoutButton } from "@/components/logout-button"
 import { api } from "@/lib/api"
 import { toast } from "@/hooks/use-toast"
 
-const DEFAULT_F2F_COOKIES =
+const DEFAULT_F2F_COOKIES_STRING =
   "shield_FPC=SCCw3sIA5nuudpQTWSQODJuLw7qlxzBoKg; splash=true; intercom-device-id-r1f7b1gp=aeeb0d35-2f49-492d-848a-e1b7a48c63e3; csrftoken=88vIqGRLyEADnlumGSNq9f32CzsJSy8b; sessionid=bq3qq9gbvbrmh2hjb79grpli6s7fldg4; intercom-session-r1f7b1gp=WEVrT1Z4aHFaOG5lV2tZRExDT3MyTmltcFFwN3Q5MTR1TTdZWE1Fc0RTaDFZMmdkbDNucEtrSlI2Y3YvNGFDQnUyTHN0dGNScmJ4aVAxcVBtS3Zwa1FGbExMNitVNzkzRjc5QzRUYlFlOUE9LS1NYk1YOHNIK1ZTSVFURlFscWZFSHNnPT0=--87dd43f168c18288574dc4725278bf900e6e0307"
+
+interface CookieField {
+  key: string
+  label: string
+  description?: string
+  placeholder?: string
+}
+
+type CookieValues = Record<string, string>
+
+const COOKIE_FIELDS: CookieField[] = [
+  {
+    key: "sessionid",
+    label: "Session ID",
+    description:
+      "Dit token verandert het vaakst. Als Face2Face verzoeken stoppen met werken, ververs dan alleen deze waarde.",
+  },
+  {
+    key: "shield_FPC",
+    label: "shield_FPC",
+  },
+  {
+    key: "splash",
+    label: "splash",
+    description: "Laat deze doorgaans op 'true' staan.",
+  },
+  {
+    key: "csrftoken",
+    label: "csrftoken",
+  },
+  {
+    key: "intercom-device-id-r1f7b1gp",
+    label: "intercom-device-id-r1f7b1gp",
+  },
+  {
+    key: "intercom-session-r1f7b1gp",
+    label: "intercom-session-r1f7b1gp",
+  },
+]
+
+function createEmptyCookieValues(): CookieValues {
+  return COOKIE_FIELDS.reduce<CookieValues>((acc, field) => {
+    acc[field.key] = ""
+    return acc
+  }, {})
+}
+
+function cloneCookieValues(values: CookieValues): CookieValues {
+  return { ...values }
+}
+
+function parseCookieString(value: string | null | undefined): ParsedCookies {
+  const cookieValues = createEmptyCookieValues()
+  const additionalCookies: string[] = []
+
+  if (!value) {
+    return { values: cookieValues, extras: additionalCookies }
+  }
+
+  const parts = value
+    .split(";")
+    .map((part) => part.trim())
+    .filter(Boolean)
+
+  for (const part of parts) {
+    const [rawKey, ...rest] = part.split("=")
+    const key = rawKey?.trim()
+    if (!key) {
+      additionalCookies.push(part)
+      continue
+    }
+
+    const rawValue = rest.join("=")
+    const valuePart = rawValue.trim()
+
+    if (Object.prototype.hasOwnProperty.call(cookieValues, key)) {
+      cookieValues[key] = valuePart
+    } else {
+      additionalCookies.push(part)
+    }
+  }
+
+  return { values: cookieValues, extras: additionalCookies }
+}
+
+function formatCookieString(values: CookieValues, extras: string[]): string {
+  const normalizedValues = COOKIE_FIELDS.map((field) => {
+    const value = values[field.key]?.trim()
+    return value ? `${field.key}=${value}` : ""
+  }).filter(Boolean)
+
+  const combined = [...normalizedValues, ...extras.filter(Boolean)]
+
+  return combined.join("; ")
+}
+
+const DEFAULT_COOKIES_PARSED = parseCookieString(DEFAULT_F2F_COOKIES_STRING)
+const DEFAULT_COOKIE_VALUES: Readonly<CookieValues> = Object.freeze(
+  cloneCookieValues(DEFAULT_COOKIES_PARSED.values),
+)
+const DEFAULT_ADDITIONAL_COOKIES: ReadonlyArray<string> = Object.freeze([
+  ...(DEFAULT_COOKIES_PARSED.extras ?? []),
+])
+
+interface ParsedCookies {
+  values: CookieValues
+  extras: string[]
+}
 
 interface NormalizedCookiesPayload {
   cookies: string
@@ -87,8 +195,11 @@ export default function ManagerSettingsPage() {
   const router = useRouter()
   const [isAuthorized, setIsAuthorized] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [cookies, setCookies] = useState("")
-  const [initialCookies, setInitialCookies] = useState("")
+  const [cookieValues, setCookieValues] = useState<CookieValues>(() => createEmptyCookieValues())
+  const [initialCookieValues, setInitialCookieValues] = useState<CookieValues>(() => createEmptyCookieValues())
+  const [additionalCookies, setAdditionalCookies] = useState<string[]>([])
+  const [initialAdditionalCookies, setInitialAdditionalCookies] = useState<string[]>([])
+  const [initialCookiesString, setInitialCookiesString] = useState("")
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -128,8 +239,14 @@ export default function ManagerSettingsPage() {
         const payload = await api.getF2FCookies()
         if (isCancelled) return
         const normalized = normalizeCookiesPayload(payload)
-        setCookies(normalized.cookies ?? "")
-        setInitialCookies(normalized.cookies ?? "")
+        const normalizedString = (normalized.cookies ?? "").trim()
+        const parsed = parseCookieString(normalizedString)
+
+        setCookieValues(cloneCookieValues(parsed.values))
+        setInitialCookieValues(cloneCookieValues(parsed.values))
+        setAdditionalCookies(Array.from(parsed.extras))
+        setInitialAdditionalCookies(Array.from(parsed.extras))
+        setInitialCookiesString(formatCookieString(parsed.values, parsed.extras))
         setLastUpdated(normalized.updatedAt)
       } catch (error) {
         if (isCancelled) return
@@ -156,7 +273,15 @@ export default function ManagerSettingsPage() {
     }
   }, [router])
 
-  const hasChanges = useMemo(() => cookies.trim() !== initialCookies.trim(), [cookies, initialCookies])
+  const currentCookieString = useMemo(
+    () => formatCookieString(cookieValues, additionalCookies),
+    [cookieValues, additionalCookies],
+  )
+
+  const hasChanges = useMemo(
+    () => currentCookieString.trim() !== initialCookiesString.trim(),
+    [currentCookieString, initialCookiesString],
+  )
 
   const statusMessage = useMemo(() => {
     if (loading) return "De huidige Face2Face cookies worden geladen..."
@@ -168,18 +293,20 @@ export default function ManagerSettingsPage() {
   }, [lastUpdated, loading])
 
   const handleReset = () => {
-    setCookies(initialCookies)
+    setCookieValues(cloneCookieValues(initialCookieValues))
+    setAdditionalCookies(Array.from(initialAdditionalCookies))
   }
 
   const handleUseExample = () => {
-    setCookies(DEFAULT_F2F_COOKIES)
+    setCookieValues(cloneCookieValues(DEFAULT_COOKIE_VALUES))
+    setAdditionalCookies(Array.from(DEFAULT_ADDITIONAL_COOKIES))
   }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (isSaving || !hasChanges) return
 
-    const payload = { cookies: cookies.trim() }
+    const payload = { cookies: currentCookieString.trim() }
 
     setIsSaving(true)
     setLoadError(null)
@@ -187,9 +314,15 @@ export default function ManagerSettingsPage() {
     try {
       const response = await api.updateF2FCookies(payload)
       const normalized = normalizeCookiesPayload(response)
-      const savedCookies = normalized.cookies || payload.cookies
-      setCookies(savedCookies)
-      setInitialCookies(savedCookies)
+      const savedCookiesString = (normalized.cookies || payload.cookies).trim()
+      const parsedSaved = parseCookieString(savedCookiesString)
+      const formattedSaved = formatCookieString(parsedSaved.values, parsedSaved.extras)
+
+      setCookieValues(cloneCookieValues(parsedSaved.values))
+      setInitialCookieValues(cloneCookieValues(parsedSaved.values))
+      setAdditionalCookies(Array.from(parsedSaved.extras))
+      setInitialAdditionalCookies(Array.from(parsedSaved.extras))
+      setInitialCookiesString(formattedSaved)
       setLastUpdated(normalized.updatedAt ?? new Date())
       toast({
         title: "F2F cookies opgeslagen",
@@ -277,8 +410,9 @@ export default function ManagerSettingsPage() {
             <AlertTriangle className="h-4 w-4" aria-hidden="true" />
             <AlertTitle>Nieuwe Face2Face tokens nodig?</AlertTitle>
             <AlertDescription>
-              Werken de huidige tokens niet meer? Kopieer dan de nieuwste cookies uit Face2Face, plak ze hieronder en sla ze op
-              zodat alle integraties blijven draaien.
+              Werken de Face2Face verzoeken niet meer? Meestal is alleen de{" "}
+              <span className="font-semibold">Session ID</span> verlopen. Kopieer een nieuwe Session ID uit Face2Face, vul dat veld
+              hieronder opnieuw in en sla de wijzigingen op. De overige waarden blijven doorgaans gelijk.
             </AlertDescription>
           </Alert>
 
@@ -303,29 +437,63 @@ export default function ManagerSettingsPage() {
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <Label htmlFor="f2fCookies" className="text-sm font-medium">
-                        Face2Face cookie string
-                      </Label>
-                      <Button type="button" variant="ghost" size="sm" onClick={handleUseExample} disabled={isSaving}>
-                        Gebruik voorbeeld
-                      </Button>
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="max-w-xl space-y-1 text-sm">
+                      <p className="font-medium text-foreground">Face2Face cookies</p>
+                      <p className="text-xs text-muted-foreground">
+                        Vul elke cookie afzonderlijk in. Wij voegen de puntkomma&apos;s automatisch toe bij het opslaan.
+                      </p>
                     </div>
-                    <Textarea
-                      id="f2fCookies"
-                      value={cookies}
-                      onChange={(event) => setCookies(event.target.value)}
-                      placeholder={DEFAULT_F2F_COOKIES}
-                      rows={7}
-                      className="font-mono"
-                      spellCheck={false}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Plak de volledige cookie string exact zoals gekopieerd (inclusief puntkomma&apos;s). Deze waarde wordt
-                      opgeslagen in de database en gedeeld met alle Face2Face synchronisaties.
-                    </p>
+                    <Button type="button" variant="ghost" size="sm" onClick={handleUseExample} disabled={isSaving}>
+                      Gebruik voorbeeld
+                    </Button>
                   </div>
+
+                  <div className="grid gap-5">
+                    {COOKIE_FIELDS.map((field) => {
+                      const fieldId = `cookie-${field.key}`
+                      const defaultValue = DEFAULT_COOKIE_VALUES[field.key] ?? ""
+                      return (
+                        <div key={field.key} className="space-y-2">
+                          <Label htmlFor={fieldId} className="text-sm font-medium">
+                            {field.label}
+                          </Label>
+                          <Input
+                            id={fieldId}
+                            value={cookieValues[field.key] ?? ""}
+                            onChange={(event) =>
+                              setCookieValues((prev) => ({
+                                ...prev,
+                                [field.key]: event.target.value,
+                              }))
+                            }
+                            placeholder={defaultValue}
+                            spellCheck={false}
+                            autoComplete="off"
+                            className="font-mono"
+                          />
+                          {field.description ? (
+                            <p className="text-xs text-muted-foreground">{field.description}</p>
+                          ) : null}
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {additionalCookies.length > 0 ? (
+                    <div className="space-y-2 rounded-md border border-dashed border-muted-foreground/40 p-3">
+                      <p className="text-xs text-muted-foreground">
+                        De volgende extra cookies zijn ook opgeslagen en worden automatisch meegestuurd:
+                      </p>
+                      <code className="block whitespace-pre-wrap break-words text-xs font-mono text-muted-foreground">
+                        {additionalCookies.join("; ")}
+                      </code>
+                    </div>
+                  ) : null}
+
+                  <p className="text-xs text-muted-foreground">
+                    De waarden worden opgeslagen in de database en gedeeld met alle Face2Face synchronisaties.
+                  </p>
 
                   <div className="flex flex-wrap items-center gap-3">
                     <Button type="submit" disabled={isSaving || !hasChanges}>
