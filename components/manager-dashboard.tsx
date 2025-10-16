@@ -3,6 +3,7 @@
 import type React from "react"
 import {useCallback, useEffect, useMemo, useState} from "react"
 import {useRouter, useSearchParams} from "next/navigation"
+import Link from "next/link"
 
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "@/components/ui/card"
 import {Badge} from "@/components/ui/badge"
@@ -297,7 +298,7 @@ export function ManagerDashboard() {
             {/* Header */}
             <header className="border-b bg-card">
                 <div className="container mx-auto px-4 p2-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                         <div className="flex items-center">
                             <Image src="/logo.png" alt="Logo" width={90} height={90}/>
                             <div className="ml-4">
@@ -305,11 +306,32 @@ export function ManagerDashboard() {
                                 <p className="text-muted-foreground">Welcome back, {user?.profile?.full_name}</p>
                             </div>
                         </div>
-                        <div className="md:flex items-center gap-4 hidden">
+                        <div className="hidden items-center gap-3 md:flex">
                             <Badge variant="secondary" className="bg-green-100 text-green-800">
-                                <Settings className="h-3 w-3 mr-1"/>
+                                <Settings className="mr-1 h-3 w-3"/>
                                 Manager
                             </Badge>
+                            <Button asChild variant="outline" size="sm">
+                                <Link href="/manager/settings">
+                                    <Settings className="h-4 w-4"/>
+                                    F2F cookies
+                                </Link>
+                            </Button>
+                            <LogoutButton/>
+                        </div>
+                    </div>
+                    <div className="flex items-center justify-between md:hidden">
+                        <Badge variant="secondary" className="bg-green-100 text-green-800">
+                            <Settings className="mr-1 h-3 w-3"/>
+                            Manager
+                        </Badge>
+                        <div className="flex items-center gap-2">
+                            <Button asChild variant="outline" size="sm">
+                                <Link href="/manager/settings">
+                                    <Settings className="h-4 w-4"/>
+                                    F2F cookies
+                                </Link>
+                            </Button>
                             <LogoutButton/>
                         </div>
                     </div>
