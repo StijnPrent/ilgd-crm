@@ -585,28 +585,68 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
         return count
     }, [filters])
 
+    const clearShiftFilter = useCallback(() => {
+        setFilters((current) => ({...current, shiftId: null}))
+    }, [])
+
+    const clearModelFilter = useCallback(() => {
+        setFilters((current) => ({...current, modelId: null}))
+    }, [])
+
+    const clearChatterFilter = useCallback(() => {
+        setFilters((current) => ({...current, chatterId: null}))
+    }, [])
+
+    const clearItemsFilter = useCallback(() => {
+        setFilters((current) => ({...current, items: []}))
+    }, [])
+
     const filterSummary = useMemo(() => {
-        const items: { key: string; label: string }[] = []
+        const items: { key: string; label: string; onRemove: () => void }[] = []
         if (filters.shiftId) {
             const label = shiftMap.get(filters.shiftId)
-            if (label) items.push({key: `shift-${filters.shiftId}`, label: `Shift: ${label}`})
+            if (label)
+                items.push({
+                    key: `shift-${filters.shiftId}`,
+                    label: `Shift: ${label}`,
+                    onRemove: clearShiftFilter,
+                })
         }
         if (filters.modelId) {
             const label = modelMap.get(filters.modelId)
-            if (label) items.push({key: `model-${filters.modelId}`, label: `Model: ${label}`})
+            if (label)
+                items.push({
+                    key: `model-${filters.modelId}`,
+                    label: `Model: ${label}`,
+                    onRemove: clearModelFilter,
+                })
         }
         if (filters.chatterId) {
             const label = chatterMap.get(filters.chatterId)
-            if (label) items.push({key: `chatter-${filters.chatterId}`, label: `Chatter: ${label}`})
+            if (label)
+                items.push({
+                    key: `chatter-${filters.chatterId}`,
+                    label: `Chatter: ${label}`,
+                    onRemove: clearChatterFilter,
+                })
         }
         if (filters.items.length > 0) {
             const labels = filters.items
                 .map((value) => formatItemLabel(value))
                 .join(", ")
-            items.push({key: "items", label: `Items: ${labels}`})
+            items.push({key: "items", label: `Items: ${labels}`, onRemove: clearItemsFilter})
         }
         return items
-    }, [chatterMap, filters, modelMap, shiftMap])
+    }, [
+        chatterMap,
+        clearChatterFilter,
+        clearItemsFilter,
+        clearModelFilter,
+        clearShiftFilter,
+        filters,
+        modelMap,
+        shiftMap,
+    ])
 
     const handleChatterChange = useCallback(
         async (earningId: string, chatterId: string) => {
@@ -885,8 +925,20 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                     </DropdownMenu>
                     <div className="flex flex-wrap gap-2">
                         {filterSummary.map((item) => (
-                            <Badge key={item.key} variant="secondary" className="whitespace-nowrap">
-                                {item.label}
+                            <Badge
+                                key={item.key}
+                                variant="secondary"
+                                className="flex items-center gap-1 whitespace-nowrap"
+                            >
+                                <span>{item.label}</span>
+                                <button
+                                    type="button"
+                                    onClick={item.onRemove}
+                                    className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                                    aria-label={`Verwijder filter ${item.label}`}
+                                >
+                                    <X className="h-3 w-3" aria-hidden="true" />
+                                </button>
                             </Badge>
                         ))}
                     </div>
