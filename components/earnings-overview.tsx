@@ -733,22 +733,26 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                                     </TableCell>
                                     <TableCell className="hidden md:table-cell">
                                         {(() => {
+                                            const [baseType, periodLabel] = earning.type
+                                                ? earning.type.split("_")
+                                                : [earning.type]
+
                                             const iconMap: Record<string, JSX.Element> = {
                                                 paypermessage: (
                                                     <MessageSquare className="h-4 w-4 text-muted-foreground"/>
                                                 ),
                                                 tip: <Gift className="h-4 w-4 text-muted-foreground"/>,
                                                 subscriptionperiod: (
-                                                    <span className='flex'>
+                                                    <span className="flex items-center gap-1">
                                                         <Repeat className="h-4 w-4 text-muted-foreground"/>
-                                                        <sub>12</sub>
+                                                        {periodLabel && <sub>{periodLabel}</sub>}
                                                     </span>
                                                 ),
                                                 payperpost: (
                                                     <FileText className="h-4 w-4 text-muted-foreground"/>
                                                 ),
                                             }
-                                            return iconMap[earning.type] || null
+                                            return iconMap[baseType ?? ""] || null
                                         })()}
                                     </TableCell>
                                     <TableCell>
@@ -1126,22 +1130,26 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                                     </TableCell>
                                     <TableCell className="hidden md:table-cell">
                                         {(() => {
+                                            const [baseType, periodLabel] = earning.type
+                                                ? earning.type.split("_")
+                                                : [earning.type]
+
                                             const iconMap: Record<string, JSX.Element> = {
                                                 paypermessage: (
                                                     <MessageSquare className="h-4 w-4 text-muted-foreground"/>
                                                 ),
                                                 tip: <Gift className="h-4 w-4 text-muted-foreground"/>,
                                                 subscriptionperiod: (
-                                                    <span className='flex'>
+                                                    <span className="flex items-center gap-1">
                                                         <Repeat className="h-4 w-4 text-muted-foreground"/>
-                                                        <sub>12</sub>
+                                                        {periodLabel && <sub>{periodLabel}</sub>}
                                                     </span>
                                                 ),
                                                 payperpost: (
                                                     <FileText className="h-4 w-4 text-muted-foreground"/>
                                                 ),
                                             }
-                                            return iconMap[earning.type] || null
+                                            return iconMap[baseType ?? ""] || null
                                         })()}
                                     </TableCell>
                                     <TableCell>
