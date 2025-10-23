@@ -1,6 +1,7 @@
 "use client"
 
 import {
+    JSX,
     useCallback,
     useEffect,
     useMemo,
@@ -258,7 +259,10 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
     )
     const rangeStart = monthStart ?? derivedMonthStart
     const rangeEnd = monthEnd ?? derivedMonthEnd
-    const headerMonthLabel = monthLabelProp ?? baseMonthDate.toLocaleDateString("nl-NL", {month: "long", year: "numeric"})
+    const headerMonthLabel = monthLabelProp ?? baseMonthDate.toLocaleDateString("nl-NL", {
+        month: "long",
+        year: "numeric"
+    })
     const year = baseMonthDate.getFullYear()
     const month = baseMonthDate.getMonth()
 
@@ -735,7 +739,10 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                                                 ),
                                                 tip: <Gift className="h-4 w-4 text-muted-foreground"/>,
                                                 subscriptionperiod: (
-                                                    <Repeat className="h-4 w-4 text-muted-foreground"/>
+                                                    <span className='flex'>
+                                                        <Repeat className="h-4 w-4 text-muted-foreground"/>
+                                                        <sub>12</sub>
+                                                    </span>
                                                 ),
                                                 payperpost: (
                                                     <FileText className="h-4 w-4 text-muted-foreground"/>
@@ -937,7 +944,7 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                                     className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                                     aria-label={`Verwijder filter ${item.label}`}
                                 >
-                                    <X className="h-3 w-3" aria-hidden="true" />
+                                    <X className="h-3 w-3" aria-hidden="true"/>
                                 </button>
                             </Badge>
                         ))}
@@ -954,8 +961,9 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                         </DialogTrigger>
                         <DialogContent aria-busy={syncLoading}>
                             {syncLoading && (
-                                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-lg bg-background/80">
-                                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                                <div
+                                    className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-lg bg-background/80">
+                                    <Loader2 className="h-5 w-5 animate-spin text-primary"/>
                                     <p className="text-sm font-medium">Syncing earnings...</p>
                                 </div>
                             )}
@@ -1006,7 +1014,7 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                                 >
                                     {syncLoading ? (
                                         <span className="flex items-center gap-2">
-                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            <Loader2 className="h-4 w-4 animate-spin"/>
                                             Syncing...
                                         </span>
                                     ) : (
@@ -1124,7 +1132,10 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                                                 ),
                                                 tip: <Gift className="h-4 w-4 text-muted-foreground"/>,
                                                 subscriptionperiod: (
-                                                    <Repeat className="h-4 w-4 text-muted-foreground"/>
+                                                    <span className='flex'>
+                                                        <Repeat className="h-4 w-4 text-muted-foreground"/>
+                                                        <sub>12</sub>
+                                                    </span>
                                                 ),
                                                 payperpost: (
                                                     <FileText className="h-4 w-4 text-muted-foreground"/>
