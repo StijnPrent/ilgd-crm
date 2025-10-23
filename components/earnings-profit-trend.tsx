@@ -266,9 +266,12 @@ export function EarningsProfitTrend({monthStart, monthEnd, monthLabel}: Earnings
                         const net = amount * (1 - Number(entry?.platformFee ?? entry?.platform_fee ?? 20) / 100)
                         const modelRate = Number(entry?.modelCommissionRate ?? entry?.model_commission_rate ?? 0)
                         const chatterRate = Number(entry?.chatterCommissionRate ?? entry?.chatter_commission_rate ?? 0)
+                        const chatterBonus = Number(
+                            entry?.chatterBonusAmount ?? entry?.chatter_bonus_amount ?? 0,
+                        )
                         const modelCommission = net * (modelRate / 100)
                         const chatterCommission = net * (chatterRate / 100)
-                        const profit = net - modelCommission - chatterCommission
+                        const profit = net - modelCommission - chatterCommission - chatterBonus
                         const key = rangeInfo.interval === "month"
                             ? formatMonthKey(entryDate)
                             : formatDateKey(entryDate)
