@@ -156,6 +156,11 @@ const renderStatusBadge = (status: ShiftRequestStatus) => {
   }
 };
 
+const getChatterDisplayName = (request: Pick<ShiftRequestItem, "chatterName">) => {
+  const name = request.chatterName?.trim();
+  return name && name.length > 0 ? name : "Onbekende chatter";
+};
+
 const formatShiftRange = (request: ShiftRequestItem) => {
   if (!request.shiftStart && !request.shiftEnd) {
     return "Shiftgegevens onbekend";
@@ -443,75 +448,74 @@ export function ShiftRequestInbox() {
           {loading ? (
             <div className="flex justify-center py-10">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : sortedRequests.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-2 py-10 text-center text-muted-foreground">
-            <Inbox className="h-8 w-8" />
-            <p>
-              {statusFilter === "pending"
-                ? "Geen openstaande shiftverzoeken."
-                : "Geen shiftverzoeken gevonden."}
-            </p>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-6">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Verzoek</TableHead>
-                    <TableHead>Shift</TableHead>
-                    <TableHead className="text-right">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sortedRequests.map((request) => {
-                    const isSelected = selectedRequestId === request.id;
-
-                    return (
-                      <TableRow
-                        key={request.id}
-                        onClick={() => {
-                          setSelectedRequestId(request.id);
-                          setIsDialogOpen(true);
-                        }}
-                        className={`cursor-pointer transition-colors hover:bg-muted/50 ${
-                          isSelected ? "bg-muted/50" : ""
-                        }`}
-                      >
-                        <TableCell className="w-[220px] align-top">
-                          <div className="flex flex-col gap-2">
-                            <span className="text-sm font-medium">
-                              {request.chatterName ||
-                                `Chatter ${request.chatterId}`}
-                            </span>
-                            <div>{renderTypeBadge(request.type)}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="whitespace-pre-line align-top text-sm">
-                          <div className="font-medium">
-                            {formatShiftRange(request)}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            Shift ID: {request.shiftId}
-                          </div>
-                        </TableCell>
-                        <TableCell className="align-top text-right">
-                          {renderStatusBadge(request.status)}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
             </div>
-
-            <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-              Selecteer een verzoek om de details te bekijken en bij te werken.
+          ) : sortedRequests.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 py-10 text-center text-muted-foreground">
+              <Inbox className="h-8 w-8" />
+              <p>
+                {statusFilter === "pending"
+                  ? "Geen openstaande shiftverzoeken."
+                  : "Geen shiftverzoeken gevonden."}
+              </p>
             </div>
-          </div>
-        )}
-      </CardContent>
+          ) : (
+            <div className="flex flex-col gap-6">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Verzoek</TableHead>
+                      <TableHead>Shift</TableHead>
+                      <TableHead className="text-right">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sortedRequests.map((request) => {
+                      const isSelected = selectedRequestId === request.id;
+
+                      return (
+                        <TableRow
+                          key={request.id}
+                          onClick={() => {
+                            setSelectedRequestId(request.id);
+                            setIsDialogOpen(true);
+                          }}
+                          className={`cursor-pointer transition-colors hover:bg-muted/50 ${
+                            isSelected ? "bg-muted/50" : ""
+                          }`}
+                        >
+                          <TableCell className="w-[220px] align-top">
+                            <div className="flex flex-col gap-2">
+                              <span className="text-sm font-medium">
+                                {getChatterDisplayName(request)}
+                              </span>
+                              <div>{renderTypeBadge(request.type)}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="whitespace-pre-line align-top text-sm">
+                            <div className="font-medium">
+                              {formatShiftRange(request)}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Shift ID: {request.shiftId}
+                            </div>
+                          </TableCell>
+                          <TableCell className="align-top text-right">
+                            {renderStatusBadge(request.status)}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                Selecteer een verzoek om de details te bekijken en bij te werken.
+              </div>
+            </div>
+          )}
+        </CardContent>
       </Card>
 
       {selectedRequest ? (
@@ -520,8 +524,7 @@ export function ShiftRequestInbox() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="text-left">
                 <DialogTitle className="text-xl">
-                  {selectedRequest.chatterName ||
-                    `Chatter ${selectedRequest.chatterId}`}
+                  {getChatterDisplayName(selectedRequest)}
                 </DialogTitle>
                 <DialogDescription>
                   Aangemaakt: {formatDateTime(selectedRequest.createdAt)}
@@ -549,9 +552,14 @@ export function ShiftRequestInbox() {
               </div>
               <div className="rounded-lg border p-3">
                 <h4 className="text-xs font-semibold uppercase text-muted-foreground">
-                  Chatter ID
+                  Chatter
                 </h4>
-                <p className="text-sm font-medium">{selectedRequest.chatterId}</p>
+                <p className="text-sm font-medium">
+                  {getChatterDisplayName(selectedRequest)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  ID: {selectedRequest.chatterId}
+                </p>
                 {selectedRequest.createdAt ? (
                   <p className="text-xs text-muted-foreground">
                     Laatst bijgewerkt: {formatDateTime(selectedRequest.createdAt)}
