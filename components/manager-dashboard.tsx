@@ -19,6 +19,7 @@ import {ModelsEarningsLeaderboard} from "@/components/models-earnings-leaderboar
 import {EarningsOverview} from "@/components/earnings-overview"
 import {EarningsProfitTrend} from "@/components/earnings-profit-trend"
 import {ShiftManager} from "@/components/shift-manager"
+import {ShiftRequestInbox} from "@/components/shift-request-inbox"
 import {CommissionCalculator} from "@/components/commission-calculator"
 import {Leaderboard} from "@/components/leaderboard"
 import {CreateChatterForm} from "@/components/create-chatter-form"
@@ -538,7 +539,12 @@ export function ManagerDashboard() {
                         </TabsContent>
 
                         <TabsContent value="shifts">
-                            <ShiftManager/>
+                            <div className="grid gap-6 xl:grid-cols-3">
+                                <div className="space-y-6 xl:col-span-2">
+                                    <ShiftManager/>
+                                </div>
+                                <ShiftRequestInbox/>
+                            </div>
                         </TabsContent>
 
                         <TabsContent value="commissions">
