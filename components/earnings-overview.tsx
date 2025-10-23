@@ -743,7 +743,7 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                                                 ),
                                                 tip: <Gift className="h-4 w-4 text-muted-foreground"/>,
                                                 subscriptionperiod: (
-                                                    <span className="flex items-center gap-1">
+                                                    <span className="flex text-muted-foreground">
                                                         <Repeat className="h-4 w-4 text-muted-foreground"/>
                                                         {periodLabel && <sub>{periodLabel}</sub>}
                                                     </span>
@@ -1140,7 +1140,7 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                                                 ),
                                                 tip: <Gift className="h-4 w-4 text-muted-foreground"/>,
                                                 subscriptionperiod: (
-                                                    <span className="flex items-center gap-1">
+                                                    <span className="flex text-muted-foreground">
                                                         <Repeat className="h-4 w-4 text-muted-foreground"/>
                                                         {periodLabel && <sub>{periodLabel}</sub>}
                                                     </span>

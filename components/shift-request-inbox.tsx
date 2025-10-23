@@ -57,15 +57,19 @@ type ShiftRequestStatus =
 
 type StatusFilter = "pending" | "all";
 
+interface chatter {
+  id: string;
+  name: string;
+}
+
 interface ShiftRequestItem {
   id: string;
+  chatter: chatter;
   shiftId: string;
   shiftStart?: string | null;
   shiftEnd?: string | null;
   type: ShiftAction;
   status: ShiftRequestStatus;
-  chatterId: string;
-  chatterName?: string | null;
   note?: string | null;
   managerNote?: string | null;
   createdAt?: string | null;
@@ -157,7 +161,7 @@ const renderStatusBadge = (status: ShiftRequestStatus) => {
 };
 
 const getChatterDisplayName = (request: Pick<ShiftRequestItem, "chatterName">) => {
-  const name = request.chatterName?.trim();
+  const name = request.chatter.name.trim();
   return name && name.length > 0 ? name : "Onbekende chatter";
 };
 
@@ -239,18 +243,15 @@ const normalizeShiftRequest = (raw: any): ShiftRequestItem | null => {
 
   return {
     id: String(id),
+    chatter: {
+        id: chatter.id,
+        name: String(chatter.name ?? chatter.fullName ?? ""),
+    },
     shiftId: String(raw.shiftId ?? raw.shift_id ?? shift.id ?? ""),
     shiftStart,
     shiftEnd,
     type,
     status,
-    chatterId,
-    chatterName:
-      chatter.full_name ||
-      chatter.fullName ||
-      raw.chatterName ||
-      raw.employeeName ||
-      null,
     note: raw.note ?? raw.message ?? null,
     managerNote: raw.managerNote ?? raw.response ?? null,
     createdAt:
@@ -484,7 +485,7 @@ export function ShiftRequestInbox() {
                             isSelected ? "bg-muted/50" : ""
                           }`}
                         >
-                          <TableCell className="w-[220px] align-top">
+                          <TableCell className="align-top">
                             <div className="flex flex-col gap-2">
                               <span className="text-sm font-medium">
                                 {getChatterDisplayName(request)}
@@ -496,9 +497,6 @@ export function ShiftRequestInbox() {
                             <div className="font-medium">
                               {formatShiftRange(request)}
                             </div>
-                            <div className="text-xs text-muted-foreground">
-                              Shift ID: {request.shiftId}
-                            </div>
                           </TableCell>
                           <TableCell className="align-top text-right">
                             {renderStatusBadge(request.status)}
@@ -509,17 +507,13 @@ export function ShiftRequestInbox() {
                   </TableBody>
                 </Table>
               </div>
-
-              <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                Selecteer een verzoek om de details te bekijken en bij te werken.
-              </div>
             </div>
           )}
         </CardContent>
       </Card>
 
       {selectedRequest ? (
-        <DialogContent className="max-h-[90vh] w-full overflow-y-auto sm:max-w-3xl">
+        <DialogContent className="max-h-[90vh] w-full pt-10 overflow-y-auto sm:max-w-3xl">
           <DialogHeader className="gap-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="text-left">
@@ -558,7 +552,7 @@ export function ShiftRequestInbox() {
                   {getChatterDisplayName(selectedRequest)}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  ID: {selectedRequest.chatterId}
+                  ID: {selectedRequest.chatter.id}
                 </p>
                 {selectedRequest.createdAt ? (
                   <p className="text-xs text-muted-foreground">
