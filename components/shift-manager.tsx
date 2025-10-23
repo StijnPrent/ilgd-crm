@@ -1370,17 +1370,47 @@ export function ShiftManager() {
                                         </div>
                                     </TableCell>
                                     <TableCell className="hidden md:table-cell">
-                                        <div className="flex flex-wrap gap-1">
+                                        <div className="flex flex-wrap items-center gap-1">
                                             {shift.model_names.length === 0 && (
                                                 <Badge variant="outline" className="text-xs">
                                                     Geen models
                                                 </Badge>
                                             )}
-                                            {shift.model_names.map((name, index) => (
-                                                <Badge key={`${shift.id}-model-${index}`} variant="secondary" className="text-xs">
+                                            {shift.model_names.slice(0, 2).map((name, index) => (
+                                                <Badge
+                                                    key={`${shift.id}-model-${index}`}
+                                                    variant="secondary"
+                                                    className="text-xs"
+                                                >
                                                     {name}
                                                 </Badge>
                                             ))}
+                                            {shift.model_names.length > 2 && (
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="h-6 px-2 text-xs"
+                                                        >
+                                                            +{shift.model_names.length - 2} meer
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent align="start" className="w-48 p-2">
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {shift.model_names.map((name, index) => (
+                                                                <Badge
+                                                                    key={`${shift.id}-model-popover-${index}`}
+                                                                    variant="secondary"
+                                                                    className="text-xs"
+                                                                >
+                                                                    {name}
+                                                                </Badge>
+                                                            ))}
+                                                        </div>
+                                                    </PopoverContent>
+                                                </Popover>
+                                            )}
                                         </div>
                                     </TableCell>
                                     <TableCell>
