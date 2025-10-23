@@ -150,6 +150,41 @@ class ApiClient {
     return this.request(`/models/${id}`)
   }
 
+  /* ---------- Shift Requests ---------- */
+  getShiftRequests(params?: { status?: string; chatterId?: string; includeResolved?: boolean }) {
+    const search = new URLSearchParams()
+    if (params?.status) search.set("status", params.status)
+    if (params?.chatterId) search.set("chatterId", params.chatterId)
+    if (params?.includeResolved) search.set("includeResolved", "true")
+    const query = search.toString() ? `?${search.toString()}` : ""
+    return this.request(`/shift-requests${query}`)
+  }
+
+  createShiftRequest(payload: {
+    shiftId: string
+    chatterId: string
+    type: string
+    note?: string
+  }) {
+    return this.request("/shift-requests", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    })
+  }
+
+  updateShiftRequest(
+    id: string,
+    payload: {
+      status: string
+      managerNote?: string
+    },
+  ) {
+    return this.request(`/shift-requests/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    })
+  }
+
   /* ---------- Employee Earnings ---------- */
   getEmployeeEarnings(params?: {
     limit?: number
