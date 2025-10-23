@@ -25,14 +25,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import {
   Loader2,
   Inbox,
@@ -159,28 +153,30 @@ const formatShiftRange = (request: ShiftRequestItem) => {
     return "Shiftgegevens onbekend";
   }
 
-  const start = request.shiftStart
-    ? new Date(request.shiftStart).toLocaleString("nl-NL", {
+  const startDate = request.shiftStart ? new Date(request.shiftStart) : null;
+  const endDate = request.shiftEnd ? new Date(request.shiftEnd) : null;
+
+  const dayLine = startDate
+    ? startDate.toLocaleString("nl-NL", {
         weekday: "short",
-        month: "short",
         day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
+        month: "short",
       })
     : null;
 
-  const end = request.shiftEnd
-    ? new Date(request.shiftEnd).toLocaleTimeString("nl-NL", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : null;
+  const timeLine =
+    startDate && endDate
+      ? `${startDate.toLocaleTimeString("nl-NL", {
+          hour: "2-digit",
+          minute: "2-digit",
+        })} – ${endDate.toLocaleTimeString("nl-NL", {
+          hour: "2-digit",
+          minute: "2-digit",
+        })}`
+      : null;
 
-  if (start && end) {
-    return `${start} – ${end}`;
-  }
-
-  if (start) return start;
+  if (dayLine && timeLine) return `${dayLine}\n${timeLine}`;
+  if (dayLine) return dayLine;
 
   return "Shiftgegevens onbekend";
 };
@@ -258,6 +254,12 @@ export function ShiftRequestInbox() {
   const [requests, setRequests] = useState<ShiftRequestItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(
+    null,
+  );
+  const [selectedStatus, setSelectedStatus] =
+    useState<ShiftRequestStatus>("pending");
+  const [replyNote, setReplyNote] = useState("");
   const { toast } = useToast();
 
   const loadRequests = useCallback(
@@ -305,37 +307,89 @@ export function ShiftRequestInbox() {
     });
   }, [requests]);
 
-  const updateStatus = useCallback(
-    async (request: ShiftRequestItem, status: ShiftRequestStatus) => {
-      if (request.status === status) return;
+  useEffect(() => {
+    if (sortedRequests.length === 0) {
+      setSelectedRequestId(null);
+      return;
+    }
 
-      setUpdatingId(request.id);
-      try {
-        await api.updateShiftRequest(request.id, { status });
-        const message = statusDescriptions[status];
-        toast({
-          title: message.title,
-          description: message.description,
-        });
-        await loadRequests({ silent: true });
-      } catch (error) {
-        console.error("Error updating shift request:", error);
-        toast({
-          title: "Bijwerken mislukt",
-          description:
-            "De status kon niet worden opgeslagen. Probeer het opnieuw.",
-          variant: "destructive",
-        });
-      } finally {
-        setUpdatingId(null);
-      }
-    },
-    [loadRequests, toast],
-  );
+    if (!selectedRequestId) {
+      setSelectedRequestId(sortedRequests[0].id);
+      return;
+    }
+
+    const stillExists = sortedRequests.some(
+      (request) => request.id === selectedRequestId,
+    );
+
+    if (!stillExists) {
+      setSelectedRequestId(sortedRequests[0].id);
+    }
+  }, [selectedRequestId, sortedRequests]);
+
+  const selectedRequest = useMemo(() => {
+    if (!selectedRequestId) return null;
+    return sortedRequests.find((request) => request.id === selectedRequestId) ?? null;
+  }, [selectedRequestId, sortedRequests]);
+
+  useEffect(() => {
+    if (!selectedRequest) {
+      setReplyNote("");
+      setSelectedStatus("pending");
+      return;
+    }
+
+    setSelectedStatus(selectedRequest.status);
+    setReplyNote(selectedRequest.managerNote ?? "");
+  }, [selectedRequest]);
+
+  const handleSave = useCallback(async () => {
+    if (!selectedRequest) return;
+
+    const trimmedNote = replyNote.trim();
+    const currentNote = selectedRequest.managerNote?.trim() ?? "";
+
+    if (
+      selectedRequest.status === selectedStatus &&
+      currentNote === trimmedNote
+    ) {
+      toast({
+        title: "Geen wijzigingen",
+        description: "Pas de status of notitie aan om op te slaan.",
+      });
+      return;
+    }
+
+    setUpdatingId(selectedRequest.id);
+    try {
+      await api.updateShiftRequest(selectedRequest.id, {
+        status: selectedStatus,
+        managerNote: trimmedNote || undefined,
+      });
+
+      const message = statusDescriptions[selectedStatus];
+      toast({
+        title: message.title,
+        description: message.description,
+      });
+
+      await loadRequests({ silent: true });
+    } catch (error) {
+      console.error("Error updating shift request:", error);
+      toast({
+        title: "Bijwerken mislukt",
+        description:
+          "De status of notitie kon niet worden opgeslagen. Probeer het opnieuw.",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingId(null);
+    }
+  }, [loadRequests, replyNote, selectedRequest, selectedStatus, toast]);
 
   return (
     <Card>
-      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
           <CardTitle className="flex items-center gap-2">
             <Inbox className="h-5 w-5" />
@@ -347,14 +401,24 @@ export function ShiftRequestInbox() {
               : "Bekijk alle recente shiftverzoeken, inclusief afgehandelde items."}
           </CardDescription>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => loadRequests()}
+            disabled={loading}
+            className="w-full sm:w-auto"
+          >
+            <RefreshCcw className="mr-2 h-4 w-4" />
+            Vernieuwen
+          </Button>
           <Select
             value={statusFilter}
             onValueChange={(value) =>
               setStatusFilter(value === "all" ? "all" : "pending")
             }
           >
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger className="w-full sm:w-[200px]">
               <SelectValue placeholder="Toon" />
             </SelectTrigger>
             <SelectContent align="end">
@@ -362,15 +426,6 @@ export function ShiftRequestInbox() {
               <SelectItem value="all">Alles</SelectItem>
             </SelectContent>
           </Select>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => loadRequests()}
-            disabled={loading}
-          >
-            <RefreshCcw className="mr-2 h-4 w-4" />
-            Vernieuwen
-          </Button>
         </div>
       </CardHeader>
       <CardContent>
@@ -388,94 +443,163 @@ export function ShiftRequestInbox() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Chatter</TableHead>
-                  <TableHead>Shift</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Aangemaakt</TableHead>
-                  <TableHead className="text-right">Acties</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedRequests.map((request) => (
-                  <TableRow key={request.id}>
-                    <TableCell className="align-top">
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2 text-sm font-medium">
-                          {renderTypeBadge(request.type)}
-                          <span>
-                            {request.chatterName ||
-                              `Chatter ${request.chatterId}`}
-                          </span>
-                        </div>
-                        {request.note ? (
-                          <p className="text-xs text-muted-foreground">
-                            Bericht: {request.note}
-                          </p>
-                        ) : null}
-                        {request.managerNote ? (
-                          <p className="text-xs text-muted-foreground">
-                            Manager notitie: {request.managerNote}
-                          </p>
-                        ) : null}
-                      </div>
-                    </TableCell>
-                    <TableCell className="align-top">
-                      <div className="space-y-1">
-                        <div className="text-sm font-medium">
-                          {formatShiftRange(request)}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Shift ID: {request.shiftId}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="align-top">
-                      {renderStatusBadge(request.status)}
-                    </TableCell>
-                    <TableCell className="align-top">
-                      <div className="space-y-1">
-                        <div className="text-sm">
-                          {formatDateTime(request.createdAt)}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="align-top text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={updatingId === request.id}
-                          >
-                            Status aanpassen
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Status</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          {statusOptions.map((option) => (
-                            <DropdownMenuItem
-                              key={option.value}
-                              disabled={request.status === option.value}
-                              onSelect={(event) => {
-                                event.preventDefault();
-                                updateStatus(request, option.value);
-                              }}
-                            >
-                              {option.label}
-                            </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
+          <div className="flex flex-col gap-6">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Verzoek</TableHead>
+                    <TableHead>Shift</TableHead>
+                    <TableHead className="text-right">Status</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {sortedRequests.map((request) => {
+                    const isSelected = selectedRequestId === request.id;
+
+                    return (
+                      <TableRow
+                        key={request.id}
+                        onClick={() => setSelectedRequestId(request.id)}
+                        className={`cursor-pointer transition-colors hover:bg-muted/50 ${
+                          isSelected ? "bg-muted/50" : ""
+                        }`}
+                      >
+                        <TableCell className="w-[220px] align-top">
+                          <div className="flex flex-col gap-2">
+                            <span className="text-sm font-medium">
+                              {request.chatterName ||
+                                `Chatter ${request.chatterId}`}
+                            </span>
+                            <div>{renderTypeBadge(request.type)}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="whitespace-pre-line align-top text-sm">
+                          <div className="font-medium">
+                            {formatShiftRange(request)}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Shift ID: {request.shiftId}
+                          </div>
+                        </TableCell>
+                        <TableCell className="align-top text-right">
+                          {renderStatusBadge(request.status)}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+
+            <div>
+              {selectedRequest ? (
+                <Card className="border-dashed">
+                  <CardHeader className="space-y-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <CardTitle className="text-lg">
+                          {selectedRequest.chatterName ||
+                            `Chatter ${selectedRequest.chatterId}`}
+                        </CardTitle>
+                        <CardDescription>
+                          Aangemaakt: {formatDateTime(selectedRequest.createdAt)}
+                        </CardDescription>
+                      </div>
+                      <div className="flex flex-col items-end gap-2 text-right">
+                        {renderTypeBadge(selectedRequest.type)}
+                        {renderStatusBadge(selectedRequest.status)}
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="rounded-lg border p-3">
+                        <h4 className="text-xs font-semibold uppercase text-muted-foreground">
+                          Shift
+                        </h4>
+                        <p className="whitespace-pre-line text-sm font-medium">
+                          {formatShiftRange(selectedRequest)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Shift ID: {selectedRequest.shiftId}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border p-3">
+                        <h4 className="text-xs font-semibold uppercase text-muted-foreground">
+                          Chatter ID
+                        </h4>
+                        <p className="text-sm font-medium">
+                          {selectedRequest.chatterId}
+                        </p>
+                        {selectedRequest.createdAt ? (
+                          <p className="text-xs text-muted-foreground">
+                            Laatst bijgewerkt: {formatDateTime(selectedRequest.createdAt)}
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium">Bericht van chatter</h4>
+                      <p className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
+                        {selectedRequest.note || "Geen bericht toegevoegd."}
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="reply-note">Reactie / nieuwe notitie</Label>
+                      <Textarea
+                        id="reply-note"
+                        placeholder="Laat een reactie achter voor de chatter"
+                        value={replyNote}
+                        onChange={(event) => setReplyNote(event.target.value)}
+                        rows={4}
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+                        <Label className="text-sm text-muted-foreground" htmlFor="status-select">
+                          Status
+                        </Label>
+                        <Select
+                          value={selectedStatus}
+                          onValueChange={(value) =>
+                            setSelectedStatus(value as ShiftRequestStatus)
+                          }
+                        >
+                          <SelectTrigger id="status-select" className="w-full sm:w-[220px]">
+                            <SelectValue placeholder="Kies status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {statusOptions.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button
+                        onClick={handleSave}
+                        disabled={updatingId === selectedRequest.id}
+                        className="w-full sm:w-auto"
+                      >
+                        {updatingId === selectedRequest.id ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : null}
+                        Opslaan
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                  Selecteer een verzoek om de details te bekijken en bij te werken.
+                </div>
+              )}
+            </div>
           </div>
         )}
       </CardContent>
