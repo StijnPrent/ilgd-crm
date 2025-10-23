@@ -1,6 +1,7 @@
 "use client"
 
 import {
+    JSX,
     useCallback,
     useEffect,
     useMemo,
@@ -258,7 +259,10 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
     )
     const rangeStart = monthStart ?? derivedMonthStart
     const rangeEnd = monthEnd ?? derivedMonthEnd
-    const headerMonthLabel = monthLabelProp ?? baseMonthDate.toLocaleDateString("nl-NL", {month: "long", year: "numeric"})
+    const headerMonthLabel = monthLabelProp ?? baseMonthDate.toLocaleDateString("nl-NL", {
+        month: "long",
+        year: "numeric"
+    })
     const year = baseMonthDate.getFullYear()
     const month = baseMonthDate.getMonth()
 
@@ -585,28 +589,68 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
         return count
     }, [filters])
 
+    const clearShiftFilter = useCallback(() => {
+        setFilters((current) => ({...current, shiftId: null}))
+    }, [])
+
+    const clearModelFilter = useCallback(() => {
+        setFilters((current) => ({...current, modelId: null}))
+    }, [])
+
+    const clearChatterFilter = useCallback(() => {
+        setFilters((current) => ({...current, chatterId: null}))
+    }, [])
+
+    const clearItemsFilter = useCallback(() => {
+        setFilters((current) => ({...current, items: []}))
+    }, [])
+
     const filterSummary = useMemo(() => {
-        const items: { key: string; label: string }[] = []
+        const items: { key: string; label: string; onRemove: () => void }[] = []
         if (filters.shiftId) {
             const label = shiftMap.get(filters.shiftId)
-            if (label) items.push({key: `shift-${filters.shiftId}`, label: `Shift: ${label}`})
+            if (label)
+                items.push({
+                    key: `shift-${filters.shiftId}`,
+                    label: `Shift: ${label}`,
+                    onRemove: clearShiftFilter,
+                })
         }
         if (filters.modelId) {
             const label = modelMap.get(filters.modelId)
-            if (label) items.push({key: `model-${filters.modelId}`, label: `Model: ${label}`})
+            if (label)
+                items.push({
+                    key: `model-${filters.modelId}`,
+                    label: `Model: ${label}`,
+                    onRemove: clearModelFilter,
+                })
         }
         if (filters.chatterId) {
             const label = chatterMap.get(filters.chatterId)
-            if (label) items.push({key: `chatter-${filters.chatterId}`, label: `Chatter: ${label}`})
+            if (label)
+                items.push({
+                    key: `chatter-${filters.chatterId}`,
+                    label: `Chatter: ${label}`,
+                    onRemove: clearChatterFilter,
+                })
         }
         if (filters.items.length > 0) {
             const labels = filters.items
                 .map((value) => formatItemLabel(value))
                 .join(", ")
-            items.push({key: "items", label: `Items: ${labels}`})
+            items.push({key: "items", label: `Items: ${labels}`, onRemove: clearItemsFilter})
         }
         return items
-    }, [chatterMap, filters, modelMap, shiftMap])
+    }, [
+        chatterMap,
+        clearChatterFilter,
+        clearItemsFilter,
+        clearModelFilter,
+        clearShiftFilter,
+        filters,
+        modelMap,
+        shiftMap,
+    ])
 
     const handleChatterChange = useCallback(
         async (earningId: string, chatterId: string) => {
@@ -689,19 +733,26 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                                     </TableCell>
                                     <TableCell className="hidden md:table-cell">
                                         {(() => {
+                                            const [baseType, periodLabel] = earning.type
+                                                ? earning.type.split("_")
+                                                : [earning.type]
+
                                             const iconMap: Record<string, JSX.Element> = {
                                                 paypermessage: (
                                                     <MessageSquare className="h-4 w-4 text-muted-foreground"/>
                                                 ),
                                                 tip: <Gift className="h-4 w-4 text-muted-foreground"/>,
                                                 subscriptionperiod: (
-                                                    <Repeat className="h-4 w-4 text-muted-foreground"/>
+                                                    <span className="flex text-muted-foreground">
+                                                        <Repeat className="h-4 w-4 text-muted-foreground"/>
+                                                        {periodLabel && <sub>{periodLabel}</sub>}
+                                                    </span>
                                                 ),
                                                 payperpost: (
                                                     <FileText className="h-4 w-4 text-muted-foreground"/>
                                                 ),
                                             }
-                                            return iconMap[earning.type] || null
+                                            return iconMap[baseType ?? ""] || null
                                         })()}
                                     </TableCell>
                                     <TableCell>
@@ -885,8 +936,20 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                     </DropdownMenu>
                     <div className="flex flex-wrap gap-2">
                         {filterSummary.map((item) => (
-                            <Badge key={item.key} variant="secondary" className="whitespace-nowrap">
-                                {item.label}
+                            <Badge
+                                key={item.key}
+                                variant="secondary"
+                                className="flex items-center gap-1 whitespace-nowrap"
+                            >
+                                <span>{item.label}</span>
+                                <button
+                                    type="button"
+                                    onClick={item.onRemove}
+                                    className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                                    aria-label={`Verwijder filter ${item.label}`}
+                                >
+                                    <X className="h-3 w-3" aria-hidden="true"/>
+                                </button>
                             </Badge>
                         ))}
                     </div>
@@ -902,8 +965,9 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                         </DialogTrigger>
                         <DialogContent aria-busy={syncLoading}>
                             {syncLoading && (
-                                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-lg bg-background/80">
-                                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                                <div
+                                    className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-lg bg-background/80">
+                                    <Loader2 className="h-5 w-5 animate-spin text-primary"/>
                                     <p className="text-sm font-medium">Syncing earnings...</p>
                                 </div>
                             )}
@@ -954,7 +1018,7 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                                 >
                                     {syncLoading ? (
                                         <span className="flex items-center gap-2">
-                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            <Loader2 className="h-4 w-4 animate-spin"/>
                                             Syncing...
                                         </span>
                                     ) : (
@@ -1066,19 +1130,26 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                                     </TableCell>
                                     <TableCell className="hidden md:table-cell">
                                         {(() => {
+                                            const [baseType, periodLabel] = earning.type
+                                                ? earning.type.split("_")
+                                                : [earning.type]
+
                                             const iconMap: Record<string, JSX.Element> = {
                                                 paypermessage: (
                                                     <MessageSquare className="h-4 w-4 text-muted-foreground"/>
                                                 ),
                                                 tip: <Gift className="h-4 w-4 text-muted-foreground"/>,
                                                 subscriptionperiod: (
-                                                    <Repeat className="h-4 w-4 text-muted-foreground"/>
+                                                    <span className="flex text-muted-foreground">
+                                                        <Repeat className="h-4 w-4 text-muted-foreground"/>
+                                                        {periodLabel && <sub>{periodLabel}</sub>}
+                                                    </span>
                                                 ),
                                                 payperpost: (
                                                     <FileText className="h-4 w-4 text-muted-foreground"/>
                                                 ),
                                             }
-                                            return iconMap[earning.type] || null
+                                            return iconMap[baseType ?? ""] || null
                                         })()}
                                     </TableCell>
                                     <TableCell>
