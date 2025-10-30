@@ -36,6 +36,7 @@ interface RevenueEntry {
     amount: number
     modelCommissionRate: number
     chatterCommissionRate: number
+    chatterBonusAmount: number
 }
 
 interface DailyData {
@@ -72,6 +73,9 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
                     ),
                     chatterCommissionRate: Number(
                         e.chatterCommissionRate ?? e.chatter_commission_rate ?? 0,
+                    ),
+                    chatterBonusAmount: Number(
+                        e.chatterBonusAmount ?? e.chatter_bonus_amount ?? 0,
                     ),
                 }))
                 setEntries(formatted)
@@ -132,7 +136,8 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
                 const net = amount * (1 - platformFee / 100)
                 const mComm = net * (e.modelCommissionRate / 100)
                 const cComm = net * (e.chatterCommissionRate / 100)
-                return sum + (net - mComm - cComm)
+                const cBonus = Number(e.chatterBonusAmount) || 0
+                return sum + (net - mComm - cComm - cBonus)
             }, 0)
             return {day, revenue, fullDate, entries: dayEntries}
         })
@@ -145,11 +150,13 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
                 const net = amount * (1 - platformFee / 100)
                 const mComm = net * (e.modelCommissionRate / 100)
                 const cComm = net * (e.chatterCommissionRate / 100)
+                const cBonus = Number(e.chatterBonusAmount) || 0
                 acc.total += amount
                 acc.platformFee += amount - net
                 acc.afterPlatform += net
                 acc.modelCommission += mComm
                 acc.chatterCommission += cComm
+                acc.chatterBonus += cBonus
                 return acc
             },
             {
@@ -158,6 +165,7 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
                 afterPlatform: 0,
                 modelCommission: 0,
                 chatterCommission: 0,
+                chatterBonus: 0,
             },
         )
     }, [monthlyEntries, platformFee])
@@ -165,7 +173,8 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
     const companyRevenue =
         monthTotals.afterPlatform -
         monthTotals.modelCommission -
-        monthTotals.chatterCommission
+        monthTotals.chatterCommission -
+        monthTotals.chatterBonus
     const adjustmentsTotal = adjustments.reduce(
         (sum, val) => sum + (val || 0),
         0,
@@ -190,12 +199,14 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
                 const cRate = Number(e.chatterCommissionRate) || 0;
                 const mComm = net * (mRate / 100);
                 const cComm = net * (cRate / 100);
+                const cBonus = Number(e.chatterBonusAmount) || 0;
 
                 acc.total += amount;
                 acc.platformFee += amount - net;
                 acc.afterPlatform += net;
                 acc.modelCommission += mComm;
                 acc.chatterCommission += cComm;
+                acc.chatterBonus += cBonus;
                 return acc;
             },
             {
@@ -204,12 +215,16 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
                 afterPlatform: 0,
                 modelCommission: 0,
                 chatterCommission: 0,
+                chatterBonus: 0,
             }
         );
 
         // 2) Derived fields
         const companyRevenue =
-            sums.afterPlatform - sums.modelCommission - sums.chatterCommission;
+            sums.afterPlatform -
+            sums.modelCommission -
+            sums.chatterCommission -
+            sums.chatterBonus;
 
         // If you have per-day adjustments:
         // const dayAdjustmentsTotal =
@@ -234,7 +249,8 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
     const dayCompanyRevenue =
         dayTotals.afterPlatform -
         dayTotals.modelCommission -
-        dayTotals.chatterCommission
+        dayTotals.chatterCommission -
+        dayTotals.chatterBonus
 
     const formatCurrency = (amount: number) =>
         new Intl.NumberFormat("nl-NL", {
@@ -363,6 +379,10 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
                                 <span>Chatter commissions</span>
                                 <span>-{formatCurrency(dayTotals.chatterCommission)}</span>
                             </div>
+                            <div className="flex justify-between">
+                                <span>Chatter bonuses</span>
+                                <span>-{formatCurrency(dayTotals.chatterBonus)}</span>
+                            </div>
                             <div className="flex justify-between font-medium">
                                 <span>Company profit</span>
                                 <span>{formatCurrency(dayCompanyRevenue)}</span>
@@ -435,6 +455,10 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
                             <div className="flex justify-between">
                                 <span>Chatter commissions</span>
                                 <span>-{formatCurrency(monthTotals.chatterCommission)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span>Chatter bonuses</span>
+                                <span>-{formatCurrency(monthTotals.chatterBonus)}</span>
                             </div>
                             {adjustmentsTotal !== 0 && (
                                 <div className="flex justify-between">

@@ -70,6 +70,8 @@ const parseDateTime = (value: unknown) => {
     return null
 }
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000
+
 interface RangeInfo {
     range: RangeOption
     start: Date
@@ -221,25 +223,27 @@ export function EarningsProfitTrend({monthStart, monthEnd, monthLabel}: Earnings
             setLoading(true)
             setError(null)
             try {
-                const from = rangeInfo.interval === "month"
-                    ? formatDateKey(new Date(rangeInfo.start.getFullYear(), rangeInfo.start.getMonth(), 1))
-                    : formatDateKey(rangeInfo.start)
-                const to = rangeInfo.interval === "month"
-                    ? formatDateKey(new Date(rangeInfo.end.getFullYear(), rangeInfo.end.getMonth() + 1, 0))
-                    : formatDateKey(rangeInfo.end)
+                const fromDate = rangeInfo.interval === "month"
+                    ? new Date(rangeInfo.start.getFullYear(), rangeInfo.start.getMonth(), 1)
+                    : rangeInfo.start
+                const toDate = rangeInfo.interval === "month"
+                    ? new Date(rangeInfo.end.getFullYear(), rangeInfo.end.getMonth() + 1, 0)
+                    : rangeInfo.end
 
-                const [earningsResponse, revenueResponse] = await Promise.all([
-                    api.getEmployeeEarnings({from, to}),
-                    api.getRevenueEarnings({from, to}),
+                const from = formatDateKey(fromDate)
+                const to = formatDateKey(toDate)
+                const daySpan = Math.max(1, Math.floor((toDate.getTime() - fromDate.getTime()) / MS_PER_DAY) + 1)
+                const pageSize = Math.min(200, Math.max(50, daySpan * 2))
+
+                const [earningsEntries, revenueEntries] = await Promise.all([
+                    api.getAllEmployeeEarnings({from, to, pageSize}),
+                    api.getAllRevenueEarnings({from, to, pageSize}),
                 ])
 
                 if (cancelled) return
 
                 const buckets = buildBuckets(rangeInfo)
                 const bucketMap = new Map(buckets.map((bucket) => [bucket.key, bucket]))
-
-                const earningsEntries = Array.isArray(earningsResponse) ? earningsResponse : earningsResponse?.data
-                const revenueEntries = Array.isArray(revenueResponse) ? revenueResponse : revenueResponse?.data
 
                 if (Array.isArray(earningsEntries)) {
                     for (const entry of earningsEntries) {
@@ -266,9 +270,12 @@ export function EarningsProfitTrend({monthStart, monthEnd, monthLabel}: Earnings
                         const net = amount * (1 - Number(entry?.platformFee ?? entry?.platform_fee ?? 20) / 100)
                         const modelRate = Number(entry?.modelCommissionRate ?? entry?.model_commission_rate ?? 0)
                         const chatterRate = Number(entry?.chatterCommissionRate ?? entry?.chatter_commission_rate ?? 0)
+                        const chatterBonus = Number(
+                            entry?.chatterBonusAmount ?? entry?.chatter_bonus_amount ?? 0,
+                        )
                         const modelCommission = net * (modelRate / 100)
                         const chatterCommission = net * (chatterRate / 100)
-                        const profit = net - modelCommission - chatterCommission
+                        const profit = net - modelCommission - chatterCommission - chatterBonus
                         const key = rangeInfo.interval === "month"
                             ? formatMonthKey(entryDate)
                             : formatDateKey(entryDate)

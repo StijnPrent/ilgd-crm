@@ -453,14 +453,28 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
         if (isCompact) return
         setChartLoading(true)
         try {
-            const response = await api.getEmployeeEarningsPaginated({
-                limit: 1000,
-                offset: 0,
-                from: rangeStart,
-                to: rangeEnd,
+            const startDate = rangeStart ? new Date(rangeStart) : new Date(year, month, 1)
+            const endDate = rangeEnd ? new Date(rangeEnd) : new Date(year, month + 1, 0)
+            const normalizedStart = new Date(
+                startDate.getFullYear(),
+                startDate.getMonth(),
+                startDate.getDate(),
+            )
+            const normalizedEnd = new Date(
+                endDate.getFullYear(),
+                endDate.getMonth(),
+                endDate.getDate(),
+            )
+            const daySpan = Math.max(
+                1,
+                Math.floor((normalizedEnd.getTime() - normalizedStart.getTime()) / (24 * 60 * 60 * 1000)) + 1,
+            )
+            const pageSize = Math.min(200, Math.max(50, daySpan * 2))
+
+            const items = await api.getAllEmployeeEarnings({
+                pageSize,
                 ...buildQueryFilters(),
             })
-            const items = Array.isArray(response) ? response : response?.data || []
             const monthData = items.filter((item: any) => item.date?.startsWith(monthKey))
             setRawMonthlyEarnings(monthData)
         } catch (error) {
