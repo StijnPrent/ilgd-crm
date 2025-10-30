@@ -70,6 +70,8 @@ const parseDateTime = (value: unknown) => {
     return null
 }
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000
+
 interface RangeInfo {
     range: RangeOption
     start: Date
@@ -221,16 +223,20 @@ export function EarningsProfitTrend({monthStart, monthEnd, monthLabel}: Earnings
             setLoading(true)
             setError(null)
             try {
-                const from = rangeInfo.interval === "month"
-                    ? formatDateKey(new Date(rangeInfo.start.getFullYear(), rangeInfo.start.getMonth(), 1))
-                    : formatDateKey(rangeInfo.start)
-                const to = rangeInfo.interval === "month"
-                    ? formatDateKey(new Date(rangeInfo.end.getFullYear(), rangeInfo.end.getMonth() + 1, 0))
-                    : formatDateKey(rangeInfo.end)
+                const fromDate = rangeInfo.interval === "month"
+                    ? new Date(rangeInfo.start.getFullYear(), rangeInfo.start.getMonth(), 1)
+                    : rangeInfo.start
+                const toDate = rangeInfo.interval === "month"
+                    ? new Date(rangeInfo.end.getFullYear(), rangeInfo.end.getMonth() + 1, 0)
+                    : rangeInfo.end
+
+                const from = formatDateKey(fromDate)
+                const to = formatDateKey(toDate)
+                const daySpan = Math.max(1, Math.floor((toDate.getTime() - fromDate.getTime()) / MS_PER_DAY) + 1)
 
                 const [earningsResponse, revenueResponse] = await Promise.all([
-                    api.getEmployeeEarnings({from, to}),
-                    api.getRevenueEarnings({from, to}),
+                    api.getEmployeeEarningsPaginated({limit: daySpan, offset: 0, from, to}),
+                    api.getRevenueEarnings({from, to, limit: daySpan, offset: 0}),
                 ])
 
                 if (cancelled) return
@@ -238,8 +244,12 @@ export function EarningsProfitTrend({monthStart, monthEnd, monthLabel}: Earnings
                 const buckets = buildBuckets(rangeInfo)
                 const bucketMap = new Map(buckets.map((bucket) => [bucket.key, bucket]))
 
-                const earningsEntries = Array.isArray(earningsResponse) ? earningsResponse : earningsResponse?.data
-                const revenueEntries = Array.isArray(revenueResponse) ? revenueResponse : revenueResponse?.data
+                const earningsEntries = Array.isArray(earningsResponse)
+                    ? earningsResponse
+                    : earningsResponse?.data ?? []
+                const revenueEntries = Array.isArray(revenueResponse)
+                    ? revenueResponse
+                    : revenueResponse?.data ?? []
 
                 if (Array.isArray(earningsEntries)) {
                     for (const entry of earningsEntries) {

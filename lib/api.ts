@@ -333,10 +333,12 @@ class ApiClient {
   }
 
   /* ---------- Revenue ---------- */
-  getRevenueEarnings(params?: { from?: string; to?: string }) {
+  getRevenueEarnings(params?: { from?: string; to?: string; limit?: number; offset?: number }) {
     const search = new URLSearchParams()
     if (params?.from) search.set("from", params.from)
     if (params?.to) search.set("to", params.to)
+    if (params?.limit !== undefined) search.set("limit", String(params.limit))
+    if (params?.offset !== undefined) search.set("offset", String(params.offset))
     const query = search.toString() ? `?${search.toString()}` : ""
     return this.request(`/revenue/earnings${query}`)
   }
