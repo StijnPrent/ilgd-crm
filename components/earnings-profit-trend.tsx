@@ -233,25 +233,17 @@ export function EarningsProfitTrend({monthStart, monthEnd, monthLabel}: Earnings
                 const from = formatDateKey(fromDate)
                 const to = formatDateKey(toDate)
                 const daySpan = Math.max(1, Math.floor((toDate.getTime() - fromDate.getTime()) / MS_PER_DAY) + 1)
+                const pageSize = Math.min(200, Math.max(50, daySpan * 2))
 
-                const fetchLimit = Math.max(daySpan * 10, 1000)
-
-                const [earningsResponse, revenueResponse] = await Promise.all([
-                    api.getEmployeeEarningsPaginated({limit: fetchLimit, offset: 0, from, to}),
-                    api.getRevenueEarnings({from, to, limit: fetchLimit, offset: 0}),
+                const [earningsEntries, revenueEntries] = await Promise.all([
+                    api.getAllEmployeeEarnings({from, to, pageSize}),
+                    api.getAllRevenueEarnings({from, to, pageSize}),
                 ])
 
                 if (cancelled) return
 
                 const buckets = buildBuckets(rangeInfo)
                 const bucketMap = new Map(buckets.map((bucket) => [bucket.key, bucket]))
-
-                const earningsEntries = Array.isArray(earningsResponse)
-                    ? earningsResponse
-                    : earningsResponse?.data ?? []
-                const revenueEntries = Array.isArray(revenueResponse)
-                    ? revenueResponse
-                    : revenueResponse?.data ?? []
 
                 if (Array.isArray(earningsEntries)) {
                     for (const entry of earningsEntries) {

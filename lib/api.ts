@@ -2,6 +2,79 @@
 const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002/api"
 
+type PaginatedArrayResponse<T> =
+  | T[]
+  | {
+      data?: T[]
+      items?: T[]
+      results?: T[]
+      rows?: T[]
+    }
+
+const extractArrayFromResponse = <T>(response: PaginatedArrayResponse<T> | null | undefined): T[] => {
+  if (!response) return []
+  if (Array.isArray(response)) return response
+  if (Array.isArray(response.data)) return response.data
+  if (Array.isArray(response.items)) return response.items
+  if (Array.isArray(response.results)) return response.results
+  if (Array.isArray(response.rows)) return response.rows
+  return []
+}
+
+const buildEntryKey = (entry: unknown): string => {
+  if (!entry || typeof entry !== "object") {
+    return JSON.stringify(entry)
+  }
+
+  const candidate = entry as { id?: string | number }
+  if (candidate.id !== undefined && candidate.id !== null) {
+    return `id:${String(candidate.id)}`
+  }
+
+  try {
+    return JSON.stringify(entry)
+  } catch {
+    return String(entry)
+  }
+}
+
+async function fetchAllPages<T>(
+  loader: (options: { limit: number; offset: number }) => Promise<PaginatedArrayResponse<T> | null | undefined>,
+  { pageSize = 50, maxPages = 100 }: { pageSize?: number; maxPages?: number } = {},
+): Promise<T[]> {
+  const limit = Math.max(1, Math.min(pageSize, 500))
+  const seenKeys = new Set<string>()
+  const results: T[] = []
+  let offset = 0
+
+  for (let page = 0; page < maxPages; page++) {
+    const response = await loader({ limit, offset })
+    const entries = extractArrayFromResponse<T>(response)
+    if (entries.length === 0) {
+      break
+    }
+
+    let added = 0
+    for (const entry of entries) {
+      const key = buildEntryKey(entry)
+      if (seenKeys.has(key)) {
+        continue
+      }
+      seenKeys.add(key)
+      results.push(entry as T)
+      added += 1
+    }
+
+    if (added === 0) {
+      break
+    }
+
+    offset += entries.length
+  }
+
+  return results
+}
+
 class ApiClient {
   private getAuthHeaders(): Record<any, any> {
     if (typeof window === "undefined") return {}
@@ -260,6 +333,29 @@ class ApiClient {
     return data
   }
 
+  async getAllEmployeeEarnings(params?: {
+    pageSize?: number
+    chatterId?: string
+    type?: string
+    types?: string[]
+    modelId?: string
+    shiftId?: string
+    date?: string
+    from?: string
+    to?: string
+  }) {
+    const { pageSize, ...rest } = params ?? {}
+    return fetchAllPages<any>(
+      ({ limit, offset }) =>
+        this.getEmployeeEarningsPaginated({
+          limit,
+          offset,
+          ...rest,
+        }),
+      { pageSize },
+    )
+  }
+
   getEmployeeEarningsByChatter(id: string) {
     return this.request(`/employee-earnings/chatter/${id}`)
   }
@@ -341,6 +437,19 @@ class ApiClient {
     if (params?.offset !== undefined) search.set("offset", String(params.offset))
     const query = search.toString() ? `?${search.toString()}` : ""
     return this.request(`/revenue/earnings${query}`)
+  }
+
+  async getAllRevenueEarnings(params?: { from?: string; to?: string; pageSize?: number }) {
+    const { pageSize, ...rest } = params ?? {}
+    return fetchAllPages<any>(
+      ({ limit, offset }) =>
+        this.getRevenueEarnings({
+          ...rest,
+          limit,
+          offset,
+        }),
+      { pageSize },
+    )
   }
 
   getRevenueStats(params?: { from?: string; to?: string }) {
