@@ -234,9 +234,11 @@ export function EarningsProfitTrend({monthStart, monthEnd, monthLabel}: Earnings
                 const to = formatDateKey(toDate)
                 const daySpan = Math.max(1, Math.floor((toDate.getTime() - fromDate.getTime()) / MS_PER_DAY) + 1)
 
+                const fetchLimit = Math.max(daySpan * 10, 1000)
+
                 const [earningsResponse, revenueResponse] = await Promise.all([
-                    api.getEmployeeEarningsPaginated({limit: daySpan, offset: 0, from, to}),
-                    api.getRevenueEarnings({from, to, limit: daySpan, offset: 0}),
+                    api.getEmployeeEarningsPaginated({limit: fetchLimit, offset: 0, from, to}),
+                    api.getRevenueEarnings({from, to, limit: fetchLimit, offset: 0}),
                 ])
 
                 if (cancelled) return
