@@ -76,29 +76,80 @@ async function fetchAllPages<T>(
 }
 
 class ApiClient {
+  // In-flight request registry and short-lived response cache
+  private inFlight = new Map<string, Promise<any>>()
+  private responseCache = new Map<string, { ts: number; data: any }>()
+
+  private buildKey(url: string, method: string, token?: string) {
+    return `${method.toUpperCase()}:${url}:${token ?? ""}`
+  }
+
   private getAuthHeaders(): Record<any, any> {
     if (typeof window === "undefined") return {}
     const token = localStorage.getItem("auth_token")
     return token ? { Authorization: `Bearer ${token}` } : {}
   }
 
-  private async request(endpoint: string, options: RequestInit = {}) {
+  private async request(
+    endpoint: string,
+    options: RequestInit & { cacheTtlMs?: number; dedupe?: boolean } = {},
+  ) {
     const url = `${API_BASE_URL}${endpoint}`
+    const authHeaders = this.getAuthHeaders()
     const config: RequestInit = {
       headers: {
         "Content-Type": "application/json",
-        ...this.getAuthHeaders(),
+        ...authHeaders,
         ...options.headers,
       },
       ...options,
     }
 
-    const response = await fetch(url, config)
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.status} ${response.statusText}`)
+    const method = (config.method || "GET").toString().toUpperCase()
+    const isGet = method === "GET"
+    const enableDedupe = options.dedupe !== false && isGet
+    const cacheTtl = isGet ? Math.max(0, options.cacheTtlMs ?? 5000) : 0
+    const token = typeof authHeaders["Authorization"] === "string" ? authHeaders["Authorization"] : undefined
+    const key = this.buildKey(url, method, token)
+
+    // Fast path: fresh cached response
+    if (cacheTtl > 0) {
+      const cached = this.responseCache.get(key)
+      if (cached && Date.now() - cached.ts < cacheTtl) {
+        return cached.data
+      }
     }
-    if (response.status === 204) return null
-    return response.json()
+
+    // De-duplicate concurrent GETs
+    if (enableDedupe) {
+      const existing = this.inFlight.get(key)
+      if (existing) return existing
+    }
+
+    const doFetch = (async () => {
+      const response = await fetch(url, config)
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status} ${response.statusText}`)
+      }
+      if (response.status === 204) return null
+      const data = await response.json()
+      if (isGet && cacheTtl > 0) {
+        this.responseCache.set(key, { ts: Date.now(), data })
+      }
+      return data
+    })()
+
+    if (enableDedupe) {
+      this.inFlight.set(key, doFetch)
+      try {
+        const data = await doFetch
+        return data
+      } finally {
+        this.inFlight.delete(key)
+      }
+    }
+
+    return doFetch
   }
 
   /* ---------- Auth ---------- */
@@ -146,15 +197,6 @@ class ApiClient {
 
   deleteUser(id: string) {
     return this.request(`/users/${id}`, { method: "DELETE" })
-  }
-
-  /* ---------- Models ---------- */
-  getModels() {
-    return this.request("/models")
-  }
-
-  getModel(id: string) {
-    return this.request(`/models/${id}`)
   }
 
   getModelsWithEarnings(params?: { from?: string; to?: string }) {
