@@ -94,6 +94,32 @@ export function ManagerDashboard() {
     }, [selectedMonth])
     const monthLabel = useMemo(() => formatMonthLabel(selectedMonth), [selectedMonth])
 
+    // Custom date range state
+    const [customFrom, setCustomFrom] = useState<string>("")
+    const [customTo, setCustomTo] = useState<string>("")
+    const [useCustomRange, setUseCustomRange] = useState<boolean>(false)
+
+    // Compute effective range + label
+    const rangeStart = useMemo(() => (useCustomRange && customFrom && customTo ? customFrom : monthStart), [useCustomRange, customFrom, customTo, monthStart])
+    const rangeEnd = useMemo(() => (useCustomRange && customFrom && customTo ? customTo : monthEnd), [useCustomRange, customFrom, customTo, monthEnd])
+    const rangeLabel = useMemo(() => {
+        if (useCustomRange && customFrom && customTo) {
+            try {
+                const [fy, fm, fd] = customFrom.split("-").map(Number)
+                const [ty, tm, td] = customTo.split("-").map(Number)
+                const fromDate = new Date(fy, (fm || 1) - 1, fd || 1)
+                const toDate = new Date(ty, (tm || 1) - 1, td || 1)
+                const same = fromDate.getTime() === toDate.getTime()
+                const startText = fromDate.toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" })
+                const endText = toDate.toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" })
+                return same ? startText : `${startText} – ${endText}`
+            } catch {
+                return `${customFrom} – ${customTo}`
+            }
+        }
+        return monthLabel
+    }, [useCustomRange, customFrom, customTo, monthLabel])
+
     const monthOptions = useMemo(() => {
         const reference = new Date()
         reference.setDate(1)
@@ -344,20 +370,20 @@ export function ManagerDashboard() {
 
             {/* Main Content */}
             <main className="container mx-auto px-4 py-6">
-                <EmployeeEarningsProvider from={monthStart} to={monthEnd}>
+                <EmployeeEarningsProvider from={rangeStart} to={rangeEnd}>
                     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-8">
                         <div>
                             <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
                                 Data range
                             </p>
-                            <h2 className="text-2xl font-semibold text-foreground">{monthLabel}</h2>
+                            <h2 className="text-2xl font-semibold text-foreground">{rangeLabel}</h2>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                             <Button
                                 variant="outline"
                                 size="icon"
                                 onClick={goToPreviousMonth}
-                                disabled={monthKey === earliestMonthValue}
+                                disabled={useCustomRange || monthKey === earliestMonthValue}
                                 aria-label="Vorige maand"
                             >
                                 <ChevronLeft className="h-4 w-4" />
@@ -378,16 +404,51 @@ export function ManagerDashboard() {
                                 variant="outline"
                                 size="icon"
                                 onClick={goToNextMonth}
-                                disabled={monthKey === latestMonthValue}
+                                disabled={useCustomRange || monthKey === latestMonthValue}
                                 aria-label="Volgende maand"
                             >
                                 <ChevronRight className="h-4 w-4" />
                             </Button>
+
+                            {/* Custom range controls */}
+                            <div className="flex items-center gap-2">
+                                <Input
+                                    type="date"
+                                    value={customFrom}
+                                    onChange={(e) => setCustomFrom(e.target.value)}
+                                    aria-label="Vanaf"
+                                />
+                                <span className="text-muted-foreground">—</span>
+                                <Input
+                                    type="date"
+                                    value={customTo}
+                                    onChange={(e) => setCustomTo(e.target.value)}
+                                    aria-label="Tot"
+                                />
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => {
+                                        if (customFrom && customTo) setUseCustomRange(true)
+                                    }}
+                                >
+                                    Apply
+                                </Button>
+                                {useCustomRange && (
+                                    <Button
+                                        variant="ghost"
+                                        onClick={() => {
+                                            setUseCustomRange(false)
+                                        }}
+                                    >
+                                        Clear
+                                    </Button>
+                                )}
+                            </div>
                         </div>
                     </div>
                     {/* Stats Overview */}
                     <div className="mb-8">
-                        <ManagerStats monthLabel={monthLabel} monthStart={monthStart} monthEnd={monthEnd}/>
+                        <ManagerStats monthLabel={rangeLabel} monthStart={rangeStart} monthEnd={rangeEnd}/>
                     </div>
 
                     {/* Tabs */}
@@ -432,25 +493,25 @@ export function ManagerDashboard() {
                                 <div className="space-y-6 lg:col-span-2">
                                     <EarningsOverview
                                         limit={5}
-                                        monthLabel={monthLabel}
-                                        monthStart={monthStart}
-                                        monthEnd={monthEnd}
+                                        monthLabel={rangeLabel}
+                                        monthStart={rangeStart}
+                                        monthEnd={rangeEnd}
                                     />
                                 </div>
                                 <div className="lg:col-span-1">
                                     <Leaderboard
                                         limit={3}
-                                        monthLabel={monthLabel}
-                                        monthStart={monthStart}
-                                        monthEnd={monthEnd}
+                                        monthLabel={rangeLabel}
+                                        monthStart={rangeStart}
+                                        monthEnd={rangeEnd}
                                     />
                                 </div>
                             </div>
                             <div className="mt-6">
                                 <EarningsProfitTrend
-                                    monthLabel={monthLabel}
-                                    monthStart={monthStart}
-                                    monthEnd={monthEnd}
+                                    monthLabel={rangeLabel}
+                                    monthStart={rangeStart}
+                                    monthEnd={rangeEnd}
                                 />
                             </div>
                         </TabsContent>
@@ -529,13 +590,13 @@ export function ManagerDashboard() {
                                     <ModelsList/>
                                 </div>
                                 <div className="md:col-span-1">
-                                    <ModelsEarningsLeaderboard monthStart={monthStart} monthEnd={monthEnd} monthLabel={monthLabel}/>
+                                    <ModelsEarningsLeaderboard monthStart={rangeStart} monthEnd={rangeEnd} monthLabel={rangeLabel}/>
                                 </div>
                             </div>
                         </TabsContent>
 
                         <TabsContent value="earnings">
-                            <EarningsOverview monthLabel={monthLabel} monthStart={monthStart} monthEnd={monthEnd}/>
+                            <EarningsOverview monthLabel={rangeLabel} monthStart={rangeStart} monthEnd={rangeEnd}/>
                         </TabsContent>
 
                         <TabsContent value="shifts">
@@ -551,7 +612,7 @@ export function ManagerDashboard() {
                             <CommissionCalculator/>
                         </TabsContent>
                         <TabsContent value="revenue">
-                            <RevenueOverview monthLabel={monthLabel} monthStart={monthStart} monthEnd={monthEnd}/>
+                            <RevenueOverview monthLabel={rangeLabel} monthStart={rangeStart} monthEnd={rangeEnd}/>
                         </TabsContent>
                     </Tabs>
                 </EmployeeEarningsProvider>
