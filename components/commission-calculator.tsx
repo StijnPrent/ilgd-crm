@@ -147,7 +147,6 @@ export function CommissionCalculator() {
   })
   const [bonusAwards, setBonusAwards] = useState<any[]>([])
   const [awardTotalCount, setAwardTotalCount] = useState(0)
-  const [bonusTotalCents, setBonusTotalCents] = useState(0)
   const [awardPage, setAwardPage] = useState(1)
 
   const dateFilterActive = useMemo(
@@ -297,41 +296,6 @@ export function CommissionCalculator() {
         }))
         setBonusAwards(normalizedAwards)
 
-        const awardsTotalsFromResponse = Array.isArray(awardsResponse)
-          ? undefined
-          : awardsResponse?.totals || awardsResponse?.summary
-
-        const apiBonusTotalCents = Number(
-          awardsTotalsFromResponse?.bonusAmountCents ??
-          awardsTotalsFromResponse?.bonus_amount_cents ??
-          awardsTotalsFromResponse?.totalBonusCents ??
-          awardsTotalsFromResponse?.total_bonus_cents ??
-          awardsTotalsFromResponse?.totalAmountCents ??
-          awardsTotalsFromResponse?.total_amount_cents ??
-          awardsTotalsFromResponse?.sumAmountCents ??
-          awardsTotalsFromResponse?.sum_amount_cents ??
-          awardsTotalsFromResponse?.bonusTotalCents ??
-          awardsTotalsFromResponse?.bonus_total_cents ??
-          awardsTotalsFromResponse?.bonusTotal ??
-          awardsTotalsFromResponse?.totalBonus ??
-          0,
-        )
-
-        const derivedBonusTotalCents = Number.isFinite(apiBonusTotalCents)
-          ? apiBonusTotalCents
-          : normalizedAwards.reduce((acc, award) => {
-            const amountCents = coerceNumber(
-              award.bonusAmountCents ??
-              award.bonus_amount_cents ??
-              award.amountCents ??
-              award.amount_cents ??
-              0,
-            )
-            return acc + amountCents
-          }, 0)
-
-        setBonusTotalCents(derivedBonusTotalCents)
-
         const rawAwardsTotal = Array.isArray(awardsResponse)
           ? undefined
           : awardsResponse?.total ??
@@ -347,7 +311,6 @@ export function CommissionCalculator() {
       } catch (e) {
         setBonusAwards([])
         setAwardTotalCount(0)
-        setBonusTotalCents(0)
       }
 
       const totalsFromResponse = Array.isArray(commissionsResponse)
@@ -591,7 +554,20 @@ export function CommissionCalculator() {
 
   const pagedBonusAwards = useMemo(() => bonusAwards, [bonusAwards])
 
-  const bonusTotal = useMemo(() => bonusTotalCents / 100, [bonusTotalCents])
+  const bonusTotal = useMemo(
+    () =>
+      bonusAwards.reduce((acc, award) => {
+        const amountCents = coerceNumber(
+          award.bonusAmountCents ??
+          award.bonus_amount_cents ??
+          award.amountCents ??
+          award.amount_cents ??
+          0,
+        )
+        return acc + amountCents / 100
+      }, 0),
+    [bonusAwards],
+  )
 
   const payoutTotals = useMemo(
     () => ({
