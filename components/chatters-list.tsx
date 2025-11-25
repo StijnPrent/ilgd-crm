@@ -30,6 +30,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Plus, Search, Clock, Trash2, UserX, UserCheck } from "lucide-react"
 import { api } from "@/lib/api"
+import { formatUserDate } from "@/lib/timezone"
 import { useEmployeeEarnings } from "@/hooks/use-employee-earnings"
 
 interface Chatter {
@@ -395,7 +396,7 @@ export function ChattersList() {
                     {chatter.commission_rate}% comm, {chatter.platform_fee}% fee
                   </div>
                 </TableCell>
-                <TableCell className="hidden md:table-cell">{new Date(chatter.created_at).toLocaleDateString("nl-NL")}</TableCell>
+                <TableCell className="hidden md:table-cell">{formatUserDate(chatter.created_at)}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
                     <Button

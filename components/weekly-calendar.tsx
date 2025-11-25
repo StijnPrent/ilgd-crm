@@ -6,6 +6,7 @@ import {Button} from "@/components/ui/button"
 import {Badge} from "@/components/ui/badge"
 import {ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Clock, User, UserCircle} from "lucide-react"
 import {api} from "@/lib/api"
+import {formatUserDate} from "@/lib/timezone"
 import {useIsMobile} from "@/hooks/use-mobile"
 
 const normalizeDate = (date: Date) => {
@@ -397,14 +398,18 @@ export function WeeklyCalendar({
                             </Button>
                             <div className="text-center">
                                 <div className="text-sm font-medium">
-                                    {selectedDate.toLocaleDateString("en", {weekday: "long"})}
+                                    {formatUserDate(selectedDate, {weekday: "long"}, "en")}
                                 </div>
                                 <div className="text-xs text-muted-foreground">
-                                    {selectedDate.toLocaleDateString("en", {
-                                        month: "short",
-                                        day: "numeric",
-                                        year: "numeric",
-                                    })}
+                                    {formatUserDate(
+                                        selectedDate,
+                                        {
+                                            month: "short",
+                                            day: "numeric",
+                                            year: "numeric",
+                                        },
+                                        "en",
+                                    )}
                                 </div>
                             </div>
                             <Button variant="outline" size="sm" onClick={() => navigateDay("next")}>
@@ -460,7 +465,7 @@ export function WeeklyCalendar({
                         {weekDates.map((date, index) => {
                             const dayShifts = getShiftsForDate(date)
                             const isToday = date.toDateString() === today.toDateString()
-                            const dayName = date.toLocaleDateString("en", {weekday: "short"})
+                            const dayName = formatUserDate(date, {weekday: "short"}, "en")
                             const dayNumber = date.getDate()
 
                             return (

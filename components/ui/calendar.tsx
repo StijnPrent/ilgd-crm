@@ -9,6 +9,7 @@ import {
 import { DayButton, DayPicker, getDefaultClassNames } from "react-day-picker"
 
 import { cn } from "@/lib/utils"
+import { formatUserDate } from "@/lib/timezone"
 import { Button, buttonVariants } from "@/components/ui/button"
 
 function Calendar({
@@ -35,11 +36,11 @@ function Calendar({
         className
       )}
       captionLayout={captionLayout}
-      formatters={{
-        formatMonthDropdown: (date) =>
-          date.toLocaleString("default", { month: "short" }),
-        ...formatters,
-      }}
+        formatters={{
+          formatMonthDropdown: (date) =>
+            formatUserDate(date, { month: "short" }),
+          ...formatters,
+        }}
       classNames={{
         root: cn("w-fit", defaultClassNames.root),
         months: cn(
@@ -190,7 +191,7 @@ function CalendarDayButton({
       ref={ref}
       variant="ghost"
       size="icon"
-      data-day={day.date.toLocaleDateString()}
+      data-day={formatUserDate(day.date)}
       data-selected-single={
         modifiers.selected &&
         !modifiers.range_start &&

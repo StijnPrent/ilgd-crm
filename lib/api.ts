@@ -75,6 +75,18 @@ async function fetchAllPages<T>(
   return results
 }
 
+export class ApiError extends Error {
+  status: number
+  data: any
+
+  constructor(message: string, status: number, data: any) {
+    super(message)
+    this.name = "ApiError"
+    this.status = status
+    this.data = data
+  }
+}
+
 class ApiClient {
   // In-flight request registry and short-lived response cache
   private inFlight = new Map<string, Promise<any>>()
@@ -129,7 +141,22 @@ class ApiClient {
     const doFetch = (async () => {
       const response = await fetch(url, config)
       if (!response.ok) {
-        throw new Error(`API Error: ${response.status} ${response.statusText}`)
+        let errorData: any = null
+        try {
+          const text = await response.text()
+          try {
+            errorData = text ? JSON.parse(text) : null
+          } catch {
+            errorData = text
+          }
+        } catch {
+          errorData = null
+        }
+        const message =
+          (typeof errorData === "string" && errorData) ||
+          (errorData?.message as string) ||
+          `API Error: ${response.status} ${response.statusText}`
+        throw new ApiError(message, response.status, errorData)
       }
       if (response.status === 204) return null
       const data = await response.json()
@@ -615,6 +642,144 @@ class ApiClient {
     return this.request(`/settings/f2f-cookies`, {
       method: "PUT",
       body: JSON.stringify(data),
+    })
+  }
+
+  /* ---------- Company Settings ---------- */
+  getCompanySettings() {
+    return this.request("/settings/company")
+  }
+
+  updateCompanySettings(payload: {
+    name?: string
+    currency?: string
+    timezone?: string
+    timeZone?: string
+    email?: string
+    [key: string]: any
+  }) {
+    return this.request("/settings/company", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    })
+  }
+
+  /* ---------- Bonus Rules ---------- */
+  getBonusRules(params?: {
+    active?: boolean
+    ruleType?: string
+    search?: string
+    limit?: number
+    offset?: number
+  }) {
+    const search = new URLSearchParams()
+    if (params?.active !== undefined) {
+      search.set("active", params.active ? "true" : "false")
+    }
+    if (params?.ruleType) {
+      search.set("ruleType", params.ruleType)
+    }
+    if (params?.search) {
+      search.set("search", params.search)
+    }
+    if (params?.limit !== undefined) search.set("limit", String(params.limit))
+    if (params?.offset !== undefined) search.set("offset", String(params.offset))
+    const query = search.toString() ? `?${search.toString()}` : ""
+    return this.request(`/bonus/rules${query}`, { cacheTtlMs: 0 })
+  }
+
+  getBonusRule(ruleId: string) {
+    return this.request(`/bonus/rules/${ruleId}`, { cacheTtlMs: 0 })
+  }
+
+  createBonusRule(payload: any) {
+    return this.request("/bonus/rules", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    })
+  }
+
+  updateBonusRule(ruleId: string, payload: any) {
+    return this.request(`/bonus/rules/${ruleId}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    })
+  }
+
+  deleteBonusRule(ruleId: string) {
+    return this.request(`/bonus/rules/${ruleId}`, {
+      method: "DELETE",
+    })
+  }
+
+  setBonusRuleActive(
+    ruleId: string,
+    active: boolean,
+    payload?: { keepWindowState?: boolean },
+  ) {
+    const body: Record<string, any> = { active, isActive: active }
+    if (payload?.keepWindowState !== undefined) {
+      body.keepWindowState = payload.keepWindowState
+    }
+    return this.request(`/bonus/rules/${ruleId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    })
+  }
+
+  testBonusRule(ruleId: string, payload: { workerId?: string; asOf?: string }) {
+    return this.request(`/bonus/rules/${ruleId}/test`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    })
+  }
+
+  getBonusAwards(params: {
+    workerId?: string
+    ruleId?: string
+    minAmountCents?: number
+    maxAmountCents?: number
+    from?: string
+    to?: string
+    offset?: number
+    limit?: number
+  }) {
+    const search = new URLSearchParams()
+    if (params.workerId) search.set("workerId", params.workerId)
+    if (params.ruleId) search.set("ruleId", params.ruleId)
+    if (params.minAmountCents !== undefined) {
+      search.set("minAmountCents", String(params.minAmountCents))
+    }
+    if (params.maxAmountCents !== undefined) {
+      search.set("maxAmountCents", String(params.maxAmountCents))
+    }
+    if (params.from) search.set("from", params.from)
+    if (params.to) search.set("to", params.to)
+    if (params.offset !== undefined) search.set("offset", String(params.offset))
+    if (params.limit !== undefined) search.set("limit", String(params.limit))
+    const query = search.toString() ? `?${search.toString()}` : ""
+    return this.request(`/bonus/awards${query}`, { cacheTtlMs: 0 })
+  }
+
+  getBonusProgress(params: {
+    workerId?: string
+    ruleId?: string
+    offset?: number
+    limit?: number
+  }) {
+    const search = new URLSearchParams()
+    if (params.workerId) search.set("workerId", params.workerId)
+    if (params.ruleId) search.set("ruleId", params.ruleId)
+    if (params.offset !== undefined) search.set("offset", String(params.offset))
+    if (params.limit !== undefined) search.set("limit", String(params.limit))
+    const query = search.toString() ? `?${search.toString()}` : ""
+    return this.request(`/bonus/progress${query}`, { cacheTtlMs: 0 })
+  }
+
+  runBonusEngine(payload: { workerId?: string }) {
+    return this.request("/bonus/run", {
+      method: "POST",
+      body: JSON.stringify(payload),
     })
   }
 }

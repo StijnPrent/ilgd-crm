@@ -45,6 +45,7 @@ import {
 import Image from "next/image"
 
 import {api} from "@/lib/api"
+import {formatUserDate} from "@/lib/timezone"
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select"
 
 /** Tiny JWT decoder so we can recover userId if localStorage is stale */
@@ -69,7 +70,7 @@ const formatMonthKey = (date: Date) => {
 }
 
 const formatMonthLabel = (date: Date) =>
-    date.toLocaleDateString("nl-NL", {month: "long", year: "numeric"})
+    formatUserDate(date, {month: "long", year: "numeric"})
 
 export function ManagerDashboard() {
     const [user, setUser] = useState<any>(null)
@@ -110,8 +111,16 @@ export function ManagerDashboard() {
                 const fromDate = new Date(fy, (fm || 1) - 1, fd || 1)
                 const toDate = new Date(ty, (tm || 1) - 1, td || 1)
                 const same = fromDate.getTime() === toDate.getTime()
-                const startText = fromDate.toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" })
-                const endText = toDate.toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" })
+                const startText = formatUserDate(fromDate, {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                })
+                const endText = formatUserDate(toDate, {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                })
                 return same ? startText : `${startText} – ${endText}`
             } catch {
                 return `${customFrom} – ${customTo}`
@@ -307,11 +316,11 @@ export function ManagerDashboard() {
                 Promise.allSettled((shifts ?? []).map((s: any) => api.deleteShift(String(s.id)))),
             ])
 
-            alert("Systeem gereset! Alle chatter data is gewist.")
+            alert("System reset! All chatter data was cleared.")
             window.location.reload()
         } catch (err) {
             console.error("[manager] resetSystem error:", err)
-            alert("Reset mislukt. Controleer de serverlogs en probeer opnieuw.")
+            alert("Reset failed. Check server logs and try again.")
         }
     }
 
@@ -344,7 +353,7 @@ export function ManagerDashboard() {
                             <Button asChild variant="outline" size="sm">
                                 <Link href="/manager/settings">
                                     <Settings className="h-4 w-4"/>
-                                    F2F cookies
+                                    Settings
                                 </Link>
                             </Button>
                             <LogoutButton/>
@@ -384,13 +393,13 @@ export function ManagerDashboard() {
                                 size="icon"
                                 onClick={goToPreviousMonth}
                                 disabled={useCustomRange || monthKey === earliestMonthValue}
-                                aria-label="Vorige maand"
+                                aria-label="Previous month"
                             >
                                 <ChevronLeft className="h-4 w-4" />
                             </Button>
                             <Select value={monthKey} onValueChange={handleMonthSelect}>
                                 <SelectTrigger className="w-[200px]">
-                                    <SelectValue placeholder="Kies maand" />
+                                    <SelectValue placeholder="Choose month" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {monthOptions.map((option) => (
@@ -405,7 +414,7 @@ export function ManagerDashboard() {
                                 size="icon"
                                 onClick={goToNextMonth}
                                 disabled={useCustomRange || monthKey === latestMonthValue}
-                                aria-label="Volgende maand"
+                                aria-label="Next month"
                             >
                                 <ChevronRight className="h-4 w-4" />
                             </Button>
@@ -620,3 +629,4 @@ export function ManagerDashboard() {
         </div>
     )
 }
+

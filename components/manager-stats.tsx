@@ -6,6 +6,7 @@ import {Users, Clock, TrendingUp} from "lucide-react"
 
 import {Card, CardContent, CardHeader, CardTitle} from "@/components/ui/card"
 import {api} from "@/lib/api"
+import {getStartOfDayInTimezone, getUserTimezone} from "@/lib/timezone"
 
 const parseIsoDateOnly = (value: string | null | undefined) => {
     if (!value) return null
@@ -18,23 +19,6 @@ const parseIsoDateOnly = (value: string | null | undefined) => {
 }
 
 const isoDateString = (date: Date) => date.toISOString().split("T")[0]
-
-const getAmsterdamToday = () => {
-    const parts = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Europe/Amsterdam",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-    }).formatToParts(new Date())
-    const year = Number(parts.find((part) => part.type === "year")?.value)
-    const month = Number(parts.find((part) => part.type === "month")?.value)
-    const day = Number(parts.find((part) => part.type === "day")?.value)
-    if (![year, month, day].every((part) => Number.isFinite(part))) {
-        const fallback = new Date()
-        return new Date(Date.UTC(fallback.getUTCFullYear(), fallback.getUTCMonth(), fallback.getUTCDate()))
-    }
-    return new Date(Date.UTC(year, month - 1, day))
-}
 
 interface Stats {
     totalChatters: number
@@ -52,6 +36,7 @@ interface ManagerStatsProps {
 }
 
 export function ManagerStats({monthLabel, monthStart, monthEnd}: ManagerStatsProps) {
+    const userTimezone = useMemo(() => getUserTimezone(), [])
     const [stats, setStats] = useState<Stats>({
         totalChatters: 0,
         currentlyOnline: 0,
@@ -77,15 +62,15 @@ export function ManagerStats({monthLabel, monthStart, monthEnd}: ManagerStatsPro
                 weekday: "short",
                 day: "numeric",
                 month: "short",
-                timeZone: "Europe/Amsterdam",
+                timeZone: userTimezone,
             }),
-        [],
+        [userTimezone],
     )
 
     const dateContext = useMemo(() => {
-        const startDate = parseIsoDateOnly(monthStart) ?? getAmsterdamToday()
+        const startDate = parseIsoDateOnly(monthStart) ?? getStartOfDayInTimezone(new Date(), userTimezone)
         const endDate = parseIsoDateOnly(monthEnd) ?? startDate
-        const todayAmsterdam = getAmsterdamToday()
+        const todayAmsterdam = getStartOfDayInTimezone(new Date(), userTimezone)
         const todayMonthKey = `${todayAmsterdam.getUTCFullYear()}-${String(todayAmsterdam.getUTCMonth() + 1).padStart(2, "0")}`
         const selectedMonthKey = monthStart?.slice(0, 7) ?? todayMonthKey
 
@@ -111,7 +96,7 @@ export function ManagerStats({monthLabel, monthStart, monthEnd}: ManagerStatsPro
             weekStartDate: weekStart,
             focusDate,
         }
-    }, [monthEnd, monthStart])
+    }, [monthEnd, monthStart, userTimezone])
 
     const weekRangeLabel = useMemo(() => {
         const startLabel = dayLabelFormatter.format(new Date(dateContext.weekStartDate))

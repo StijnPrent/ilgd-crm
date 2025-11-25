@@ -24,10 +24,19 @@ export function EmployeeDashboard() {
     const [refreshStats, setRefreshStats] = useState(0)
     const router = useRouter()
     const searchParams = useSearchParams()
-    const initialTab = searchParams.get('tab') ?? 'overview'
+    const allowedTabs = ["overview", "shifts", "earnings", "leaderboard"]
+    const initialTabParam = searchParams.get('tab') ?? 'overview'
+    const initialTab = allowedTabs.includes(initialTabParam) ? initialTabParam : 'overview'
     const [activeTab, setActiveTab] = useState<string>(initialTab)
 
     const handleClockChange = () => setRefreshStats(p => p + 1);
+    const handleTabChange = (value: string) => {
+        if (!allowedTabs.includes(value)) {
+            return
+        }
+
+        setActiveTab(value)
+    }
 
     useEffect(() => {
         let cancelled = false
@@ -144,6 +153,7 @@ export function EmployeeDashboard() {
     }, [activeTab, router, searchParams])
 
     const handleEarningsAdded = () => setRefreshStats((p) => p + 1)
+    // No F2F chat logic needed anymore
 
     if (loading) {
         return (
@@ -213,7 +223,7 @@ export function EmployeeDashboard() {
                     </div>
 
                     {/* Tabs Navigation */}
-                    <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="overview" className="space-y-6">
+                    <Tabs value={activeTab} onValueChange={handleTabChange} defaultValue="overview" className="space-y-6">
                         <TabsList className="grid w-full grid-cols-4">
                             <TabsTrigger value="overview" className="flex items-center gap-2">
                                 Overview
@@ -266,6 +276,8 @@ export function EmployeeDashboard() {
                         <TabsContent value="leaderboard">
                             <Leaderboard refreshTrigger={refreshStats}/>
                         </TabsContent>
+
+                        {/* F2F Chat tab removed */}
                     </Tabs>
                 </EmployeeEarningsProvider>
             </main>
