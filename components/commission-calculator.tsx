@@ -29,7 +29,6 @@ import { format, endOfMonth, startOfMonth } from "date-fns"
 
 import { api } from "@/lib/api"
 import { formatUserDate } from "@/lib/timezone"
-import { Badge } from "@/components/ui/badge"
 
 type DatePreset =
   | "all"
@@ -51,15 +50,11 @@ interface Commission {
     full_name: string
     currency: string
   }
-  bonus_amount: number
-  total_payout: number
 }
 
 interface CommissionTotals {
   earnings: number
   commission: number
-  bonus: number
-  payout: number
 }
 
 interface ChatterOption {
@@ -69,6 +64,7 @@ interface ChatterOption {
 }
 
 const PAGE_SIZE = 10
+const AWARD_PAGE_SIZE = 13
 const DATE_FORMAT = "yyyy-MM-dd"
 
 const formatCurrency = (amount: number, currency = "EUR") => {
@@ -148,10 +144,11 @@ export function CommissionCalculator() {
   const [totals, setTotals] = useState<CommissionTotals>({
     earnings: 0,
     commission: 0,
-    bonus: 0,
-    payout: 0,
   })
   const [bonusAwards, setBonusAwards] = useState<any[]>([])
+  const [awardTotalCount, setAwardTotalCount] = useState(0)
+  const [bonusTotalCents, setBonusTotalCents] = useState(0)
+  const [awardPage, setAwardPage] = useState(1)
 
   const dateFilterActive = useMemo(
     () => Boolean(fromDate || toDate),
@@ -189,11 +186,11 @@ export function CommissionCalculator() {
       const totalCountPromise = hasDateFilter
         ? Promise.resolve(null)
         : api
-            .getCommissionsTotalCount(params)
-            .catch((error: unknown) => {
-              console.warn("Error fetching commission total count:", error)
-              return null
-            })
+          .getCommissionsTotalCount(params)
+          .catch((error: unknown) => {
+            console.warn("Error fetching commission total count:", error)
+            return null
+          })
 
       const [commissionsResponse, totalResponse, chattersData, usersData] =
         await Promise.all([
@@ -242,14 +239,6 @@ export function CommissionCalculator() {
         const commissionAmount = Number(
           c.commission ?? c.commission_amount ?? 0,
         )
-        const bonusAmount = coerceNumber(
-          c.bonus ?? c.bonusAmount ?? c.bonus_amount,
-        )
-        const totalPayoutRaw =
-          c.totalPayout ?? c.total_payout ?? c.total ?? undefined
-        const totalPayout = Number.isFinite(Number(totalPayoutRaw))
-          ? Number(totalPayoutRaw)
-          : commissionAmount + bonusAmount
 
         return {
           id: String(c.id),
@@ -268,12 +257,6 @@ export function CommissionCalculator() {
           total_earnings: Number(c.earnings ?? c.total_earnings ?? c.total ?? 0),
           commission_rate: Number(c.commissionRate ?? c.commission_rate ?? 0),
           commission_amount: commissionAmount,
-          bonus_amount: Number.isFinite(bonusAmount) ? bonusAmount : 0,
-          total_payout:
-            Number.isFinite(totalPayout)
-              ? totalPayout
-              : commissionAmount +
-                (Number.isFinite(bonusAmount) ? bonusAmount : 0),
           created_at: c.createdAt || c.created_at || "",
           chatter: {
             full_name:
@@ -295,7 +278,8 @@ export function CommissionCalculator() {
         if (selectedChatter !== "all") awardsParams.workerId = selectedChatter
         if (fromDate) awardsParams.from = fromDate
         if (toDate) awardsParams.to = toDate
-        awardsParams.limit = 500
+        awardsParams.limit = AWARD_PAGE_SIZE
+        awardsParams.offset = (awardPage - 1) * AWARD_PAGE_SIZE
         const awardsResponse = await api.getBonusAwards(awardsParams)
         const awardRows = Array.isArray(awardsResponse)
           ? awardsResponse
@@ -312,8 +296,58 @@ export function CommissionCalculator() {
           reason: row.reason ?? "",
         }))
         setBonusAwards(normalizedAwards)
+
+        const awardsTotalsFromResponse = Array.isArray(awardsResponse)
+          ? undefined
+          : awardsResponse?.totals || awardsResponse?.summary
+
+        const apiBonusTotalCents = Number(
+          awardsTotalsFromResponse?.bonusAmountCents ??
+          awardsTotalsFromResponse?.bonus_amount_cents ??
+          awardsTotalsFromResponse?.totalBonusCents ??
+          awardsTotalsFromResponse?.total_bonus_cents ??
+          awardsTotalsFromResponse?.totalAmountCents ??
+          awardsTotalsFromResponse?.total_amount_cents ??
+          awardsTotalsFromResponse?.sumAmountCents ??
+          awardsTotalsFromResponse?.sum_amount_cents ??
+          awardsTotalsFromResponse?.bonusTotalCents ??
+          awardsTotalsFromResponse?.bonus_total_cents ??
+          awardsTotalsFromResponse?.bonusTotal ??
+          awardsTotalsFromResponse?.totalBonus ??
+          0,
+        )
+
+        const derivedBonusTotalCents = Number.isFinite(apiBonusTotalCents)
+          ? apiBonusTotalCents
+          : normalizedAwards.reduce((acc, award) => {
+            const amountCents = coerceNumber(
+              award.bonusAmountCents ??
+              award.bonus_amount_cents ??
+              award.amountCents ??
+              award.amount_cents ??
+              0,
+            )
+            return acc + amountCents
+          }, 0)
+
+        setBonusTotalCents(derivedBonusTotalCents)
+
+        const rawAwardsTotal = Array.isArray(awardsResponse)
+          ? undefined
+          : awardsResponse?.total ??
+          awardsResponse?.meta?.total ??
+          awardsResponse?.meta?.count ??
+          awardsResponse?.meta?.pagination?.total ??
+          awardsResponse?.pagination?.total ??
+          awardsResponse?.count ??
+          awardsResponse?.data?.total
+
+        const awardsFallbackTotal = (awardPage - 1) * AWARD_PAGE_SIZE + normalizedAwards.length
+        setAwardTotalCount(parseTotalCount(rawAwardsTotal, awardsFallbackTotal))
       } catch (e) {
         setBonusAwards([])
+        setAwardTotalCount(0)
+        setBonusTotalCents(0)
       }
 
       const totalsFromResponse = Array.isArray(commissionsResponse)
@@ -322,27 +356,18 @@ export function CommissionCalculator() {
 
       if (totalsFromResponse && typeof totalsFromResponse === "object") {
         setTotals({
-          earnings: Number(totalsFromResponse.earnings ?? totalsFromResponse.totalEarnings ?? totalsFromResponse.total_earnings ?? 0),
+          earnings: Number(
+            totalsFromResponse.earnings ??
+            totalsFromResponse.totalEarnings ??
+            totalsFromResponse.total_earnings ??
+            0,
+          ),
           commission: Number(
             totalsFromResponse.commission ??
-              totalsFromResponse.totalCommission ??
-              totalsFromResponse.commission_amount ??
-              totalsFromResponse.total_commission ??
-              0,
-          ),
-          bonus: Number(
-            totalsFromResponse.bonus ??
-              totalsFromResponse.totalBonus ??
-              totalsFromResponse.bonus_amount ??
-              totalsFromResponse.total_bonus ??
-              0,
-          ),
-          payout: Number(
-            totalsFromResponse.total ??
-              totalsFromResponse.totalPayout ??
-              totalsFromResponse.total_payout ??
-              totalsFromResponse.payout ??
-              0,
+            totalsFromResponse.totalCommission ??
+            totalsFromResponse.commission_amount ??
+            totalsFromResponse.total_commission ??
+            0,
           ),
         })
       } else {
@@ -350,15 +375,9 @@ export function CommissionCalculator() {
           (acc, item) => {
             acc.earnings += item.total_earnings || 0
             acc.commission += item.commission_amount || 0
-            acc.bonus += item.bonus_amount || 0
-            const derivedPayout =
-              typeof item.total_payout === "number" && Number.isFinite(item.total_payout)
-                ? item.total_payout
-                : (item.commission_amount || 0) + (item.bonus_amount || 0)
-            acc.payout += derivedPayout
             return acc
           },
-          { earnings: 0, commission: 0, bonus: 0, payout: 0 },
+          { earnings: 0, commission: 0 },
         )
         setTotals(aggregated)
       }
@@ -369,12 +388,12 @@ export function CommissionCalculator() {
         const rawMetaTotal = Array.isArray(commissionsResponse)
           ? undefined
           : commissionsResponse?.total ??
-            commissionsResponse?.meta?.total ??
-            commissionsResponse?.meta?.count ??
-            commissionsResponse?.meta?.pagination?.total ??
-            commissionsResponse?.pagination?.total ??
-            commissionsResponse?.count ??
-            commissionsResponse?.data?.total
+          commissionsResponse?.meta?.total ??
+          commissionsResponse?.meta?.count ??
+          commissionsResponse?.meta?.pagination?.total ??
+          commissionsResponse?.pagination?.total ??
+          commissionsResponse?.count ??
+          commissionsResponse?.data?.total
 
         const fallbackTotal = (page - 1) * PAGE_SIZE + commissionList.length
 
@@ -390,11 +409,11 @@ export function CommissionCalculator() {
       console.error("Error fetching commissions:", error)
       setCommissions([])
       setTotalCount(0)
-      setTotals({ earnings: 0, commission: 0, bonus: 0, payout: 0 })
+      setTotals({ earnings: 0, commission: 0 })
     } finally {
       setLoading(false)
     }
-  }, [fromDate, page, selectedChatter, toDate])
+  }, [awardPage, fromDate, page, selectedChatter, toDate])
 
   useEffect(() => {
     fetchCommissions()
@@ -542,6 +561,58 @@ export function CommissionCalculator() {
     return [1, "ellipsis", page - 1, page, page + 1, "ellipsis", pageCount]
   }, [page, pageCount])
 
+  const awardPageCount = useMemo(
+    () => Math.max(1, Math.ceil(awardTotalCount / AWARD_PAGE_SIZE) || 1),
+    [awardTotalCount],
+  )
+
+  const awardPaginationNumbers = useMemo(() => {
+    if (awardPageCount <= 5) {
+      return Array.from({ length: awardPageCount }, (_, index) => index + 1)
+    }
+
+    if (awardPage <= 4) {
+      return [1, 2, 3, 4, "ellipsis", awardPageCount]
+    }
+
+    if (awardPage >= awardPageCount - 3) {
+      return [
+        1,
+        "ellipsis",
+        awardPageCount - 3,
+        awardPageCount - 2,
+        awardPageCount - 1,
+        awardPageCount,
+      ]
+    }
+
+    return [1, "ellipsis", awardPage - 1, awardPage, awardPage + 1, "ellipsis", awardPageCount]
+  }, [awardPage, awardPageCount])
+
+  const pagedBonusAwards = useMemo(() => bonusAwards, [bonusAwards])
+
+  const bonusTotal = useMemo(() => bonusTotalCents / 100, [bonusTotalCents])
+
+  const payoutTotals = useMemo(
+    () => ({
+      commission: totals.commission,
+      bonus: bonusTotal,
+      payout: totals.commission + bonusTotal,
+    }),
+    [bonusTotal, totals.commission],
+  )
+
+  useEffect(() => {
+    setAwardPage(1)
+  }, [selectedChatter, fromDate, toDate])
+
+  useEffect(() => {
+    const maxPage = Math.max(1, awardPageCount)
+    if (awardPage > maxPage) {
+      setAwardPage(maxPage)
+    }
+  }, [awardPage, awardPageCount])
+
   if (loading) {
     return (
       <Card>
@@ -557,256 +628,267 @@ export function CommissionCalculator() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-col gap-6">
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Percent className="h-5 w-5" />
-                Commissions
-              </CardTitle>
-              <CardDescription>
-                Review generated commissions and automatic bonuses for the selected period.
-              </CardDescription>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-4">
-
-            <div className="flex flex-col gap-2">
-              <span className="text-sm font-medium text-muted-foreground">
-                Filter by chatter
-              </span>
-              <Select
-                value={selectedChatter}
-                onValueChange={handleChatterFilterChange}
-                disabled={chatters.length === 0}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="All chatters" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All chatters</SelectItem>
-                  {chatters.map((chatter) => (
-                    <SelectItem key={chatter.id} value={chatter.id}>
-                      {chatter.full_name || "Unknown"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-2">
-              <span className="text-sm font-medium text-muted-foreground">
-                Date range
-              </span>
-              <Select value={datePreset} onValueChange={(value) => handleDatePresetChange(value as DatePreset)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All dates" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All dates</SelectItem>
-                  <SelectItem value="today">Today</SelectItem>
-                  <SelectItem value="first-half">1 - 15 (current month)</SelectItem>
-                  <SelectItem value="second-half">16 - end (current month)</SelectItem>
-                  <SelectItem value="custom-day">Specific day</SelectItem>
-                  <SelectItem value="custom-range">Custom range</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {datePreset === "custom-day" && (
-              <div className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-muted-foreground">
-                  Day
+    <section className="space-y-4">
+      <Card className="w-full">
+        <CardHeader className="pb-2">
+          <CardTitle>Total payout per chatter</CardTitle>
+          <CardDescription>
+            Select a chatter and date range to see combined commission and bonuses.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {selectedChatter === "all" ? (
+            <p className="text-md text-muted-foreground">
+              Select a chatter to see total payout details.
+            </p>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="flex flex-col gap-1">
+                <span className="text-sm text-muted-foreground">Commission</span>
+                <span className="text-lg font-semibold">
+                  {formatCurrency(payoutTotals.commission, totalsCurrency)}
                 </span>
-                <Input
-                  type="date"
-                  value={fromDate ?? ""}
-                  onChange={(event) => handleCustomDayChange(event.target.value)}
-                />
               </div>
-            )}
-            {datePreset === "custom-range" && (
-              <div className="grid gap-2 sm:grid-cols-2 lg:col-span-1">
-                <div className="flex flex-col gap-2">
-                  <span className="text-sm font-medium text-muted-foreground">
-                    From
-                  </span>
-                  <Input
-                    type="date"
-                    value={fromDate ?? ""}
-                    onChange={(event) =>
-                      handleCustomRangeChange("from", event.target.value)
-                    }
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <span className="text-sm font-medium text-muted-foreground">
-                    To
-                  </span>
-                  <Input
-                    type="date"
-                    value={toDate ?? ""}
-                    onChange={(event) =>
-                      handleCustomRangeChange("to", event.target.value)
-                    }
-                  />
-                </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-sm text-muted-foreground">Bonus</span>
+                <span className="text-lg font-semibold">
+                  {formatCurrency(payoutTotals.bonus, totalsCurrency)}
+                </span>
               </div>
-            )}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="hidden md:table-cell">Date</TableHead>
-              <TableHead>Chatter</TableHead>
-              <TableHead className="hidden md:table-cell">Earnings</TableHead>
-              <TableHead className="hidden md:table-cell">Commission Rate</TableHead>
-              <TableHead>Commission</TableHead>
-              <TableHead>Bonus</TableHead>
-              <TableHead>Total</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {commissions.map((commission) => {
-              const bonusAmount = Number.isFinite(commission.bonus_amount)
-                ? commission.bonus_amount
-                : 0
-              const hasBonus = bonusAmount > 0
-              const totalWithBonus =
-                typeof commission.total_payout === "number" && Number.isFinite(commission.total_payout)
-                  ? commission.total_payout
-                  : (commission.commission_amount || 0) + bonusAmount
+              <div className="flex flex-col gap-1">
+                <span className="text-sm text-muted-foreground">Total payout</span>
+                <span className="text-lg font-semibold text-green-600">
+                  {formatCurrency(payoutTotals.payout, totalsCurrency)}
+                </span>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-              return (
-                <TableRow key={commission.id}>
-                  <TableCell className="hidden md:table-cell">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span>
-                        {formatCommissionDate(commission.commission_date)}
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(280px,340px)]">
+        <Card className="w-full">
+          <CardHeader>
+            <div className="flex flex-col gap-6">
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Percent className="h-5 w-5" />
+                    Commissions
+                  </CardTitle>
+                  <CardDescription>
+                    Review generated commissions and automatic bonuses for the selected period.
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-4">
+                <div className="flex flex-col gap-2">
+                  <span className="text-sm font-medium text-muted-foreground">
+                    Filter by chatter
+                  </span>
+                  <Select
+                    value={selectedChatter}
+                    onValueChange={handleChatterFilterChange}
+                    disabled={chatters.length === 0}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="All chatters" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All chatters</SelectItem>
+                      {chatters.map((chatter) => (
+                        <SelectItem key={chatter.id} value={chatter.id}>
+                          {chatter.full_name || "Unknown"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <span className="text-sm font-medium text-muted-foreground">
+                    Date range
+                  </span>
+                  <Select
+                    value={datePreset}
+                    onValueChange={(value) => handleDatePresetChange(value as DatePreset)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="All dates" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All dates</SelectItem>
+                      <SelectItem value="today">Today</SelectItem>
+                      <SelectItem value="first-half">1 - 15 (current month)</SelectItem>
+                      <SelectItem value="second-half">16 - end (current month)</SelectItem>
+                      <SelectItem value="custom-day">Specific day</SelectItem>
+                      <SelectItem value="custom-range">Custom range</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {datePreset === "custom-day" && (
+                  <div className="flex flex-col gap-2">
+                    <span className="text-sm font-medium text-muted-foreground">
+                      Day
+                    </span>
+                    <Input
+                      type="date"
+                      value={fromDate ?? ""}
+                      onChange={(event) => handleCustomDayChange(event.target.value)}
+                    />
+                  </div>
+                )}
+                {datePreset === "custom-range" && (
+                  <div className="grid gap-2 sm:grid-cols-2 lg:col-span-1">
+                    <div className="flex flex-col gap-2">
+                      <span className="text-sm font-medium text-muted-foreground">
+                        From
                       </span>
+                      <Input
+                        type="date"
+                        value={fromDate ?? ""}
+                        onChange={(event) =>
+                          handleCustomRangeChange("from", event.target.value)
+                        }
+                      />
                     </div>
+                    <div className="flex flex-col gap-2">
+                      <span className="text-sm font-medium text-muted-foreground">
+                        To
+                      </span>
+                      <Input
+                        type="date"
+                        value={toDate ?? ""}
+                        onChange={(event) =>
+                          handleCustomRangeChange("to", event.target.value)
+                        }
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="hidden md:table-cell">Date</TableHead>
+                  <TableHead>Chatter</TableHead>
+                  <TableHead className="hidden md:table-cell">Earnings</TableHead>
+                  <TableHead className="hidden md:table-cell">Commission Rate</TableHead>
+                  <TableHead>Commission</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {commissions.map((commission) => {
+                  return (
+                    <TableRow key={commission.id}>
+                      <TableCell className="hidden md:table-cell">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                          <span>
+                            {formatCommissionDate(commission.commission_date)}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>{commission.chatter.full_name || "Unknown"}</TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        {formatCurrency(
+                          commission.total_earnings,
+                          commission.chatter.currency,
+                        )}
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        {commission.commission_rate.toFixed(1)}%
+                      </TableCell>
+                      <TableCell className="font-semibold text-green-600">
+                        {formatCurrency(
+                          commission.commission_amount,
+                          commission.chatter.currency,
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+              <TableFooter>
+                <TableRow>
+                  <TableCell colSpan={2} className="font-semibold">
+                    Total
                   </TableCell>
-                  <TableCell>{commission.chatter.full_name || "Unknown"}</TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    {formatCurrency(
-                      commission.total_earnings,
-                      commission.chatter.currency,
-                    )}
+                  <TableCell className="font-semibold hidden md:table-cell">
+                    {formatCurrency(totals.earnings, totalsCurrency)}
                   </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    {commission.commission_rate.toFixed(1)}%
-                  </TableCell>
+                  <TableCell className="hidden md:table-cell"></TableCell>
                   <TableCell className="font-semibold text-green-600">
-                    {formatCurrency(
-                      commission.commission_amount,
-                      commission.chatter.currency,
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      {formatCurrency(bonusAmount, commission.chatter.currency)}
-                      {hasBonus ? (
-                        <Badge variant="secondary" className="bg-amber-100 text-amber-900 hover:bg-amber-100/90">
-                          Bonus
-                        </Badge>
-                      ) : null}
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-semibold">
-                    {formatCurrency(
-                      totalWithBonus,
-                      commission.chatter.currency,
-                    )}
+                    {formatCurrency(totals.commission, totalsCurrency)}
                   </TableCell>
                 </TableRow>
-              )
-            })}
-          </TableBody>
-          <TableFooter>
-            <TableRow>
-              <TableCell colSpan={2} className="font-semibold">
-                Total
-              </TableCell>
-              <TableCell className="font-semibold hidden md:table-cell">
-                {formatCurrency(totals.earnings, totalsCurrency)}
-              </TableCell>
-              <TableCell></TableCell>
-              <TableCell className="font-semibold text-green-600 hidden md:table-cell">
-                {formatCurrency(totals.commission, totalsCurrency)}
-              </TableCell>
-              <TableCell className="font-semibold hidden md:table-cell">
-                {formatCurrency(totals.bonus, totalsCurrency)}
-              </TableCell>
-              <TableCell className="font-semibold">
-                {formatCurrency(totals.payout, totalsCurrency)}
-              </TableCell>
-            </TableRow>
-          </TableFooter>
-        </Table>
+              </TableFooter>
+            </Table>
 
-        {!dateFilterActive && pageCount > 1 && totalCount > 0 && (
-          <Pagination className="pt-4">
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious
-                  href="#"
-                  onClick={(event) => {
-                    event.preventDefault()
-                    setPage((current) => Math.max(1, current - 1))
-                  }}
-                />
-              </PaginationItem>
-              {paginationNumbers.map((paginationItem, index) => (
-                <PaginationItem key={`${paginationItem}-${index}`}>
-                  {paginationItem === "ellipsis" ? (
-                    <PaginationEllipsis />
-                  ) : (
-                    <PaginationLink
+            {!dateFilterActive && pageCount > 1 && totalCount > 0 && (
+              <Pagination className="pt-4">
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
                       href="#"
-                      isActive={page === paginationItem}
                       onClick={(event) => {
                         event.preventDefault()
-                        setPage(paginationItem as number)
+                        setPage((current) => Math.max(1, current - 1))
                       }}
-                    >
-                      {paginationItem}
-                    </PaginationLink>
-                  )}
-                </PaginationItem>
-              ))}
-              <PaginationItem>
-                <PaginationNext
-                  href="#"
-                  onClick={(event) => {
-                    event.preventDefault()
-                    setPage((current) => Math.min(pageCount, current + 1))
-                  }}
-                />
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
-        )}
+                    />
+                  </PaginationItem>
+                  {paginationNumbers.map((paginationItem, index) => (
+                    <PaginationItem key={`${paginationItem}-${index}`}>
+                      {paginationItem === "ellipsis" ? (
+                        <PaginationEllipsis />
+                      ) : (
+                        <PaginationLink
+                          href="#"
+                          isActive={page === paginationItem}
+                          onClick={(event) => {
+                            event.preventDefault()
+                            setPage(paginationItem as number)
+                          }}
+                        >
+                          {paginationItem}
+                        </PaginationLink>
+                      )}
+                    </PaginationItem>
+                  ))}
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      onClick={(event) => {
+                        event.preventDefault()
+                        setPage((current) => Math.min(pageCount, current + 1))
+                      }}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            )}
 
-        {commissions.length === 0 && (
-          <div className="py-8 text-center text-muted-foreground">
-            <Calculator className="mx-auto mb-4 h-12 w-12 opacity-50" />
-            <p>No commissions available yet.</p>
-            <p className="text-sm">
-              Commissions will appear automatically once they are generated.
-            </p>
-          </div>
-        )}
-
+            {commissions.length === 0 && (
+              <div className="py-8 text-center text-muted-foreground">
+                <Calculator className="mx-auto mb-4 h-12 w-12 opacity-50" />
+                <p>No commissions available yet.</p>
+                <p className="text-sm">
+                  Commissions will appear automatically once they are generated.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
         {/* Monthly / weekly bonus awards */}
-        <div className="mt-8">
-          <Card>
+        <div className="lg:mt-0">
+          <Card className="w-full">
             <CardHeader>
               <CardTitle>Monthly & weekly bonus awards</CardTitle>
-              <CardDescription>Bonuses sourced from the bonus_awards feed (targets, contests, etc.).</CardDescription>
+              <CardDescription>
+                Bonuses sourced from the bonus_awards feed (targets, contests, etc.).
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
@@ -814,26 +896,24 @@ export function CommissionCalculator() {
                   <TableRow>
                     <TableHead>Date</TableHead>
                     <TableHead>Chatter</TableHead>
-                    <TableHead>Rule</TableHead>
                     <TableHead>Bonus</TableHead>
-                    <TableHead>Reason</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {bonusAwards.map((award) => {
+                  {pagedBonusAwards.map((award) => {
                     const chatterName =
-                      chatters.find((c) => c.id === award.workerId)?.full_name || "";
+                      chatters.find((c) => c.id === award.workerId)?.full_name || ""
                     const currency =
-                      chatters.find((c) => c.id === award.workerId)?.currency || award.currency || "EUR";
+                      chatters.find((c) => c.id === award.workerId)?.currency ||
+                      award.currency ||
+                      "EUR"
                     return (
                       <TableRow key={award.id}>
                         <TableCell>{formatCommissionDate(award.awardedAt)}</TableCell>
                         <TableCell>{chatterName}</TableCell>
-                        <TableCell>{award.ruleName ?? award.ruleId ?? ""}</TableCell>
                         <TableCell>
                           {formatCurrency((award.bonusAmountCents ?? 0) / 100, currency)}
                         </TableCell>
-                        <TableCell>{award.reason || ""}</TableCell>
                       </TableRow>
                     )
                   })}
@@ -848,10 +928,52 @@ export function CommissionCalculator() {
                   )}
                 </TableBody>
               </Table>
+              {bonusAwards.length > 0 && awardPageCount > 1 && (
+                <Pagination className="pt-4">
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        href="#"
+                        onClick={(event) => {
+                          event.preventDefault()
+                          setAwardPage((current) => Math.max(1, current - 1))
+                        }}
+                      />
+                    </PaginationItem>
+                    {awardPaginationNumbers.map((paginationItem, index) => (
+                      <PaginationItem key={`${paginationItem}-${index}`}>
+                        {paginationItem === "ellipsis" ? (
+                          <PaginationEllipsis />
+                        ) : (
+                          <PaginationLink
+                            href="#"
+                            isActive={awardPage === paginationItem}
+                            onClick={(event) => {
+                              event.preventDefault()
+                              setAwardPage(paginationItem as number)
+                            }}
+                          >
+                            {paginationItem}
+                          </PaginationLink>
+                        )}
+                      </PaginationItem>
+                    ))}
+                    <PaginationItem>
+                      <PaginationNext
+                        href="#"
+                        onClick={(event) => {
+                          event.preventDefault()
+                          setAwardPage((current) => Math.min(awardPageCount, current + 1))
+                        }}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              )}
             </CardContent>
           </Card>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   )
 }

@@ -60,6 +60,8 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
     const [platformFee, setPlatformFee] = useState(20)
     const [adjustments, setAdjustments] = useState<number[]>([])
     const [hoveredBar, setHoveredBar] = useState<number | null>(null)
+    const [awardCostsByDate, setAwardCostsByDate] = useState<Record<string, number>>({})
+    const [awardTotal, setAwardTotal] = useState(0)
     const userTimezone = useMemo(() => getUserTimezone(), [])
 
     const readMoney = (entry: any, keys: string[], fallback = 0) => {
@@ -76,8 +78,17 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
     useEffect(() => {
         const fetchRevenue = async () => {
             try {
-                const data = await api.getRevenueEarnings({from: monthStart, to: monthEnd})
-                const formatted = (data || []).map((e: any) => ({
+                const [earningsData, awardsResponse] = await Promise.all([
+                    api.getRevenueEarnings({from: monthStart, to: monthEnd}),
+                    api.getBonusAwards({
+                        from: monthStart,
+                        to: monthEnd,
+                        limit: 500,
+                        offset: 0,
+                    }),
+                ])
+
+                const formatted = (earningsData || []).map((e: any) => ({
                     id: String(e.id),
                     date: e.date || e.created_at,
                     amount: readMoney(e, ["amount_cents", "amount"], 0),
@@ -87,18 +98,67 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
                     chatterCommissionRate: Number(
                         e.chatterCommissionRate ?? e.chatter_commission_rate ?? 0,
                     ),
-                    chatterBonusAmount: readMoney(e, [
-                        "chatterBonusCents",
-                        "chatter_bonus_cents",
-                        "bonusAmountCents",
-                        "bonus_amount_cents",
-                        "chatterBonusAmount",
-                        "chatter_bonus_amount",
-                        "bonusAmount",
-                        "bonus_amount",
-                    ], 0),
+                    chatterBonusAmount: readMoney(
+                        e,
+                        [
+                            "chatterBonusCents",
+                            "chatter_bonus_cents",
+                            "bonusAmountCents",
+                            "bonus_amount_cents",
+                            "chatterBonusAmount",
+                            "chatter_bonus_amount",
+                            "bonusAmount",
+                            "bonus_amount",
+                        ],
+                        0,
+                    ),
                 }))
                 setEntries(formatted)
+
+                const awardRows = Array.isArray(awardsResponse)
+                    ? awardsResponse
+                    : awardsResponse?.data ?? []
+                const normalizedAwards = awardRows.map((row: any) => ({
+                    date: row.awardedAt ?? row.createdAt ?? row.created_at ?? row.date,
+                    amount: readMoney(
+                        row,
+                        [
+                            "bonusAmountCents",
+                            "bonus_amount_cents",
+                            "amountCents",
+                            "amount_cents",
+                        ],
+                        0,
+                    ),
+                }))
+
+                const byDate: Record<string, number> = {}
+                normalizedAwards.forEach((award) => {
+                    const dateKey = (award.date || "").toString().slice(0, 10)
+                    if (!dateKey) return
+                    byDate[dateKey] = (byDate[dateKey] || 0) + (award.amount || 0)
+                })
+                setAwardCostsByDate(byDate)
+
+                const metaTotals =
+                    (Array.isArray(awardsResponse) ? undefined : awardsResponse?.meta?.totals) ||
+                    (Array.isArray(awardsResponse) ? undefined : awardsResponse?.totals) ||
+                    {}
+                const awardTotalFromMeta = readMoney(metaTotals, [
+                    "bonusAmountCents",
+                    "bonus_amount_cents",
+                    "totalCents",
+                    "total_cents",
+                ])
+                const awardTotalFallback = normalizedAwards.reduce(
+                    (sum, a) => sum + (a.amount || 0),
+                    0,
+                )
+                setAwardTotal(
+                    Number.isFinite(awardTotalFromMeta) && awardTotalFromMeta !== 0
+                        ? awardTotalFromMeta
+                        : awardTotalFallback,
+                )
             } catch (err) {
                 console.error("Failed to load revenue earnings:", err)
             } finally {
@@ -149,6 +209,7 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
             const dayEntries = monthlyEntries.filter((e) =>
                 e.date.startsWith(fullDate),
             )
+            const awardBonus = awardCostsByDate[fullDate] || 0
             const revenue = dayEntries.reduce((sum, e) => {
                 const amount = Number(e.amount)
                 const net = amount * (1 - platformFee / 100)
@@ -156,13 +217,13 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
                 const cComm = net * (e.chatterCommissionRate / 100)
                 const cBonus = Number(e.chatterBonusAmount) || 0
                 return sum + (net - mComm - cComm - cBonus)
-            }, 0)
-            return {day, revenue, fullDate, entries: dayEntries}
+            }, 0) - awardBonus
+            return {day, revenue, fullDate, entries: dayEntries, awardBonus}
         })
-    }, [monthlyEntries, daysInMonth, year, month, platformFee])
+    }, [monthlyEntries, daysInMonth, year, month, platformFee, awardCostsByDate])
 
     const monthTotals = useMemo(() => {
-        return monthlyEntries.reduce(
+        const aggregated = monthlyEntries.reduce(
             (acc, e) => {
                 const amount = Number(e.amount)
                 const net = amount * (1 - platformFee / 100)
@@ -186,13 +247,18 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
                 chatterBonus: 0,
             },
         )
-    }, [monthlyEntries, platformFee])
+        return {
+            ...aggregated,
+            awardBonus: awardTotal,
+        }
+    }, [monthlyEntries, platformFee, awardTotal])
 
     const companyRevenue =
         monthTotals.afterPlatform -
         monthTotals.modelCommission -
         monthTotals.chatterCommission -
-        monthTotals.chatterBonus
+        monthTotals.chatterBonus -
+        (monthTotals as any).awardBonus
     const adjustmentsTotal = adjustments.reduce(
         (sum, val) => sum + (val || 0),
         0,
@@ -208,6 +274,7 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
         : []
 
     const dayTotals = useMemo(() => {
+        const awardBonus = selectedDate ? awardCostsByDate[selectedDate] || 0 : 0
         // 1) Aggregate raw day sums
         const sums = selectedEntries.reduce(
             (acc, e) => {
@@ -236,13 +303,15 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
                 chatterBonus: 0,
             }
         );
+        sums.awardBonus = awardBonus;
 
         // 2) Derived fields
         const companyRevenue =
             sums.afterPlatform -
             sums.modelCommission -
             sums.chatterCommission -
-            sums.chatterBonus;
+            sums.chatterBonus -
+            sums.awardBonus;
 
         // If you have per-day adjustments:
         // const dayAdjustmentsTotal =
@@ -261,14 +330,16 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
             finalRevenue,
             profitMargin,        // e.g. 23.45 (percent)
             dayAdjustmentsTotal, // included for completeness
+            awardBonus: sums.awardBonus,
         };
-    }, [selectedEntries, platformFee /*, adjustmentsByDate, selectedDate */]);
+    }, [selectedEntries, platformFee, selectedDate, awardCostsByDate /*, adjustmentsByDate */]);
 
     const dayCompanyRevenue =
         dayTotals.afterPlatform -
         dayTotals.modelCommission -
         dayTotals.chatterCommission -
-        dayTotals.chatterBonus
+        dayTotals.chatterBonus -
+        dayTotals.awardBonus
 
     const formatCurrency = (amount: number) =>
         new Intl.NumberFormat("nl-NL", {
@@ -403,7 +474,7 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
                             </div>
                             <div className="flex justify-between">
                                 <span>Chatter bonuses</span>
-                                <span>-{formatCurrency(dayTotals.chatterBonus)}</span>
+                                <span>-{formatCurrency(dayTotals.chatterBonus + (dayTotals.awardBonus || 0))}</span>
                             </div>
                             <div className="flex justify-between font-medium">
                                 <span>Company profit</span>
@@ -480,7 +551,7 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
                             </div>
                             <div className="flex justify-between">
                                 <span>Chatter bonuses</span>
-                                <span>-{formatCurrency(monthTotals.chatterBonus)}</span>
+                                <span>-{formatCurrency(monthTotals.chatterBonus + ((monthTotals as any).awardBonus || 0))}</span>
                             </div>
                             {adjustmentsTotal !== 0 && (
                                 <div className="flex justify-between">
