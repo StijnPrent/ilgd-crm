@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Switch } from "@/components/ui/switch"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { formatUserDate, formatUserDateTime, formatUserTime } from "@/lib/timezone"
 
 const normalizeDate = (date: Date) => {
     const normalized = new Date(date)
@@ -481,7 +482,11 @@ export function ShiftManager() {
             await api.updateShift(shiftId, { status: newStatus })
             const shiftDate = targetShift.date
             if (shiftDate) {
-                await loadWeek(new Date(`${shiftDate}T00:00:00`), { force: true, silent: true })
+                // Clear cached weeks so a forced reload picks up the change everywhere.
+                loadedRangeKeysRef.current.clear()
+                await loadWeek(new Date(`${shiftDate}T00:00:00`), { force: true, silent: false })
+                // Also refresh the currently viewed week in case it's different.
+                await loadWeek(currentWeek, { force: true, silent: true })
             }
         } catch (error) {
             console.error("Error updating shift status:", error)
@@ -615,16 +620,14 @@ export function ShiftManager() {
         }
     }
 
-    const formatDateTime = (dateTime: string) => {
-        return new Date(dateTime).toLocaleString("nl-NL", {
+    const formatDateTime = (dateTime: string) =>
+        formatUserDateTime(dateTime, {
             weekday: "short",
             month: "short",
             day: "numeric",
             hour: "2-digit",
             minute: "2-digit",
-            timeZone: "Europe/Amsterdam",
         })
-    }
 
     const getStatusBadge = (status: string) => {
         switch (status) {
@@ -703,8 +706,8 @@ export function ShiftManager() {
                                 <ChevronLeft className="h-4 w-4" />
                             </Button>
                             <span className="text-sm font-medium min-w-[120px] text-center">
-                Week {weekDays[0].toLocaleDateString("nl-NL", { day: "numeric", month: "short" })} -{" "}
-                                {weekDays[6].toLocaleDateString("nl-NL", { day: "numeric", month: "short" })}
+                Week {formatUserDate(weekDays[0], {day: "numeric", month: "short"})} -{" "}
+                                {formatUserDate(weekDays[6], {day: "numeric", month: "short"})}
               </span>
                             <Button variant="outline" size="sm" onClick={() => navigateWeek("next")}>
                                 <ChevronRight className="h-4 w-4" />
@@ -721,10 +724,10 @@ export function ShiftManager() {
                                 </Button>
                                 <div className="text-center">
                                     <div className="text-sm font-medium">
-                                        {selectedDate.toLocaleDateString("nl-NL", { weekday: "long" })}
+                                        {formatUserDate(selectedDate, {weekday: "long"})}
                                     </div>
                                     <div className="text-xs text-muted-foreground">
-                                        {selectedDate.toLocaleDateString("nl-NL", {
+                                        {formatUserDate(selectedDate, {
                                             day: "numeric",
                                             month: "long",
                                             year: "numeric",
@@ -746,15 +749,13 @@ export function ShiftManager() {
                                         <div className="flex items-center justify-between gap-2">
                                             <span className="font-semibold truncate">{shift.chatter.full_name}</span>
                                             <span className="text-xs">
-                                                {new Date(shift.start_time).toLocaleTimeString("nl-NL", {
+                                                {formatUserTime(shift.start_time, {
                                                     hour: "2-digit",
                                                     minute: "2-digit",
-                                                    timeZone: "Europe/Amsterdam",
                                                 })}{" "}-{" "}
-                                                {new Date(shift.end_time).toLocaleTimeString("nl-NL", {
+                                                {formatUserTime(shift.end_time, {
                                                     hour: "2-digit",
                                                     minute: "2-digit",
-                                                    timeZone: "Europe/Amsterdam",
                                                 })}
                                             </span>
                                         </div>
@@ -807,16 +808,14 @@ export function ShiftManager() {
                                                 >
                                                     <div className="font-medium truncate">{shift.chatter.full_name}</div>
                                                     <div className="text-xs opacity-75">
-                                                        {new Date(shift.start_time).toLocaleTimeString("nl-NL", {
+                                                        {formatUserTime(shift.start_time, {
                                                             hour: "2-digit",
                                                             minute: "2-digit",
-                                                            timeZone: "Europe/Amsterdam",
                                                         })}{" "}
                                                         -{" "}
-                                                        {new Date(shift.end_time).toLocaleTimeString("nl-NL", {
+                                                        {formatUserTime(shift.end_time, {
                                                             hour: "2-digit",
                                                             minute: "2-digit",
-                                                            timeZone: "Europe/Amsterdam",
                                                         })}
                                                     </div>
                                                     <button
@@ -1088,7 +1087,7 @@ export function ShiftManager() {
                                                 required={newShift.repeatWeekly}
                                             />
                                             <p className="mt-1 text-xs text-muted-foreground">
-                                                Inclusief deze week. Geef aan voor hoeveel opeenvolgende weken de shift wordt ingepland.
+                                                Including this week. Specify how many consecutive weeks the shift is scheduled.
                                             </p>
                                         </div>
                                     )}
@@ -1340,7 +1339,7 @@ export function ShiftManager() {
                                             !editShiftValues.end_minute
                                         }
                                     >
-                                        Shift Opslaan
+                                        Save Shift
                                     </Button>
                                 </form>
                             </DialogContent>

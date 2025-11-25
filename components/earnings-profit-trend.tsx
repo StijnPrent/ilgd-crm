@@ -8,6 +8,7 @@ import {ToggleGroup, ToggleGroupItem} from "@/components/ui/toggle-group"
 import {Skeleton} from "@/components/ui/skeleton"
 import {ChartContainer, ChartTooltip, ChartTooltipContent} from "@/components/ui/chart"
 import {api} from "@/lib/api"
+import {formatUserDate} from "@/lib/timezone"
 
 const RANGE_OPTIONS = [
     {label: "Week", value: "week"},
@@ -134,8 +135,8 @@ const buildBuckets = (info: RangeInfo): ChartPoint[] => {
             const key = formatMonthKey(current)
             buckets.push({
                 key,
-                label: current.toLocaleDateString("nl-NL", {month: "short"}),
-                tooltipLabel: current.toLocaleDateString("nl-NL", {month: "long", year: "numeric"}),
+                label: formatUserDate(current, {month: "short"}),
+                tooltipLabel: formatUserDate(current, {month: "long", year: "numeric"}),
                 earnings: 0,
                 profit: 0,
             })
@@ -149,15 +150,15 @@ const buildBuckets = (info: RangeInfo): ChartPoint[] => {
         const key = formatDateKey(current)
         buckets.push({
             key,
-            label:
-                info.range === "week"
-                    ? current.toLocaleDateString("nl-NL", {weekday: "short"})
-                    : current.toLocaleDateString("nl-NL", {day: "numeric"}),
-            tooltipLabel: current.toLocaleDateString("nl-NL", {
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-            }),
+                label:
+                    info.range === "week"
+                        ? formatUserDate(current, {weekday: "short"})
+                        : formatUserDate(current, {day: "numeric"}),
+                tooltipLabel: formatUserDate(current, {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                }),
             earnings: 0,
             profit: 0,
         })
@@ -199,20 +200,20 @@ export function EarningsProfitTrend({monthStart, monthEnd, monthLabel}: Earnings
             const startDate = rangeInfo.start
             const endDate = rangeInfo.end
             const sameYear = startDate.getFullYear() === endDate.getFullYear()
-            const startLabel = startDate.toLocaleDateString("nl-NL", {
+            const startLabel = formatUserDate(startDate, {
                 month: "short",
                 ...(sameYear ? {} : {year: "numeric"}),
             })
-            const endLabel = endDate.toLocaleDateString("nl-NL", {month: "short", year: "numeric"})
+            const endLabel = formatUserDate(endDate, {month: "short", year: "numeric"})
             return `${startLabel} – ${endLabel}`
         }
         const sameYear = rangeInfo.start.getFullYear() === rangeInfo.end.getFullYear()
-        const startLabel = rangeInfo.start.toLocaleDateString("nl-NL", {
+        const startLabel = formatUserDate(rangeInfo.start, {
             day: "numeric",
             month: "short",
             ...(sameYear ? {} : {year: "numeric"}),
         })
-        const endLabel = rangeInfo.end.toLocaleDateString("nl-NL", {day: "numeric", month: "short", year: "numeric"})
+        const endLabel = formatUserDate(rangeInfo.end, {day: "numeric", month: "short", year: "numeric"})
         if (startLabel === endLabel) return startLabel
         return `${startLabel} – ${endLabel}`
     }, [rangeInfo])

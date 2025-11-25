@@ -56,6 +56,7 @@ import {
     ChartTooltipContent,
 } from "@/components/ui/chart"
 import {api} from "@/lib/api"
+import {formatUserDate, formatUserTime, getStartOfDayInTimezone, getUserTimezone} from "@/lib/timezone"
 import {
     Select,
     SelectContent,
@@ -153,7 +154,7 @@ const buildShiftLabel = (
     const end = shift.endTime ? new Date(shift.endTime) : null
 
     const dateLabel = start
-        ? start.toLocaleDateString("nl-NL", {
+        ? formatUserDate(start, {
             month: "short",
             day: "numeric",
         })
@@ -162,12 +163,12 @@ const buildShiftLabel = (
     const timeParts: string[] = []
     if (start) {
         timeParts.push(
-            start.toLocaleTimeString("nl-NL", {hour: "2-digit", minute: "2-digit"}),
+            formatUserTime(start, {hour: "2-digit", minute: "2-digit"}),
         )
     }
     if (end) {
         timeParts.push(
-            end.toLocaleTimeString("nl-NL", {hour: "2-digit", minute: "2-digit"}),
+            formatUserTime(end, {hour: "2-digit", minute: "2-digit"}),
         )
     }
     const timeLabel = timeParts.join(" - ")
@@ -187,6 +188,7 @@ interface EarningsOverviewProps {
 interface EarningsData {
     id: string
     date: string
+    localDateKey: string
     amount: number
     description: string | null
     type: string
@@ -259,12 +261,41 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
     )
     const rangeStart = monthStart ?? derivedMonthStart
     const rangeEnd = monthEnd ?? derivedMonthEnd
-    const headerMonthLabel = monthLabelProp ?? baseMonthDate.toLocaleDateString("nl-NL", {
+    const headerMonthLabel = monthLabelProp ?? formatUserDate(baseMonthDate, {
         month: "long",
-        year: "numeric"
+        year: "numeric",
     })
     const year = baseMonthDate.getFullYear()
     const month = baseMonthDate.getMonth()
+
+    const userTimezone = useMemo(() => getUserTimezone(), [])
+
+    const dateKeyFormatter = useMemo(
+        () =>
+            new Intl.DateTimeFormat("en-CA", {
+                timeZone: userTimezone,
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+            }),
+        [userTimezone],
+    )
+
+    const selectedDateRange = useMemo(() => {
+        if (!selectedDate) return null
+        const parsed = new Date(selectedDate)
+        if (Number.isNaN(parsed.getTime())) return null
+        const startUtc = getStartOfDayInTimezone(parsed, userTimezone)
+        const nextDay = new Date(parsed)
+        nextDay.setUTCDate(nextDay.getUTCDate() + 1)
+        const nextDayStartUtc = getStartOfDayInTimezone(nextDay, userTimezone)
+        const endUtc = new Date(nextDayStartUtc.getTime() - 1)
+
+        return {
+            from: startUtc.toISOString(),
+            to: endUtc.toISOString(),
+        }
+    }, [selectedDate, userTimezone])
 
     const mapEarning = useCallback(
         (earning: any): EarningsData => {
@@ -279,9 +310,20 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
             const shiftId = earning.shiftId ? String(earning.shiftId) : null
             const shiftLabel = shiftId ? shiftMap.get(shiftId) ?? "" : ""
 
+            let localDateKey = ""
+            if (earning?.date) {
+                const parsed = new Date(earning.date)
+                if (!Number.isNaN(parsed.getTime())) {
+                    localDateKey = dateKeyFormatter.format(parsed)
+                } else if (typeof earning.date === "string") {
+                    localDateKey = earning.date.slice(0, 10)
+                }
+            }
+
             return {
                 id: String(earning.id),
                 date: earning.date,
+                localDateKey,
                 amount: Number(earning.amount),
                 description: earning.description,
                 type: earning.type,
@@ -293,7 +335,7 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                 shift: shiftId && shiftLabel ? {label: shiftLabel} : null,
             } as EarningsData
         },
-        [chatterMap, modelMap, shiftMap],
+        [chatterMap, dateKeyFormatter, modelMap, shiftMap],
     )
 
     const earnings = useMemo(
@@ -304,6 +346,49 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
         () => rawMonthlyEarnings.map(mapEarning),
         [rawMonthlyEarnings, mapEarning],
     )
+
+    const dedupeItems = useCallback((items: any[]) => {
+        const seen = new Set<string>()
+        return items.filter((item) => {
+            const key = [
+                item.id ?? item.earningId ?? item.earning_id ?? "no-id",
+                item.date ?? "",
+                item.amount ?? "",
+                item.type ?? "",
+            ].join("|")
+            if (seen.has(key)) return false
+            seen.add(key)
+            return true
+        })
+    }, [])
+
+    const visibleEarnings = useMemo(() => {
+        const scoped = selectedDate
+            ? earnings.filter((entry) => entry.localDateKey === selectedDate)
+            : earnings
+
+        // Guard against occasional duplicate rows returned by the API when a single day is selected.
+        const deduped: EarningsData[] = []
+        const seenKeys = new Set<string>()
+        for (const entry of scoped) {
+            const key = [
+                entry.id ?? "no-id",
+                entry.date ?? entry.localDateKey ?? "",
+                entry.amount ?? "",
+                entry.type ?? "",
+            ].join("|")
+            if (seenKeys.has(key)) continue
+            seenKeys.add(key)
+            deduped.push(entry)
+        }
+        return deduped
+    }, [earnings, selectedDate])
+
+    const pagedEarnings = useMemo(() => {
+        if (!selectedDate) return visibleEarnings
+        const start = (page - 1) * pageSize
+        return visibleEarnings.slice(start, start + pageSize)
+    }, [page, pageSize, selectedDate, visibleEarnings])
 
     const itemOptions = useMemo(() => {
         const unique = new Set<string>(DEFAULT_ITEM_TYPES)
@@ -434,19 +519,22 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
             if (filters.items.length > 0) {
                 params.types = filters.items
             }
-            if (options?.includeDate && selectedDate) {
-                params.date = selectedDate
-            }
-            if (rangeStart) {
-                params.from = rangeStart
-            }
-            if (rangeEnd) {
-                params.to = rangeEnd
+            const includeSelectedDate = options?.includeDate && selectedDateRange
+            if (includeSelectedDate && selectedDateRange) {
+                params.from = selectedDateRange.from
+                params.to = selectedDateRange.to
+            } else {
+                if (rangeStart) {
+                    params.from = rangeStart
+                }
+                if (rangeEnd) {
+                    params.to = rangeEnd
+                }
             }
 
             return params
         },
-        [filters, rangeEnd, rangeStart, selectedDate],
+        [filters, rangeEnd, rangeStart, selectedDateRange],
     )
 
     const fetchChartData = useCallback(async () => {
@@ -476,7 +564,7 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                 ...buildQueryFilters(),
             })
             const monthData = items.filter((item: any) => item.date?.startsWith(monthKey))
-            setRawMonthlyEarnings(monthData)
+            setRawMonthlyEarnings(dedupeItems(monthData))
         } catch (error) {
             console.error("Error loading chart data:", error)
             setRawMonthlyEarnings([])
@@ -500,8 +588,21 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                 const listItems = Array.isArray(listResponse)
                     ? listResponse
                     : listResponse?.data || []
-                setRawTableEarnings(listItems)
+                setRawTableEarnings(dedupeItems(listItems))
                 setTotalCount(parseTotalCount(totalResponse))
+                return
+            }
+
+            // When a specific day is selected, fetch the full set for that day so the table and chart totals stay aligned.
+            if (selectedDateRange) {
+                const items = await api.getAllEmployeeEarnings({
+                    pageSize: 400,
+                    ...buildQueryFilters({includeDate: true}),
+                })
+                const listItems = Array.isArray(items) ? items : items?.data || []
+                const deduped = dedupeItems(listItems)
+                setRawTableEarnings(deduped)
+                setTotalCount(deduped.length)
                 return
             }
 
@@ -516,7 +617,7 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
             const listItems = Array.isArray(listResponse)
                 ? listResponse
                 : listResponse?.data || []
-            setRawTableEarnings(listItems)
+            setRawTableEarnings(dedupeItems(listItems))
             setTotalCount(parseTotalCount(totalResponse))
         } catch (error) {
             console.error("Error loading earnings:", error)
@@ -525,7 +626,7 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
         } finally {
             setTableLoading(false)
         }
-    }, [buildQueryFilters, isCompact, limit, page, pageSize])
+    }, [buildQueryFilters, isCompact, limit, page, pageSize, selectedDateRange])
 
     useEffect(() => {
         fetchTableData()
@@ -558,8 +659,8 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
         return Array.from({length: daysInMonth}, (_, index) => {
             const day = index + 1
             const fullDate = `${monthKey}-${String(day).padStart(2, "0")}`
-            const dayEntries = monthlyEarnings.filter((entry) =>
-                entry.date.startsWith(fullDate),
+            const dayEntries = monthlyEarnings.filter(
+                (entry) => entry.localDateKey === fullDate,
             )
             const total = dayEntries.reduce(
                 (sum, entry) => sum + Number(entry.amount ?? 0),
@@ -569,7 +670,10 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
         })
     }, [month, monthKey, monthlyEarnings, year])
 
-    const pageCount = Math.ceil(totalCount / pageSize)
+    const effectiveTotalCount = selectedDate
+        ? Math.max(totalCount, visibleEarnings.length)
+        : totalCount
+    const pageCount = Math.ceil(effectiveTotalCount / pageSize)
 
     const paginationNumbers = useMemo(() => {
         if (pageCount <= 5) {
@@ -712,7 +816,7 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
             )
         }
 
-        const limited = earnings.slice(0, limit)
+        const limited = visibleEarnings.slice(0, limit)
 
         return (
             <Card>
@@ -742,7 +846,7 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                                     <TableCell className="hidden md:table-cell">
                                         <div className="flex items-center gap-2">
                                             <Calendar className="h-4 w-4 text-muted-foreground"/>
-                                            {formatDate(earning.date)}
+                                            {formatDate(earning.localDateKey || earning.date)}
                                         </div>
                                     </TableCell>
                                     <TableCell className="hidden md:table-cell">
@@ -1095,7 +1199,7 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                 {selectedDate && (
                     <div className="flex items-center justify-between">
                         <h3 className="font-medium">
-                            {new Date(selectedDate).toLocaleDateString("nl-NL", {
+                            {formatUserDate(new Date(selectedDate), {
                                 weekday: "long",
                                 month: "long",
                                 day: "numeric",
@@ -1134,12 +1238,12 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            earnings.map((earning) => (
+                            pagedEarnings.map((earning) => (
                                 <TableRow key={earning.id}>
                                     <TableCell className="hidden md:table-cell">
                                         <div className="flex items-center gap-2">
                                             <Calendar className="h-4 w-4 text-muted-foreground"/>
-                                            {formatDate(earning.date)}
+                                            {formatDate(earning.localDateKey || earning.date)}
                                         </div>
                                     </TableCell>
                                     <TableCell className="hidden md:table-cell">
@@ -1215,7 +1319,7 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                     </TableBody>
                 </Table>
 
-                {!tableLoading && earnings.length === 0 && (
+                {!tableLoading && visibleEarnings.length === 0 && (
                     <div className="py-8 text-center text-muted-foreground">
                         <p>No earnings recorded yet.</p>
                         <p className="text-sm">

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Calendar, Clock, MoreHorizontal, RotateCcw, ArrowLeftRight } from "lucide-react"
 import { api } from "@/lib/api"
+import { formatUserDateTime, formatUserTime } from "@/lib/timezone"
 import { useToast } from "@/hooks/use-toast"
 
 interface EmployeeShiftsProps {
@@ -210,7 +211,7 @@ export function EmployeeShifts({ userId }: EmployeeShiftsProps) {
   }, [userId])
 
   const formatDateTime = (dateTime: string) =>
-    new Date(dateTime).toLocaleString("nl-NL", {
+    formatUserDateTime(dateTime, {
       weekday: "short",
       month: "short",
       day: "numeric",
@@ -291,8 +292,8 @@ export function EmployeeShifts({ userId }: EmployeeShiftsProps) {
     } catch (error) {
       console.error("Error submitting shift request:", error)
       toast({
-        title: "Verzoek kon niet worden verstuurd",
-        description: "Probeer het later opnieuw of neem contact op met je manager.",
+        title: "Request could not be sent",
+        description: "Please try again later or contact your manager.",
         variant: "destructive",
       })
     } finally {
@@ -409,7 +410,7 @@ export function EmployeeShifts({ userId }: EmployeeShiftsProps) {
                       {shift.end ? (
                         <>
                           Tot {" "}
-                          {new Date(shift.end).toLocaleTimeString("nl-NL", {
+                          {formatUserTime(shift.end, {
                             hour: "2-digit",
                             minute: "2-digit",
                           })}

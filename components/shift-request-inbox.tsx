@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 
 import { api } from "@/lib/api";
+import { formatUserDate, formatUserDateTime, formatUserTime } from "@/lib/timezone";
 import { useToast } from "@/hooks/use-toast";
 
 type ShiftAction = "cancel" | "trade";
@@ -113,7 +114,7 @@ const statusDescriptions: Record<
 const formatDateTime = (value?: string | null) => {
   if (!value) return "Onbekend";
   try {
-    return new Date(value).toLocaleString("nl-NL", {
+    return formatUserDateTime(value, {
       month: "short",
       day: "numeric",
       hour: "2-digit",
@@ -174,7 +175,7 @@ const formatShiftRange = (request: ShiftRequestItem) => {
   const endDate = request.shiftEnd ? new Date(request.shiftEnd) : null;
 
   const dayLine = startDate
-    ? startDate.toLocaleString("nl-NL", {
+    ? formatUserDate(startDate, {
         weekday: "short",
         day: "numeric",
         month: "short",
@@ -183,10 +184,10 @@ const formatShiftRange = (request: ShiftRequestItem) => {
 
   const timeLine =
     startDate && endDate
-      ? `${startDate.toLocaleTimeString("nl-NL", {
+      ? `${formatUserTime(startDate, {
           hour: "2-digit",
           minute: "2-digit",
-        })} – ${endDate.toLocaleTimeString("nl-NL", {
+        })} – ${formatUserTime(endDate, {
           hour: "2-digit",
           minute: "2-digit",
         })}`
@@ -298,7 +299,7 @@ export function ShiftRequestInbox() {
         console.error("Error loading shift requests:", error);
         toast({
           title: "Kan shiftverzoeken niet laden",
-          description: "Probeer het later opnieuw.",
+      description: "Please try again later.",
           variant: "destructive",
         });
       } finally {
@@ -385,9 +386,9 @@ export function ShiftRequestInbox() {
     } catch (error) {
       console.error("Error updating shift request:", error);
       toast({
-        title: "Bijwerken mislukt",
+    title: "Update failed",
         description:
-          "De status of notitie kon niet worden opgeslagen. Probeer het opnieuw.",
+      "The status or note could not be saved. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -415,7 +416,7 @@ export function ShiftRequestInbox() {
             <CardDescription>
               {statusFilter === "pending"
                 ? "Beheer de openstaande verzoeken van chatters."
-                : "Bekijk alle recente shiftverzoeken, inclusief afgehandelde items."}
+              : "View all recent shift requests, including resolved items."}
             </CardDescription>
           </div>
           <div className="flex w-full max-w-[240px] flex-col gap-2">
@@ -592,7 +593,7 @@ export function ShiftRequestInbox() {
                   }
                 >
                   <SelectTrigger id="status-select" className="w-full">
-                    <SelectValue placeholder="Kies status" />
+                    <SelectValue placeholder="Choose status" />
                   </SelectTrigger>
                   <SelectContent>
                     {statusOptions.map((option) => (
@@ -611,7 +612,7 @@ export function ShiftRequestInbox() {
                   {updatingId === selectedRequest.id ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : null}
-                  Opslaan
+                  Save
                 </Button>
               </DialogFooter>
             </div>

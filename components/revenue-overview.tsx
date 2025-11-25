@@ -29,6 +29,7 @@ import {
     ChartTooltipContent,
 } from "@/components/ui/chart"
 import {api} from "@/lib/api"
+import {formatUserDate, getDateInTimezone, getUserTimezone} from "@/lib/timezone"
 
 interface RevenueEntry {
     id: string
@@ -59,6 +60,18 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
     const [platformFee, setPlatformFee] = useState(20)
     const [adjustments, setAdjustments] = useState<number[]>([])
     const [hoveredBar, setHoveredBar] = useState<number | null>(null)
+    const userTimezone = useMemo(() => getUserTimezone(), [])
+
+    const readMoney = (entry: any, keys: string[], fallback = 0) => {
+        for (const key of keys) {
+            const raw = entry?.[key]
+            const num = Number(raw)
+            if (!Number.isFinite(num)) continue
+            const isCents = key.toLowerCase().includes("cent")
+            return isCents ? num / 100 : num
+        }
+        return fallback
+    }
 
     useEffect(() => {
         const fetchRevenue = async () => {
@@ -67,16 +80,23 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
                 const formatted = (data || []).map((e: any) => ({
                     id: String(e.id),
                     date: e.date || e.created_at,
-                    amount: Number(e.amount ?? 0),
+                    amount: readMoney(e, ["amount_cents", "amount"], 0),
                     modelCommissionRate: Number(
                         e.modelCommissionRate ?? e.model_commission_rate ?? 0,
                     ),
                     chatterCommissionRate: Number(
                         e.chatterCommissionRate ?? e.chatter_commission_rate ?? 0,
                     ),
-                    chatterBonusAmount: Number(
-                        e.chatterBonusAmount ?? e.chatter_bonus_amount ?? 0,
-                    ),
+                    chatterBonusAmount: readMoney(e, [
+                        "chatterBonusCents",
+                        "chatter_bonus_cents",
+                        "bonusAmountCents",
+                        "bonus_amount_cents",
+                        "chatterBonusAmount",
+                        "chatter_bonus_amount",
+                        "bonusAmount",
+                        "bonus_amount",
+                    ], 0),
                 }))
                 setEntries(formatted)
             } catch (err) {
@@ -88,12 +108,10 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
         fetchRevenue()
     }, [monthEnd, monthStart])
 
-    const TZ = "Europe/Amsterdam";
-
     const fallbackMonth = useMemo(() => {
-        const zonedNow = new Date(new Date().toLocaleString("en-US", {timeZone: TZ}))
+        const zonedNow = getDateInTimezone(new Date(), userTimezone) ?? new Date()
         return new Date(zonedNow.getFullYear(), zonedNow.getMonth(), 1)
-    }, [])
+    }, [userTimezone])
     const baseMonthDate = useMemo(() => {
         if (monthStart) {
             const [yearStr, monthStr] = monthStart.split("-")
@@ -111,7 +129,7 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
     const daysInMonth = new Date(year, month + 1, 0).getDate()
 
     const headerLabel = useMemo(
-        () => monthLabel ?? baseMonthDate.toLocaleDateString("nl-NL", {month: "long", year: "numeric"}),
+        () => monthLabel ?? formatUserDate(baseMonthDate, {month: "long", year: "numeric"}),
         [baseMonthDate, monthLabel],
     )
 
@@ -259,11 +277,15 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
         }).format(Number.isFinite(amount) ? amount : 0)
 
     const formatFullDate = (date: string) =>
-        new Date(date).toLocaleDateString("en-EN", {
-            weekday: "long",
-            month: "long",
-            day: "numeric",
-        })
+        formatUserDate(
+            new Date(date),
+            {
+                weekday: "long",
+                month: "long",
+                day: "numeric",
+            },
+            "en-EN",
+        )
 
     const addAdjustment = () => setAdjustments([...adjustments, 0])
     const updateAdjustment = (index: number, value: number) => {

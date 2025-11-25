@@ -1,6 +1,5 @@
 "use client"
 
-import type { KeyboardEvent } from "react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -29,6 +28,8 @@ import { Calendar, Calculator, Percent } from "lucide-react"
 import { format, endOfMonth, startOfMonth } from "date-fns"
 
 import { api } from "@/lib/api"
+import { formatUserDate } from "@/lib/timezone"
+import { Badge } from "@/components/ui/badge"
 
 type DatePreset =
   | "all"
@@ -70,20 +71,31 @@ interface ChatterOption {
 const PAGE_SIZE = 10
 const DATE_FORMAT = "yyyy-MM-dd"
 
-const formatCurrency = (amount: number, currency = "€") => {
-  const currencyCode = currency === "€" ? "EUR" : currency === "$" ? "USD" : currency
+const formatCurrency = (amount: number, currency = "EUR") => {
   const sanitizedAmount = Number.isFinite(amount) ? amount : 0
+  if (currency === "$") {
+    return new Intl.NumberFormat("nl-NL", {
+      style: "currency",
+      currency: "USD",
+    }).format(sanitizedAmount)
+  }
+  if (typeof currency === "string" && currency.trim().length === 3) {
+    const code = currency.trim().toUpperCase()
+    return new Intl.NumberFormat("nl-NL", {
+      style: "currency",
+      currency: code,
+    }).format(sanitizedAmount)
+  }
   return new Intl.NumberFormat("nl-NL", {
     style: "currency",
-    currency: currencyCode,
+    currency: "EUR",
   }).format(sanitizedAmount)
 }
-
 const formatCommissionDate = (value: string) => {
   if (!value) return "-"
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return "-"
-  return parsed.toLocaleDateString("nl-NL", {
+  return formatUserDate(parsed, {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -112,19 +124,15 @@ const parseTotalCount = (value: any, fallback = 0) => {
   return fallback
 }
 
-const parseBonusValue = (value: string | number | undefined) => {
-  if (value === undefined || value === "") return 0
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value : 0
+const coerceNumber = (value: unknown) => {
+  if (value === undefined || value === null) return 0
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0
+  if (typeof value === "string") {
+    const normalized = value.replace(",", ".")
+    const parsed = Number.parseFloat(normalized)
+    return Number.isFinite(parsed) ? parsed : 0
   }
-  const normalized = value.replace(",", ".")
-  const parsed = Number.parseFloat(normalized)
-  return Number.isNaN(parsed) ? 0 : parsed
-}
-
-const formatBonusValue = (value: number) => {
-  if (!Number.isFinite(value)) return "0.00"
-  return value.toFixed(2)
+  return 0
 }
 
 export function CommissionCalculator() {
@@ -134,11 +142,6 @@ export function CommissionCalculator() {
   const [selectedChatter, setSelectedChatter] = useState("all")
   const [page, setPage] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
-  const [bonusInputs, setBonusInputs] = useState<Record<string, string>>({})
-  const [bonusSaveState, setBonusSaveState] = useState<Record<
-    string,
-    "idle" | "saving" | "error"
-  >>({})
   const [fromDate, setFromDate] = useState<string | undefined>()
   const [toDate, setToDate] = useState<string | undefined>()
   const [datePreset, setDatePreset] = useState<DatePreset>("all")
@@ -148,6 +151,7 @@ export function CommissionCalculator() {
     bonus: 0,
     payout: 0,
   })
+  const [bonusAwards, setBonusAwards] = useState<any[]>([])
 
   const dateFilterActive = useMemo(
     () => Boolean(fromDate || toDate),
@@ -214,7 +218,7 @@ export function CommissionCalculator() {
           ch.full_name ||
           ch.name ||
           "",
-        currency: ch.currency || ch.currency_symbol || "€",
+        currency: ch.currency || ch.currency_symbol || "EUR",
       }))
 
       setChatters(chatterOptions)
@@ -234,12 +238,11 @@ export function CommissionCalculator() {
         const currency =
           chatterCurrency.get(chatterId) ||
           c.currency ||
-          c.currency_symbol ||
-          "€"
+          c.currency_symbol || "EUR"
         const commissionAmount = Number(
           c.commission ?? c.commission_amount ?? 0,
         )
-        const bonusAmount = parseBonusValue(
+        const bonusAmount = coerceNumber(
           c.bonus ?? c.bonusAmount ?? c.bonus_amount,
         )
         const totalPayoutRaw =
@@ -286,6 +289,33 @@ export function CommissionCalculator() {
 
       setCommissions(formatted)
 
+      // Load bonus awards for the same filter
+      try {
+        const awardsParams: any = {}
+        if (selectedChatter !== "all") awardsParams.workerId = selectedChatter
+        if (fromDate) awardsParams.from = fromDate
+        if (toDate) awardsParams.to = toDate
+        awardsParams.limit = 500
+        const awardsResponse = await api.getBonusAwards(awardsParams)
+        const awardRows = Array.isArray(awardsResponse)
+          ? awardsResponse
+          : awardsResponse?.data ?? []
+        const normalizedAwards = awardRows.map((row: any) => ({
+          id: String(row.id),
+          workerId: String(row.workerId ?? row.worker_id ?? ""),
+          ruleId: row.ruleId,
+          ruleName: row.ruleName ?? row.rule?.name,
+          bonusAmountCents:
+            row.bonusAmountCents ?? row.bonus_amount_cents ?? row.amountCents ?? row.amount_cents,
+          currency: row.currency ?? "EUR",
+          awardedAt: row.awardedAt ?? row.createdAt ?? row.created_at,
+          reason: row.reason ?? "",
+        }))
+        setBonusAwards(normalizedAwards)
+      } catch (e) {
+        setBonusAwards([])
+      }
+
       const totalsFromResponse = Array.isArray(commissionsResponse)
         ? undefined
         : commissionsResponse?.totals || commissionsResponse?.summary
@@ -321,7 +351,11 @@ export function CommissionCalculator() {
             acc.earnings += item.total_earnings || 0
             acc.commission += item.commission_amount || 0
             acc.bonus += item.bonus_amount || 0
-            acc.payout += (item.commission_amount || 0) + (item.bonus_amount || 0)
+            const derivedPayout =
+              typeof item.total_payout === "number" && Number.isFinite(item.total_payout)
+                ? item.total_payout
+                : (item.commission_amount || 0) + (item.bonus_amount || 0)
+            acc.payout += derivedPayout
             return acc
           },
           { earnings: 0, commission: 0, bonus: 0, payout: 0 },
@@ -352,20 +386,9 @@ export function CommissionCalculator() {
         setTotalCount(derivedTotal)
       }
 
-      const initialBonusInputs = formatted.reduce(
-        (acc, commission) => {
-          acc[commission.id] = formatBonusValue(commission.bonus_amount)
-          return acc
-        },
-        {} as Record<string, string>,
-      )
-      setBonusInputs(initialBonusInputs)
-      setBonusSaveState({})
     } catch (error) {
       console.error("Error fetching commissions:", error)
       setCommissions([])
-      setBonusInputs({})
-      setBonusSaveState({})
       setTotalCount(0)
       setTotals({ earnings: 0, commission: 0, bonus: 0, payout: 0 })
     } finally {
@@ -493,7 +516,7 @@ export function CommissionCalculator() {
       )?.currency
       if (chatterCurrency) return chatterCurrency
     }
-    return "€"
+    return "EUR"
   }, [chatters, commissions, selectedChatter])
 
   const paginationNumbers = useMemo(() => {
@@ -518,91 +541,6 @@ export function CommissionCalculator() {
 
     return [1, "ellipsis", page - 1, page, page + 1, "ellipsis", pageCount]
   }, [page, pageCount])
-
-  const handleBonusInputChange = (id: string, value: string) => {
-    setBonusInputs((prev) => ({ ...prev, [id]: value }))
-    setBonusSaveState((prev) => {
-      if (prev[id] && prev[id] !== "idle") {
-        return { ...prev, [id]: "idle" }
-      }
-      return prev
-    })
-  }
-
-  const handleBonusBlur = async (commission: Commission) => {
-    const rawValue =
-      bonusInputs[commission.id] ?? formatBonusValue(commission.bonus_amount)
-    const parsedValue = parseBonusValue(rawValue)
-    const normalizedValue = formatBonusValue(parsedValue)
-
-    setBonusInputs((prev) => ({ ...prev, [commission.id]: normalizedValue }))
-
-    const currentBonus = commission.bonus_amount ?? 0
-    if (Math.abs(parsedValue - currentBonus) < 0.005) {
-      return
-    }
-
-    setBonusSaveState((prev) => ({ ...prev, [commission.id]: "saving" }))
-
-    try {
-      const payload = {
-        bonus: parsedValue,
-        totalPayout: (commission.commission_amount || 0) + parsedValue,
-      }
-      const updated = await api.updateCommission(commission.id, payload)
-      const bonusFromResponse =
-        updated?.bonus ?? updated?.bonusAmount ?? updated?.bonus_amount
-
-      const bonusToApply =
-        bonusFromResponse !== undefined
-          ? parseBonusValue(bonusFromResponse)
-          : parsedValue
-
-      setCommissions((prev) =>
-        prev.map((item) => {
-          if (item.id !== commission.id) return item
-          const baseCommission = item.commission_amount || 0
-          const total = baseCommission + bonusToApply
-          return {
-            ...item,
-            bonus_amount: bonusToApply,
-            total_payout: total,
-          }
-        }),
-      )
-
-      setBonusInputs((prev) => ({
-        ...prev,
-        [commission.id]: formatBonusValue(bonusToApply),
-      }))
-
-      setBonusSaveState((prev) => ({ ...prev, [commission.id]: "idle" }))
-    } catch (error) {
-      console.error("Error updating commission bonus:", error)
-      setBonusSaveState((prev) => ({ ...prev, [commission.id]: "error" }))
-      setBonusInputs((prev) => ({
-        ...prev,
-        [commission.id]: formatBonusValue(commission.bonus_amount ?? 0),
-      }))
-    }
-  }
-
-  const handleBonusKeyDown = (
-    event: KeyboardEvent<HTMLInputElement>,
-    commission: Commission,
-  ) => {
-    if (event.key === "Enter") {
-      event.preventDefault()
-      ;(event.currentTarget as HTMLInputElement).blur()
-    }
-    if (event.key === "Escape") {
-      event.preventDefault()
-      setBonusInputs((prev) => ({
-        ...prev,
-        [commission.id]: formatBonusValue(commission.bonus_amount ?? 0),
-      }))
-    }
-  }
 
   if (loading) {
     return (
@@ -629,8 +567,7 @@ export function CommissionCalculator() {
                 Commissions
               </CardTitle>
               <CardDescription>
-                Review generated commissions, adjust bonuses, and export totals for
-                the selected period.
+                Review generated commissions and automatic bonuses for the selected period.
               </CardDescription>
             </div>
           </div>
@@ -734,13 +671,14 @@ export function CommissionCalculator() {
           </TableHeader>
           <TableBody>
             {commissions.map((commission) => {
-              const bonusValue =
-                bonusInputs[commission.id] ??
-                formatBonusValue(commission.bonus_amount)
-              const bonusNumber = parseBonusValue(bonusValue)
+              const bonusAmount = Number.isFinite(commission.bonus_amount)
+                ? commission.bonus_amount
+                : 0
+              const hasBonus = bonusAmount > 0
               const totalWithBonus =
-                (commission.commission_amount || 0) +
-                (Number.isFinite(bonusNumber) ? bonusNumber : 0)
+                typeof commission.total_payout === "number" && Number.isFinite(commission.total_payout)
+                  ? commission.total_payout
+                  : (commission.commission_amount || 0) + bonusAmount
 
               return (
                 <TableRow key={commission.id}>
@@ -752,7 +690,7 @@ export function CommissionCalculator() {
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell>{commission.chatter.full_name || "—"}</TableCell>
+                  <TableCell>{commission.chatter.full_name || "Unknown"}</TableCell>
                   <TableCell className="hidden md:table-cell">
                     {formatCurrency(
                       commission.total_earnings,
@@ -769,35 +707,13 @@ export function CommissionCalculator() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <div className="flex flex-col gap-1">
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={bonusValue}
-                        onChange={(event) =>
-                          handleBonusInputChange(
-                            commission.id,
-                            event.target.value,
-                          )
-                        }
-                        onBlur={() => handleBonusBlur(commission)}
-                        onKeyDown={(event) =>
-                          handleBonusKeyDown(event, commission)
-                        }
-                        disabled={bonusSaveState[commission.id] === "saving"}
-                        className="h-8 w-24 px-2 text-sm leading-none min-w-0"
-                      />
-                      {bonusSaveState[commission.id] === "saving" && (
-                        <span className="text-xs text-muted-foreground">
-                          Saving...
-                        </span>
-                      )}
-                      {bonusSaveState[commission.id] === "error" && (
-                        <span className="text-xs text-destructive">
-                          Error saving bonus
-                        </span>
-                      )}
+                    <div className="flex items-center gap-2">
+                      {formatCurrency(bonusAmount, commission.chatter.currency)}
+                      {hasBonus ? (
+                        <Badge variant="secondary" className="bg-amber-100 text-amber-900 hover:bg-amber-100/90">
+                          Bonus
+                        </Badge>
+                      ) : null}
                     </div>
                   </TableCell>
                   <TableCell className="font-semibold">
@@ -813,7 +729,7 @@ export function CommissionCalculator() {
           <TableFooter>
             <TableRow>
               <TableCell colSpan={2} className="font-semibold">
-                Totaal
+                Total
               </TableCell>
               <TableCell className="font-semibold hidden md:table-cell">
                 {formatCurrency(totals.earnings, totalsCurrency)}
@@ -884,6 +800,57 @@ export function CommissionCalculator() {
             </p>
           </div>
         )}
+
+        {/* Monthly / weekly bonus awards */}
+        <div className="mt-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>Monthly & weekly bonus awards</CardTitle>
+              <CardDescription>Bonuses sourced from the bonus_awards feed (targets, contests, etc.).</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Chatter</TableHead>
+                    <TableHead>Rule</TableHead>
+                    <TableHead>Bonus</TableHead>
+                    <TableHead>Reason</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {bonusAwards.map((award) => {
+                    const chatterName =
+                      chatters.find((c) => c.id === award.workerId)?.full_name || "";
+                    const currency =
+                      chatters.find((c) => c.id === award.workerId)?.currency || award.currency || "EUR";
+                    return (
+                      <TableRow key={award.id}>
+                        <TableCell>{formatCommissionDate(award.awardedAt)}</TableCell>
+                        <TableCell>{chatterName}</TableCell>
+                        <TableCell>{award.ruleName ?? award.ruleId ?? ""}</TableCell>
+                        <TableCell>
+                          {formatCurrency((award.bonusAmountCents ?? 0) / 100, currency)}
+                        </TableCell>
+                        <TableCell>{award.reason || ""}</TableCell>
+                      </TableRow>
+                    )
+                  })}
+                  {bonusAwards.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5}>
+                        <div className="py-6 text-center text-muted-foreground text-sm">
+                          No bonus awards in the selected range.
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
       </CardContent>
     </Card>
   )

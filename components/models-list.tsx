@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Plus, Trash2, Pencil } from "lucide-react"
 import { api } from "@/lib/api"
+import { formatUserDate } from "@/lib/timezone"
 
 interface Model {
   id: string
@@ -182,7 +183,7 @@ export function ModelsList() {
                 <TableCell className="font-medium">{model.displayName}</TableCell>
                 <TableCell className="hidden md:table-cell">{model.username}</TableCell>
                 <TableCell className="hidden md:table-cell">{model.commissionRate}%</TableCell>
-                <TableCell className="hidden md:table-cell">{new Date(model.createdAt).toLocaleDateString("nl-NL")}</TableCell>
+                <TableCell className="hidden md:table-cell">{formatUserDate(model.createdAt)}</TableCell>
                 <TableCell className="flex gap-2">
                   <Button
                     variant="outline"

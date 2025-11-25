@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Clock, Play, Square, Timer } from "lucide-react"
 import { api } from "@/lib/api"
+import { formatUserDate, formatUserDateTime, formatUserTime } from "@/lib/timezone"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -139,22 +140,20 @@ export function ClockInOut({ userId, onChange }: ClockInOutProps) {
     void performClockOut()
   }
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString("nl-NL", {
+  const formatTime = (date: Date) =>
+    formatUserTime(date, {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
     })
-  }
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString("nl-NL", {
+  const formatDate = (date: Date) =>
+    formatUserDate(date, {
       weekday: "long",
       year: "numeric",
       month: "long",
       day: "numeric",
     })
-  }
 
   const calculateWorkingTime = () => {
     if (!activeEntry) return "00:00:00"
@@ -229,9 +228,9 @@ export function ClockInOut({ userId, onChange }: ClockInOutProps) {
         {/* Clock In Time Display */}
         {activeEntry && (
           <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="text-sm text-blue-700">
-              <strong>Clocked in at:</strong> {new Date(activeEntry.startTime).toLocaleString("nl-NL")}
-            </div>
+              <div className="text-sm text-blue-700">
+                <strong>Clocked in at:</strong> {formatUserDateTime(activeEntry.startTime)}
+              </div>
           </div>
         )}
 

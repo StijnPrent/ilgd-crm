@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Calendar } from "lucide-react"
 import { api } from "@/lib/api"
+import { formatUserDate } from "@/lib/timezone"
 
 interface EmployeeEarningsHistoryProps {
   userId: string
@@ -54,13 +55,12 @@ export function EmployeeEarningsHistory({ userId, limit }: EmployeeEarningsHisto
     fetchEarnings()
   }, [userId, limit])
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString("nl-NL", {
+  const formatDate = (date: string) =>
+    formatUserDate(new Date(date), {
       weekday: "short",
       month: "short",
       day: "numeric",
     })
-  }
 
   if (loading) {
     return (
