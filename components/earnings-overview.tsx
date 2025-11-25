@@ -559,10 +559,11 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
             )
             const pageSize = Math.min(200, Math.max(50, daySpan * 2))
 
-            const items = await api.getAllEmployeeEarnings({
-                pageSize,
-                ...buildQueryFilters(),
+            const itemsResponse = await api.getAllEmployeeEarnings({
+                pageSize: 400,
+                ...buildQueryFilters({includeDate: true}),
             })
+            const items = Array.isArray(itemsResponse) ? itemsResponse : itemsResponse?.data || []
             const monthData = items.filter((item: any) => item.date?.startsWith(monthKey))
             setRawMonthlyEarnings(dedupeItems(monthData))
         } catch (error) {
@@ -595,11 +596,11 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
 
             // When a specific day is selected, fetch the full set for that day so the table and chart totals stay aligned.
             if (selectedDateRange) {
-                const items = await api.getAllEmployeeEarnings({
+                const itemsResponse = await api.getAllEmployeeEarnings({
                     pageSize: 400,
                     ...buildQueryFilters({includeDate: true}),
                 })
-                const listItems = Array.isArray(items) ? items : items?.data || []
+                const listItems = Array.isArray(itemsResponse) ? itemsResponse : itemsResponse?.data || []
                 const deduped = dedupeItems(listItems)
                 setRawTableEarnings(deduped)
                 setTotalCount(deduped.length)

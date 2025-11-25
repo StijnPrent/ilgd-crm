@@ -237,7 +237,12 @@ export function EarningsProfitTrend({monthStart, monthEnd, monthLabel}: Earnings
                 const pageSize = Math.min(200, Math.max(50, daySpan * 2))
 
                 const [earningsEntries, revenueEntries] = await Promise.all([
-                    api.getAllEmployeeEarnings({from, to, pageSize}),
+                    api.getEmployeeEarningsPaginated({
+                        limit: Math.max(500, Math.min(2000, pageSize * 10)),
+                        offset: 0,
+                        from,
+                        to,
+                    }),
                     api.getAllRevenueEarnings({from, to, pageSize}),
                 ])
 
