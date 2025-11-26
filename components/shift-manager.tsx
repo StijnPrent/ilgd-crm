@@ -46,7 +46,15 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Switch } from "@/components/ui/switch"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { formatUserDate, formatUserDateTime, formatUserTime } from "@/lib/timezone"
+import {
+    formatUserDate,
+    formatUserDateTime,
+    formatUserTime,
+    getUserDateKey,
+    getUserTimeParts,
+    getUserTimezone,
+    toUtcISOString,
+} from "@/lib/timezone"
 
 const normalizeDate = (date: Date) => {
     const normalized = new Date(date)
@@ -117,13 +125,16 @@ export function ShiftManager() {
     const loadedRangeKeysRef = useRef<Set<string>>(new Set())
     const isMobile = useIsMobile()
     const [selectedDate, setSelectedDate] = useState<Date>(() => normalizeDate(new Date()))
+    const userTimezone = useMemo(() => getUserTimezone(), [])
 
     const formatDate = useCallback((date: Date) => {
+        const zoned = getUserDateKey(date, userTimezone)
+        if (zoned) return zoned
         const year = date.getFullYear()
         const month = String(date.getMonth() + 1).padStart(2, "0")
         const day = String(date.getDate()).padStart(2, "0")
         return `${year}-${month}-${day}`
-    }, [])
+    }, [userTimezone])
 
     const getStartOfWeek = useCallback((date: Date) => {
         const start = new Date(date)
@@ -205,9 +216,11 @@ export function ShiftManager() {
             const rangeEnd = new Date(weekStart)
             rangeEnd.setDate(rangeEnd.getDate() + 13)
 
-            const from = formatDate(rangeStart)
-            const to = formatDate(rangeEnd)
-            const rangeKey = `${from}_${to}`
+            const fromKey = formatDate(rangeStart)
+            const toKey = formatDate(rangeEnd)
+            const from = toUtcISOString(fromKey, "00:00:00", userTimezone) ?? fromKey
+            const to = toUtcISOString(toKey, "23:59:59", userTimezone) ?? toKey
+            const rangeKey = `${fromKey}_${toKey}`
 
             if (!force && loadedRangeKeysRef.current.has(rangeKey)) {
                 if (!prefetch && !silent) {
@@ -231,15 +244,20 @@ export function ShiftManager() {
 
                 const formattedShifts = (shiftsData || []).map((shift: any) => {
                     const modelIds = (shift.modelIds || []).map((id: any) => String(id))
-                    const startDate = shift.startTime
-                        ? String(shift.startTime).slice(0, 10)
-                        : String(shift.date)
+                    const startTime = shift.startTime ?? shift.start_time ?? shift.start
+                    const endTime = shift.endTime ?? shift.end_time ?? shift.end
+                    const dateKey =
+                        getUserDateKey(startTime, userTimezone) ??
+                        getUserDateKey(shift.date, userTimezone) ??
+                        (startTime ? String(startTime).slice(0, 10) : String(shift.date))
+                    const normalizedStart = startTime ? String(startTime) : ""
+                    const normalizedEnd = endTime ? String(endTime) : ""
 
                     return {
                         id: String(shift.id),
                         chatter_id: String(shift.chatterId),
-                        start_time: shift.startTime,
-                        end_time: shift.endTime,
+                        start_time: normalizedStart,
+                        end_time: normalizedEnd,
                         status: shift.status,
                         created_at: shift.createdAt,
                         chatter: {
@@ -250,7 +268,7 @@ export function ShiftManager() {
                         model_names: modelIds.map(
                             (modelId) => modelNameMap[modelId] || "Unknown Model",
                         ),
-                        date: startDate,
+                        date: dateKey,
                     }
                 })
 
@@ -278,7 +296,7 @@ export function ShiftManager() {
                 }
             }
         },
-        [chatterNameMap, formatDate, getStartOfWeek, modelNameMap]
+        [chatterNameMap, formatDate, getStartOfWeek, modelNameMap, userTimezone]
     )
 
     useEffect(() => {
@@ -414,7 +432,11 @@ export function ShiftManager() {
     const handleAddShift = async (e: React.FormEvent) => {
         e.preventDefault()
         try {
-            const startDateTime = `${newShift.date}T${newShift.start_hour}:${newShift.start_minute}:00`
+            const startDateTime = toUtcISOString(
+                newShift.date,
+                `${newShift.start_hour}:${newShift.start_minute}:00`,
+                userTimezone,
+            )
             let endDate = newShift.date
 
             if (
@@ -427,14 +449,23 @@ export function ShiftManager() {
                 endDate = nextDay.toISOString().split("T")[0]
             }
 
-            const endDateTime = `${endDate}T${newShift.end_hour}:${newShift.end_minute}:00`
+            const endDateTime = toUtcISOString(
+                endDate,
+                `${newShift.end_hour}:${newShift.end_minute}:00`,
+                userTimezone,
+            )
+            if (!startDateTime || !endDateTime) {
+                throw new Error("Invalid date/time selection")
+            }
+
+            const dateKey = getUserDateKey(startDateTime, userTimezone) ?? newShift.date
 
             const payload: Record<string, unknown> = {
                 chatterId: newShift.chatter_id,
                 modelIds: newShift.model_ids,
                 start_time: startDateTime,
                 end_time: endDateTime,
-                date: newShift.date,
+                date: dateKey,
                 status: "scheduled",
             }
 
@@ -445,7 +476,7 @@ export function ShiftManager() {
 
             await api.createShift(payload)
 
-            const createdShiftDate = newShift.date ? new Date(newShift.date) : null
+            const createdShiftDate = dateKey ? new Date(dateKey) : null
 
             setNewShift({
                 chatter_id: "",
@@ -499,16 +530,22 @@ export function ShiftManager() {
     const openEditDialog = (shift: Shift) => {
         const start = new Date(shift.start_time)
         const end = new Date(shift.end_time)
+        const startParts = getUserTimeParts(shift.start_time, userTimezone)
+        const endParts = getUserTimeParts(shift.end_time, userTimezone)
+        const dateKey =
+            shift.date ||
+            getUserDateKey(shift.start_time, userTimezone) ||
+            start.toISOString().split("T")[0]
         const pad = (value: number) => value.toString().padStart(2, "0")
 
         setEditShiftValues({
             chatter_id: shift.chatter_id,
             model_ids: [...shift.model_ids],
-            date: shift.date || start.toISOString().split("T")[0],
-            start_hour: pad(start.getHours()),
-            start_minute: pad(start.getMinutes()),
-            end_hour: pad(end.getHours()),
-            end_minute: pad(end.getMinutes()),
+            date: dateKey,
+            start_hour: pad(startParts?.hour ?? start.getHours()),
+            start_minute: pad(startParts?.minute ?? start.getMinutes()),
+            end_hour: pad(endParts?.hour ?? end.getHours()),
+            end_minute: pad(endParts?.minute ?? end.getMinutes()),
         })
         setEditingShift(shift)
         setIsEditModelPopoverOpen(false)
@@ -533,7 +570,11 @@ export function ShiftManager() {
         if (!editingShift) return
 
         try {
-            const startDateTime = `${editShiftValues.date}T${editShiftValues.start_hour}:${editShiftValues.start_minute}:00`
+            const startDateTime = toUtcISOString(
+                editShiftValues.date,
+                `${editShiftValues.start_hour}:${editShiftValues.start_minute}:00`,
+                userTimezone,
+            )
             let endDate = editShiftValues.date
 
             if (
@@ -546,10 +587,18 @@ export function ShiftManager() {
                 endDate = nextDay.toISOString().split("T")[0]
             }
 
-            const endDateTime = `${endDate}T${editShiftValues.end_hour}:${editShiftValues.end_minute}:00`
+            const endDateTime = toUtcISOString(
+                endDate,
+                `${editShiftValues.end_hour}:${editShiftValues.end_minute}:00`,
+                userTimezone,
+            )
+            if (!startDateTime || !endDateTime) {
+                throw new Error("Invalid date/time selection")
+            }
 
             const shiftId = editingShift.id
             const previousDate = editingShift.date
+            const dateKey = getUserDateKey(startDateTime, userTimezone) ?? editShiftValues.date
 
             setShifts((prev) =>
                 prev.map((shift) =>
@@ -568,7 +617,7 @@ export function ShiftManager() {
                               ),
                               start_time: startDateTime,
                               end_time: endDateTime,
-                              date: editShiftValues.date,
+                              date: dateKey,
                           }
                         : shift,
                 ),
@@ -579,11 +628,11 @@ export function ShiftManager() {
                 modelIds: editShiftValues.model_ids,
                 start_time: startDateTime,
                 end_time: endDateTime,
-                date: editShiftValues.date,
+                date: dateKey,
             })
 
-            await loadWeek(new Date(`${editShiftValues.date}T00:00:00`), { force: true, silent: true })
-            if (previousDate && previousDate !== editShiftValues.date) {
+            await loadWeek(new Date(`${dateKey}T00:00:00`), { force: true, silent: true })
+            if (previousDate && previousDate !== dateKey) {
                 await loadWeek(new Date(`${previousDate}T00:00:00`), { force: true, silent: true })
             }
 

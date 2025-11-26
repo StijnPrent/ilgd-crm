@@ -1,474 +1,396 @@
 "use client"
 
-import {useCallback, useEffect, useMemo, useState} from "react"
-import {Line, LineChart, CartesianGrid, XAxis, YAxis} from "recharts"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 
-import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "@/components/ui/card"
-import {ToggleGroup, ToggleGroupItem} from "@/components/ui/toggle-group"
-import {Skeleton} from "@/components/ui/skeleton"
-import {ChartContainer, ChartTooltip, ChartTooltipContent} from "@/components/ui/chart"
-import {api} from "@/lib/api"
-import {formatUserDate} from "@/lib/timezone"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import { Skeleton } from "@/components/ui/skeleton"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { api } from "@/lib/api"
+import { formatUserDate } from "@/lib/timezone"
 
 const RANGE_OPTIONS = [
-    {label: "Week", value: "week"},
-    {label: "Month", value: "month"},
-    {label: "Year", value: "year"},
+  { label: "Week", value: "week" },
+  { label: "Month", value: "month" },
+  { label: "Year", value: "year" },
 ] as const
 
 type RangeOption = (typeof RANGE_OPTIONS)[number]["value"]
-
 type Interval = "day" | "month"
 
 type ChartPoint = {
-    key: string
-    label: string
-    tooltipLabel: string
-    earnings: number
-    profit: number
+  key: string
+  label: string
+  tooltipLabel: string
+  earnings: number
+  profit: number
 }
 
 interface EarningsProfitTrendProps {
-    monthStart?: string
-    monthEnd?: string
-    monthLabel?: string
+  monthStart?: string
+  monthEnd?: string
+  monthLabel?: string
 }
 
 const clampDate = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate())
 
 const addDays = (date: Date, amount: number) => {
-    const result = new Date(date)
-    result.setDate(result.getDate() + amount)
-    return clampDate(result)
+  const result = new Date(date)
+  result.setDate(result.getDate() + amount)
+  return clampDate(result)
 }
 
 const formatDateKey = (date: Date) =>
-    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
 
-const formatMonthKey = (date: Date) =>
-    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+const formatMonthKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
 
 const parseDateOnly = (value?: string | null) => {
-    if (!value) return null
-    const parts = value.split("-").map((part) => Number(part))
-    if (parts.length >= 3 && parts.every((part) => Number.isFinite(part))) {
-        const [year, month, day] = parts as [number, number, number]
-        return new Date(year, month - 1, day)
-    }
-    const parsed = new Date(value)
-    return Number.isNaN(parsed.getTime()) ? null : clampDate(parsed)
+  if (!value) return null
+  const parts = value.split("-").map((part) => Number(part))
+  if (parts.length >= 3 && parts.every((part) => Number.isFinite(part))) {
+    const [year, month, day] = parts as [number, number, number]
+    return new Date(year, month - 1, day)
+  }
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? null : clampDate(parsed)
 }
 
 const parseDateTime = (value: unknown) => {
-    if (typeof value !== "string") return null
-    const parsed = new Date(value)
-    if (!Number.isNaN(parsed.getTime())) {
-        return clampDate(parsed)
-    }
-    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-        return parseDateOnly(value)
-    }
-    return null
+  if (typeof value !== "string") return null
+  const parsed = new Date(value)
+  if (!Number.isNaN(parsed.getTime())) {
+    return clampDate(parsed)
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return parseDateOnly(value)
+  }
+  return null
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
 interface RangeInfo {
-    range: RangeOption
-    start: Date
-    end: Date
-    interval: Interval
+  range: RangeOption
+  start: Date
+  end: Date
+  interval: Interval
 }
 
-const getRangeInfo = (
-    range: RangeOption,
-    monthStart?: string,
-    monthEnd?: string,
-): RangeInfo => {
-    const today = clampDate(new Date())
-    const parsedStart = parseDateOnly(monthStart) ?? today
-    const parsedEnd = parseDateOnly(monthEnd) ?? today
+const getRangeInfo = (range: RangeOption, monthStart?: string, monthEnd?: string): RangeInfo => {
+  const today = clampDate(new Date())
+  const parsedStart = parseDateOnly(monthStart) ?? today
+  const parsedEnd = parseDateOnly(monthEnd) ?? today
 
-    if (range === "year") {
-        const year = parsedStart.getFullYear()
-        const start = clampDate(new Date(year, 0, 1))
-        const end = clampDate(new Date(parsedEnd.getFullYear(), parsedEnd.getMonth(), parsedEnd.getDate()))
-        return {
-            range,
-            start,
-            end: end < start ? start : end,
-            interval: "month",
-        }
-    }
+  if (range === "year") {
+    const year = parsedStart.getFullYear()
+    const start = clampDate(new Date(year, 0, 1))
+    const end = clampDate(new Date(parsedEnd.getFullYear(), parsedEnd.getMonth(), parsedEnd.getDate()))
+    return { range, start, end: end < start ? start : end, interval: "month" }
+  }
 
-    if (range === "week") {
-        const end = parsedEnd
-        let start = addDays(end, -6)
-        const monthBoundary = parseDateOnly(monthStart)
-        if (monthBoundary && start < monthBoundary) {
-            start = monthBoundary
-        }
-        return {
-            range,
-            start,
-            end: end < start ? start : end,
-            interval: "day",
-        }
+  if (range === "week") {
+    const end = parsedEnd
+    let start = addDays(end, -6)
+    const monthBoundary = parseDateOnly(monthStart)
+    if (monthBoundary && start < monthBoundary) {
+      start = monthBoundary
     }
+    return { range, start, end: end < start ? start : end, interval: "day" }
+  }
 
-    const start = parseDateOnly(monthStart) ?? addDays(parsedEnd, -29)
-    const end = parsedEnd < start ? start : parsedEnd
-    return {
-        range,
-        start,
-        end,
-        interval: "day",
-    }
+  const start = parseDateOnly(monthStart) ?? addDays(parsedEnd, -29)
+  const end = parsedEnd < start ? start : parsedEnd
+  return { range, start, end, interval: "day" }
 }
 
 const buildBuckets = (info: RangeInfo): ChartPoint[] => {
-    const buckets: ChartPoint[] = []
-    if (info.interval === "month") {
-        const current = new Date(info.start.getFullYear(), info.start.getMonth(), 1)
-        const limit = new Date(info.end.getFullYear(), info.end.getMonth(), 1)
-        while (current <= limit) {
-            const key = formatMonthKey(current)
-            buckets.push({
-                key,
-                label: formatUserDate(current, {month: "short"}),
-                tooltipLabel: formatUserDate(current, {month: "long", year: "numeric"}),
-                earnings: 0,
-                profit: 0,
-            })
-            current.setMonth(current.getMonth() + 1)
-        }
-        return buckets
-    }
-
-    let current = info.start
-    while (current <= info.end) {
-        const key = formatDateKey(current)
-        buckets.push({
-            key,
-                label:
-                    info.range === "week"
-                        ? formatUserDate(current, {weekday: "short"})
-                        : formatUserDate(current, {day: "numeric"}),
-                tooltipLabel: formatUserDate(current, {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                }),
-            earnings: 0,
-            profit: 0,
-        })
-        current = addDays(current, 1)
+  const buckets: ChartPoint[] = []
+  if (info.interval === "month") {
+    const current = new Date(info.start.getFullYear(), info.start.getMonth(), 1)
+    const limit = new Date(info.end.getFullYear(), info.end.getMonth(), 1)
+    while (current <= limit) {
+      const key = formatMonthKey(current)
+      buckets.push({
+        key,
+        label: formatUserDate(current, { month: "short" }),
+        tooltipLabel: formatUserDate(current, { month: "long", year: "numeric" }),
+        earnings: 0,
+        profit: 0,
+      })
+      current.setMonth(current.getMonth() + 1)
     }
     return buckets
+  }
+
+  let current = info.start
+  while (current <= info.end) {
+    const key = formatDateKey(current)
+    buckets.push({
+      key,
+      label: info.range === "week" ? formatUserDate(current, { weekday: "short" }) : formatUserDate(current, { day: "numeric" }),
+      tooltipLabel: formatUserDate(current, { day: "numeric", month: "short", year: "numeric" }),
+      earnings: 0,
+      profit: 0,
+    })
+    current = addDays(current, 1)
+  }
+  return buckets
 }
 
-export function EarningsProfitTrend({monthStart, monthEnd, monthLabel}: EarningsProfitTrendProps) {
-    const [range, setRange] = useState<RangeOption>("month")
-    const [chartData, setChartData] = useState<ChartPoint[]>([])
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
+export function EarningsProfitTrend({ monthStart, monthEnd, monthLabel }: EarningsProfitTrendProps) {
+  const [range, setRange] = useState<RangeOption>("month")
+  const [chartData, setChartData] = useState<ChartPoint[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-    const currencyFormatter = useMemo(
-        () => new Intl.NumberFormat("nl-NL", {style: "currency", currency: "EUR"}),
-        [],
-    )
+  const currencyFormatter = useMemo(
+    () => new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" }),
+    [],
+  )
 
-    const formatCurrencyValue = useCallback(
-        (amount: number) => currencyFormatter.format(amount),
-        [currencyFormatter],
-    )
+  const formatCurrencyValue = useCallback((amount: number) => currencyFormatter.format(amount), [currencyFormatter])
 
-    const rangeInfo = useMemo(() => getRangeInfo(range, monthStart, monthEnd), [range, monthEnd, monthStart])
+  const rangeInfo = useMemo(() => getRangeInfo(range, monthStart, monthEnd), [range, monthEnd, monthStart])
 
-    const percentageFormatter = useMemo(
-        () =>
-            new Intl.NumberFormat("nl-NL", {
-                style: "percent",
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 1,
-            }),
-        [],
-    )
+  const percentageFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat("nl-NL", {
+        style: "percent",
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 1,
+      }),
+    [],
+  )
 
-    const periodLabel = useMemo(() => {
-        if (rangeInfo.interval === "month") {
-            const startDate = rangeInfo.start
-            const endDate = rangeInfo.end
-            const sameYear = startDate.getFullYear() === endDate.getFullYear()
-            const startLabel = formatUserDate(startDate, {
-                month: "short",
-                ...(sameYear ? {} : {year: "numeric"}),
-            })
-            const endLabel = formatUserDate(endDate, {month: "short", year: "numeric"})
-            return `${startLabel} – ${endLabel}`
-        }
-        const sameYear = rangeInfo.start.getFullYear() === rangeInfo.end.getFullYear()
-        const startLabel = formatUserDate(rangeInfo.start, {
-            day: "numeric",
-            month: "short",
-            ...(sameYear ? {} : {year: "numeric"}),
-        })
-        const endLabel = formatUserDate(rangeInfo.end, {day: "numeric", month: "short", year: "numeric"})
-        if (startLabel === endLabel) return startLabel
-        return `${startLabel} – ${endLabel}`
-    }, [rangeInfo])
+  const periodLabel = useMemo(() => {
+    if (rangeInfo.interval === "month") {
+      const startDate = rangeInfo.start
+      const endDate = rangeInfo.end
+      const sameYear = startDate.getFullYear() === endDate.getFullYear()
+      const startLabel = formatUserDate(startDate, { month: "short", ...(sameYear ? {} : { year: "numeric" }) })
+      const endLabel = formatUserDate(endDate, { month: "short", year: "numeric" })
+      return `${startLabel} - ${endLabel}`
+    }
+    const sameYear = rangeInfo.start.getFullYear() === rangeInfo.end.getFullYear()
+    const startLabel = formatUserDate(rangeInfo.start, { day: "numeric", month: "short", ...(sameYear ? {} : { year: "numeric" }) })
+    const endLabel = formatUserDate(rangeInfo.end, { day: "numeric", month: "short", year: "numeric" })
+    if (startLabel === endLabel) return startLabel
+    return `${startLabel} - ${endLabel}`
+  }, [rangeInfo])
 
-    useEffect(() => {
-        let cancelled = false
-        const fetchData = async () => {
-            setLoading(true)
-            setError(null)
-            try {
-                const fromDate = rangeInfo.interval === "month"
-                    ? new Date(rangeInfo.start.getFullYear(), rangeInfo.start.getMonth(), 1)
-                    : rangeInfo.start
-                const toDate = rangeInfo.interval === "month"
-                    ? new Date(rangeInfo.end.getFullYear(), rangeInfo.end.getMonth() + 1, 0)
-                    : rangeInfo.end
+  useEffect(() => {
+    let cancelled = false
+    const fetchData = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const fromDate = rangeInfo.interval === "month"
+          ? new Date(rangeInfo.start.getFullYear(), rangeInfo.start.getMonth(), 1)
+          : rangeInfo.start
+        const toDate = rangeInfo.interval === "month"
+          ? new Date(rangeInfo.end.getFullYear(), rangeInfo.end.getMonth() + 1, 0)
+          : rangeInfo.end
 
-                const from = formatDateKey(fromDate)
-                const to = formatDateKey(toDate)
-                const daySpan = Math.max(1, Math.floor((toDate.getTime() - fromDate.getTime()) / MS_PER_DAY) + 1)
-                const pageSize = Math.min(200, Math.max(50, daySpan * 2))
+        const from = formatDateKey(fromDate)
+        const to = formatDateKey(toDate)
+        const daySpan = Math.max(1, Math.floor((toDate.getTime() - fromDate.getTime()) / MS_PER_DAY) + 1)
+        const pageSize = Math.min(200, Math.max(50, daySpan * 2))
+        const earningsPageSize = Math.min(2000, Math.max(200, daySpan * 10))
 
-                const [earningsEntries, revenueEntries] = await Promise.all([
-                    api.getEmployeeEarningsPaginated({
-                        limit: Math.max(500, Math.min(2000, pageSize * 10)),
-                        offset: 0,
-                        from,
-                        to,
-                    }),
-                    api.getAllRevenueEarnings({from, to, pageSize}),
-                ])
+        const [earningsEntries, revenueEntries] = await Promise.all([
+          api.getAllEmployeeEarnings({ from, to, pageSize: earningsPageSize }),
+          api.getAllRevenueEarnings({ from, to, pageSize }),
+        ])
 
-                if (cancelled) return
+        if (cancelled) return
 
-                const buckets = buildBuckets(rangeInfo)
-                const bucketMap = new Map(buckets.map((bucket) => [bucket.key, bucket]))
+        const buckets = buildBuckets(rangeInfo)
+        const bucketMap = new Map(buckets.map((bucket) => [bucket.key, bucket]))
 
-                if (Array.isArray(earningsEntries)) {
-                    for (const entry of earningsEntries) {
-                        const amount = Number(entry?.amount ?? 0)
-                        if (!Number.isFinite(amount)) continue
-                        const entryDate = parseDateTime(entry?.date ?? entry?.createdAt ?? entry?.created_at)
-                        if (!entryDate) continue
-                        const key = rangeInfo.interval === "month"
-                            ? formatMonthKey(entryDate)
-                            : formatDateKey(entryDate)
-                        const bucket = bucketMap.get(key)
-                        if (bucket) {
-                            bucket.earnings += amount
-                        }
-                    }
-                }
-
-                if (Array.isArray(revenueEntries)) {
-                    for (const entry of revenueEntries) {
-                        const amount = Number(entry?.amount ?? 0)
-                        if (!Number.isFinite(amount)) continue
-                        const entryDate = parseDateTime(entry?.date ?? entry?.createdAt ?? entry?.created_at)
-                        if (!entryDate) continue
-                        const net = amount * (1 - Number(entry?.platformFee ?? entry?.platform_fee ?? 20) / 100)
-                        const modelRate = Number(entry?.modelCommissionRate ?? entry?.model_commission_rate ?? 0)
-                        const chatterRate = Number(entry?.chatterCommissionRate ?? entry?.chatter_commission_rate ?? 0)
-                        const chatterBonus = Number(
-                            entry?.chatterBonusAmount ?? entry?.chatter_bonus_amount ?? 0,
-                        )
-                        const modelCommission = net * (modelRate / 100)
-                        const chatterCommission = net * (chatterRate / 100)
-                        const profit = net - modelCommission - chatterCommission - chatterBonus
-                        const key = rangeInfo.interval === "month"
-                            ? formatMonthKey(entryDate)
-                            : formatDateKey(entryDate)
-                        const bucket = bucketMap.get(key)
-                        if (bucket) {
-                            bucket.profit += profit
-                        }
-                    }
-                }
-
-                setChartData([...bucketMap.values()])
-            } catch (err) {
-                console.error("Failed to load earnings/profit trend", err)
-                if (!cancelled) setError("Unable to load trend data")
-            } finally {
-                if (!cancelled) setLoading(false)
+        if (Array.isArray(earningsEntries)) {
+          for (const entry of earningsEntries) {
+            const amount = Number(entry?.amount ?? 0)
+            if (!Number.isFinite(amount)) continue
+            const entryDate = parseDateTime(entry?.date ?? entry?.createdAt ?? entry?.created_at)
+            if (!entryDate) continue
+            const key = rangeInfo.interval === "month" ? formatMonthKey(entryDate) : formatDateKey(entryDate)
+            const bucket = bucketMap.get(key)
+            if (bucket) {
+              bucket.earnings += amount
             }
+          }
         }
 
-        fetchData()
-
-        return () => {
-            cancelled = true
-        }
-    }, [rangeInfo])
-
-    const totals = useMemo(
-        () =>
-            chartData.reduce(
-                (acc, point) => {
-                    acc.earnings += point.earnings
-                    acc.profit += point.profit
-                    return acc
-                },
-                {earnings: 0, profit: 0},
-            ),
-        [chartData],
-    )
-
-    const chartConfig = useMemo(
-        () => ({
-            earnings: {label: "Earnings", color: "#6CE8F2"},
-            profit: {label: "Profit", color: "#FFA6FF"},
-        }),
-        [],
-    )
-
-    const tooltipFormatter = useCallback(
-        (
-            value: number | string | Array<number | string>,
-            name?: string | number,
-            _item?: unknown,
-            _index?: number,
-            point?: ChartPoint,
-        ) => {
-            const numericValue = typeof value === "number" ? value : Number(value)
-            const formattedValue = formatCurrencyValue(Number.isFinite(numericValue) ? numericValue : 0)
-            const key = typeof name === "string" ? name : name != null ? String(name) : ""
-            const label = key === "earnings" ? "Earnings" : "Profit"
-
-            if (key === "profit") {
-                const earningsValue = point?.earnings ?? 0
-                const profitValue = point?.profit ?? 0
-                const margin = earningsValue !== 0 ? profitValue / earningsValue : null
-                const formattedMargin =
-                    margin != null && Number.isFinite(margin)
-                        ? percentageFormatter.format(margin)
-                        : "—"
-
-                return (
-                    <div className="flex w-full flex-col gap-1">
-                        <div className="flex items-center justify-between gap-2">
-                            <span className="text-muted-foreground">{label}</span>
-                            <span className="text-foreground font-mono font-medium tabular-nums">{formattedValue}</span>
-                        </div>
-                        <div className="flex items-center justify-between gap-2">
-                            <span className="text-muted-foreground">Profit margin</span>
-                            <span className="text-foreground font-mono font-medium tabular-nums">{formattedMargin}</span>
-                        </div>
-                    </div>
-                )
+        if (Array.isArray(revenueEntries)) {
+          for (const entry of revenueEntries) {
+            const amount = Number(entry?.amount ?? 0)
+            if (!Number.isFinite(amount)) continue
+            const entryDate = parseDateTime(entry?.date ?? entry?.createdAt ?? entry?.created_at)
+            if (!entryDate) continue
+            const net = amount * (1 - Number(entry?.platformFee ?? entry?.platform_fee ?? 20) / 100)
+            const modelRate = Number(entry?.modelCommissionRate ?? entry?.model_commission_rate ?? 0)
+            const chatterRate = Number(entry?.chatterCommissionRate ?? entry?.chatter_commission_rate ?? 0)
+            const chatterBonus = Number(entry?.chatterBonusAmount ?? entry?.chatter_bonus_amount ?? 0)
+            const modelCommission = net * (modelRate / 100)
+            const chatterCommission = net * (chatterRate / 100)
+            const profit = net - modelCommission - chatterCommission - chatterBonus
+            const key = rangeInfo.interval === "month" ? formatMonthKey(entryDate) : formatDateKey(entryDate)
+            const bucket = bucketMap.get(key)
+            if (bucket) {
+              bucket.profit += profit
             }
-
-            return (
-                <div className="flex w-full items-center justify-between gap-2">
-                    <span className="text-muted-foreground">{label}</span>
-                    <span className="text-foreground font-mono font-medium tabular-nums">{formattedValue}</span>
-                </div>
-            )
-        },
-        [formatCurrencyValue, percentageFormatter],
-    )
-
-    const handleRangeChange = (value: string) => {
-        if (!value) return
-        if (value === range) return
-        if (value === "week" || value === "month" || value === "year") {
-            setRange(value)
+          }
         }
+
+        setChartData([...bucketMap.values()])
+      } catch (err) {
+        console.error("Failed to load earnings/profit trend", err)
+        if (!cancelled) setError("Unable to load trend data")
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
     }
 
-    return (
-        <Card>
-            <CardHeader className="gap-4 space-y-0 sm:flex sm:items-center sm:justify-between">
-                <div>
-                    <CardTitle className="text-lg font-semibold">Earnings vs Profit</CardTitle>
-                    <CardDescription>
-                        {monthLabel ? `${monthLabel}` : null}
-                        {monthLabel ? " · " : ""}
-                        {periodLabel}
-                    </CardDescription>
-                </div>
-                <ToggleGroup
-                    type="single"
-                    value={range}
-                    onValueChange={handleRangeChange}
-                    variant="outline"
-                    className="rounded-lg border"
-                >
-                    {RANGE_OPTIONS.map((option) => (
-                        <ToggleGroupItem key={option.value} value={option.value} className="text-xs sm:text-sm">
-                            {option.label}
-                        </ToggleGroupItem>
-                    ))}
-                </ToggleGroup>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                {loading ? (
-                    <Skeleton className="h-64 w-full" />
-                ) : error ? (
-                    <div className="flex h-64 w-full items-center justify-center rounded-md border border-dashed border-muted-foreground/30 text-sm text-muted-foreground">
-                        {error}
-                    </div>
-                ) : chartData.every((point) => point.earnings === 0 && point.profit === 0) ? (
-                    <div className="flex h-64 w-full items-center justify-center rounded-md border border-dashed border-muted-foreground/30 text-sm text-muted-foreground">
-                        No data for this period
-                    </div>
-                ) : (
-                    <ChartContainer config={chartConfig} className="h-64 w-full">
-                        <LineChart data={chartData}>
-                            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                            <XAxis dataKey="label" tickLine={false} axisLine={false} />
-                            <YAxis
-                                tickLine={false}
-                                axisLine={false}
-                                width={70}
-                                tickFormatter={(value: number) => formatCurrencyValue(value)}
-                            />
-                            <ChartTooltip
-                                content={
-                                    <ChartTooltipContent
-                                        labelFormatter={(_, payload) => payload?.[0]?.payload?.tooltipLabel}
-                                        formatter={tooltipFormatter}
-                                    />
-                                }
-                            />
-                            <Line
-                                type="monotone"
-                                dataKey="earnings"
-                                stroke="var(--color-earnings)"
-                                strokeWidth={2}
-                                dot={false}
-                                activeDot={{r: 4}}
-                            />
-                            <Line
-                                type="monotone"
-                                dataKey="profit"
-                                stroke="var(--color-profit)"
-                                strokeWidth={2}
-                                dot={false}
-                                activeDot={{r: 4}}
-                            />
-                        </LineChart>
-                    </ChartContainer>
-                )}
+    fetchData()
+    return () => {
+      cancelled = true
+    }
+  }, [rangeInfo])
 
-                <div className="grid gap-2 text-sm sm:grid-cols-2">
-                    <div className="rounded-lg border bg-muted/40 p-3">
-                        <p className="text-muted-foreground">Total earnings</p>
-                        <p className="text-base font-semibold">{formatCurrencyValue(totals.earnings)}</p>
-                    </div>
-                    <div className="rounded-lg border bg-muted/40 p-3">
-                        <p className="text-muted-foreground">Total profit</p>
-                        <p className="text-base font-semibold">{formatCurrencyValue(totals.profit)}</p>
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
-    )
+  const totals = useMemo(
+    () =>
+      chartData.reduce(
+        (acc, point) => {
+          acc.earnings += point.earnings
+          acc.profit += point.profit
+          return acc
+        },
+        { earnings: 0, profit: 0 },
+      ),
+    [chartData],
+  )
+
+  const chartConfig = useMemo(
+    () => ({
+      earnings: { label: "Earnings", color: "#6CE8F2" },
+      profit: { label: "Profit", color: "#FFA6FF" },
+    }),
+    [],
+  )
+
+  const tooltipFormatter = useCallback(
+    (
+      value: number | string | Array<number | string>,
+      name?: string | number,
+      _item?: unknown,
+      _index?: number,
+      point?: ChartPoint,
+    ) => {
+      const numericValue = typeof value === "number" ? value : Number(value)
+      const formattedValue = formatCurrencyValue(Number.isFinite(numericValue) ? numericValue : 0)
+      const key = typeof name === "string" ? name : name != null ? String(name) : ""
+      const label = key === "earnings" ? "Earnings" : "Profit"
+
+      if (key === "profit") {
+        const earningsValue = point?.earnings ?? 0
+        const profitValue = point?.profit ?? 0
+        const margin = earningsValue !== 0 ? profitValue / earningsValue : null
+        const formattedMargin = margin != null && Number.isFinite(margin) ? percentageFormatter.format(margin) : "-"
+
+        return (
+          <div className="flex w-full flex-col gap-1">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground">{label}</span>
+              <span className="text-foreground font-mono font-medium tabular-nums">{formattedValue}</span>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground">Profit margin</span>
+              <span className="text-foreground font-mono font-medium tabular-nums">{formattedMargin}</span>
+            </div>
+          </div>
+        )
+      }
+
+      return (
+        <div className="flex w-full items-center justify-between gap-2">
+          <span className="text-muted-foreground">{label}</span>
+          <span className="text-foreground font-mono font-medium tabular-nums">{formattedValue}</span>
+        </div>
+      )
+    },
+    [formatCurrencyValue, percentageFormatter],
+  )
+
+  const handleRangeChange = (value: string) => {
+    if (!value || value === range) return
+    if (value === "week" || value === "month" || value === "year") {
+      setRange(value)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader className="gap-4 space-y-0 sm:flex sm:items-center sm:justify-between">
+        <div>
+          <CardTitle className="text-lg font-semibold">Earnings vs Profit</CardTitle>
+          <CardDescription>
+            {monthLabel ? `${monthLabel}` : null}
+            {monthLabel ? " - " : ""}
+            {periodLabel}
+          </CardDescription>
+        </div>
+        <ToggleGroup type="single" value={range} onValueChange={handleRangeChange} variant="outline" className="rounded-lg border">
+          {RANGE_OPTIONS.map((option) => (
+            <ToggleGroupItem key={option.value} value={option.value} className="text-xs sm:text-sm">
+              {option.label}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {loading ? (
+          <Skeleton className="h-64 w-full" />
+        ) : error ? (
+          <div className="flex h-64 w-full items-center justify-center rounded-md border border-dashed border-muted-foreground/30 text-sm text-muted-foreground">
+            {error}
+          </div>
+        ) : chartData.every((point) => point.earnings === 0 && point.profit === 0) ? (
+          <div className="flex h-64 w-full items-center justify-center rounded-md border border-dashed border-muted-foreground/30 text-sm text-muted-foreground">
+            No data for this period
+          </div>
+        ) : (
+          <ChartContainer config={chartConfig} className="h-64 w-full">
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+              <XAxis dataKey="label" tickLine={false} axisLine={false} />
+              <YAxis tickLine={false} axisLine={false} width={70} tickFormatter={(value: number) => formatCurrencyValue(value)} />
+              <ChartTooltip
+                content={
+                  <ChartTooltipContent
+                    labelFormatter={(_, payload) => payload?.[0]?.payload?.tooltipLabel}
+                    formatter={tooltipFormatter}
+                  />
+                }
+              />
+              <Line type="monotone" dataKey="earnings" stroke="var(--color-earnings)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+              <Line type="monotone" dataKey="profit" stroke="var(--color-profit)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+            </LineChart>
+          </ChartContainer>
+        )}
+
+        <div className="grid gap-2 text-sm sm:grid-cols-2">
+          <div className="rounded-lg border bg-muted/40 p-3">
+            <p className="text-muted-foreground">Total earnings</p>
+            <p className="text-base font-semibold">{formatCurrencyValue(totals.earnings)}</p>
+          </div>
+          <div className="rounded-lg border bg-muted/40 p-3">
+            <p className="text-muted-foreground">Total profit</p>
+            <p className="text-base font-semibold">{formatCurrencyValue(totals.profit)}</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
 }

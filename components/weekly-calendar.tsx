@@ -6,7 +6,7 @@ import {Button} from "@/components/ui/button"
 import {Badge} from "@/components/ui/badge"
 import {ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Clock, User, UserCircle} from "lucide-react"
 import {api} from "@/lib/api"
-import {formatUserDate} from "@/lib/timezone"
+import {formatUserDate, formatUserTime, getUserDateKey, getUserTimezone, toUtcISOString} from "@/lib/timezone"
 import {useIsMobile} from "@/hooks/use-mobile"
 
 const normalizeDate = (date: Date) => {
@@ -91,13 +91,16 @@ export function WeeklyCalendar({
     const loadedRangeKeysRef = useRef<Set<string>>(new Set())
     const isMobile = useIsMobile()
     const [selectedDate, setSelectedDate] = useState<Date>(() => normalizeDate(new Date()))
+    const userTimezone = useMemo(() => getUserTimezone(), [])
 
     const formatDate = useCallback((date: Date) => {
+        const zoned = getUserDateKey(date, userTimezone)
+        if (zoned) return zoned
         const year = date.getFullYear()
         const month = String(date.getMonth() + 1).padStart(2, "0")
         const day = String(date.getDate()).padStart(2, "0")
         return `${year}-${month}-${day}`
-    }, [])
+    }, [userTimezone])
 
     const getStartOfWeek = useCallback((date: Date) => {
         const start = new Date(date)
@@ -162,9 +165,11 @@ export function WeeklyCalendar({
             const rangeEnd = new Date(weekStart)
             rangeEnd.setDate(rangeEnd.getDate() + 13)
 
-            const from = formatDate(rangeStart)
-            const to = formatDate(rangeEnd)
-            const rangeKey = `${from}_${to}_${userId ? String(userId) : "all"}`
+            const fromKey = formatDate(rangeStart)
+            const toKey = formatDate(rangeEnd)
+            const from = toUtcISOString(fromKey, "00:00:00", userTimezone) ?? fromKey
+            const to = toUtcISOString(toKey, "23:59:59", userTimezone) ?? toKey
+            const rangeKey = `${fromKey}_${toKey}_${userId ? String(userId) : "all"}`
 
             if (!force && loadedRangeKeysRef.current.has(rangeKey)) {
                 if (!prefetch) {
@@ -188,13 +193,16 @@ export function WeeklyCalendar({
                 })
 
                 const formattedShifts = (shiftsData || []).map((shift: any) => {
-                    const startDate = shift.startTime
-                        ? String(shift.startTime).slice(0, 10)
-                        : String(shift.date)
-                    const startTime = shift.startTime ? String(shift.startTime).slice(11, 16) : ""
-                    const endTime = shift.endTime ? String(shift.endTime).slice(11, 16) : ""
+                    const startTimeValue = shift.startTime ?? shift.start_time ?? shift.start
+                    const endTimeValue = shift.endTime ?? shift.end_time ?? shift.end
+                    const startDate =
+                        getUserDateKey(startTimeValue, userTimezone) ??
+                        getUserDateKey(shift.date, userTimezone) ??
+                        (startTimeValue ? String(startTimeValue).slice(0, 10) : String(shift.date))
                     const chatterId = String(shift.chatterId || shift.chatter_id || "")
                     const modelIds = (shift.modelIds || []).map((id: any) => String(id))
+                    const startTime = startTimeValue ? String(startTimeValue) : ""
+                    const endTime = endTimeValue ? String(endTimeValue) : ""
 
                     return {
                         id: String(shift.id),
@@ -211,7 +219,7 @@ export function WeeklyCalendar({
 
                 setShifts((prev) => {
                     const base = force
-                        ? prev.filter((shift) => shift.date < from || shift.date > to)
+                        ? prev.filter((shift) => shift.date < fromKey || shift.date > toKey)
                         : prev
                     const merged = new Map(base.map((shift) => [shift.id, shift]))
                     formattedShifts.forEach((shift) => merged.set(shift.id, shift))
@@ -233,7 +241,7 @@ export function WeeklyCalendar({
                 }
             }
         },
-        [chatterNames, formatDate, getStartOfWeek, modelNames, userId]
+        [chatterNames, formatDate, getStartOfWeek, modelNames, userId, userTimezone]
     )
 
     useEffect(() => {
@@ -426,12 +434,13 @@ export function WeeklyCalendar({
                                     )}`}
                                     onClick={() => onShiftClick?.(shift)}
                                 >
-                                    <div className="flex items-center gap-1 mb-1">
-                                        <Clock className="h-3 w-3"/>
-                                        <span>
-                                            {shift.start_time} - {shift.end_time}
-                                        </span>
-                                    </div>
+                                        <div className="flex items-center gap-1 mb-1">
+                                            <Clock className="h-3 w-3"/>
+                                            <span>
+                                            {formatUserTime(shift.start_time, {hour: "2-digit", minute: "2-digit"})} -{" "}
+                                            {formatUserTime(shift.end_time, {hour: "2-digit", minute: "2-digit"})}
+                                            </span>
+                                        </div>
 
                                     <div className="flex items-start gap-1">
                                         <UserCircle className="h-3 w-3 mt-0.5"/>
@@ -490,7 +499,8 @@ export function WeeklyCalendar({
                                                 <div className="flex items-center gap-1 mb-1">
                                                     <Clock className="h-3 w-3"/>
                                                     <span>
-                                                        {shift.start_time} - {shift.end_time}
+                                                        {formatUserTime(shift.start_time, {hour: "2-digit", minute: "2-digit"})} -{" "}
+                                                        {formatUserTime(shift.end_time, {hour: "2-digit", minute: "2-digit"})}
                                                     </span>
                                                 </div>
 
