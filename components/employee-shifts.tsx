@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Calendar, Clock, MoreHorizontal, RotateCcw, ArrowLeftRight } from "lucide-react"
 import { api } from "@/lib/api"
-import { formatUserDateTime, formatUserTime } from "@/lib/timezone"
+import { formatUserDateTime, formatUserTime, getUserTimezone, toUtcISOString } from "@/lib/timezone"
 import { useToast } from "@/hooks/use-toast"
 
 interface EmployeeShiftsProps {
@@ -65,6 +65,7 @@ export function EmployeeShifts({ userId }: EmployeeShiftsProps) {
   const [loading, setLoading] = useState(true)
   const [requests, setRequests] = useState<Record<string, ShiftRequestState>>({})
   const [pendingActions, setPendingActions] = useState<Record<string, ShiftAction | null>>({})
+  const timezone = useMemo(() => getUserTimezone(), [])
   const { toast } = useToast()
 
   const normalizeShiftRequest = useCallback((raw: any): ShiftRequest | null => {
@@ -159,10 +160,19 @@ export function EmployeeShifts({ userId }: EmployeeShiftsProps) {
           return `${year}-${month}-${day}`
         }
 
+        const fromKey = formatRange(now)
+        const toKey = formatRange(endRange)
+        const from =
+          toUtcISOString(fromKey, "00:00:00", timezone) ??
+          new Date(now).toISOString()
+        const to =
+          toUtcISOString(toKey, "23:59:59", timezone) ??
+          new Date(endRange).toISOString()
+
         const shiftsData: RawShift[] = await api.getShifts({
           chatterId: String(userId),
-          from: formatRange(now),
-          to: formatRange(endRange),
+          from,
+          to,
         })
 
         const reference = new Date()
@@ -208,7 +218,7 @@ export function EmployeeShifts({ userId }: EmployeeShiftsProps) {
     }
 
     fetchShifts()
-  }, [userId])
+  }, [timezone, userId])
 
   const formatDateTime = (dateTime: string) =>
     formatUserDateTime(dateTime, {

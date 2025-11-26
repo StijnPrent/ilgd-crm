@@ -1,3 +1,34 @@
+import { resolveTimezoneFromRecord, setUserTimezone } from "@/lib/timezone"
+
+const CURRENCY_STORAGE_KEY = "currency"
+
+const normalizeCurrency = (value: unknown): string | null => {
+  if (typeof value !== "string") return null
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  if (/^[a-zA-Z]{3}$/.test(trimmed)) {
+    return trimmed.toUpperCase()
+  }
+  return trimmed
+}
+
+const extractCurrency = (data: any): string | null => {
+  const candidates = [
+    data?.currency,
+    data?.companyCurrency,
+    data?.settings?.currency,
+    data?.user?.currency,
+    data?.user?.profile?.currency,
+  ]
+
+  for (const candidate of candidates) {
+    const normalized = normalizeCurrency(candidate)
+    if (normalized) return normalized
+  }
+
+  return null
+}
+
 // Frontend API client for connecting to the Express backend
 const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002/api"
@@ -189,6 +220,13 @@ class ApiClient {
     if (data.token) {
       localStorage.setItem("auth_token", data.token)
       localStorage.setItem("user", JSON.stringify(data.user))
+      const timezone =
+        resolveTimezoneFromRecord(data.user) ?? resolveTimezoneFromRecord(data)
+      setUserTimezone(timezone)
+      const currency = extractCurrency(data)
+      if (currency) {
+        localStorage.setItem(CURRENCY_STORAGE_KEY, currency)
+      }
     }
 
     return data
@@ -197,6 +235,8 @@ class ApiClient {
   logout() {
     localStorage.removeItem("auth_token")
     localStorage.removeItem("user")
+    setUserTimezone(null)
+    localStorage.removeItem(CURRENCY_STORAGE_KEY)
   }
 
   /* ---------- Users ---------- */
