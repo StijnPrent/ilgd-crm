@@ -45,6 +45,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Switch } from "@/components/ui/switch"
+import { Checkbox } from "@/components/ui/checkbox"
 import { useIsMobile } from "@/hooks/use-mobile"
 import {
     formatUserDate,
@@ -69,6 +70,7 @@ interface Shift {
     end_time: string
     status: string
     created_at: string
+    recurringGroupId?: string | null
     chatter: {
         full_name: string
     }
@@ -97,7 +99,7 @@ export function ShiftManager() {
     const [metaLoaded, setMetaLoaded] = useState(false)
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
     const [currentWeek, setCurrentWeek] = useState<Date>(() => normalizeDate(new Date()))
-    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+    const [confirmDeleteShift, setConfirmDeleteShift] = useState<Shift | null>(null)
     const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
     const [newShift, setNewShift] = useState({
         chatter_id: "",
@@ -126,6 +128,7 @@ export function ShiftManager() {
     const isMobile = useIsMobile()
     const [selectedDate, setSelectedDate] = useState<Date>(() => normalizeDate(new Date()))
     const userTimezone = useMemo(() => getUserTimezone(), [])
+    const [deleteSeriesChecked, setDeleteSeriesChecked] = useState(false)
 
     const formatDate = useCallback((date: Date) => {
         const zoned = getUserDateKey(date, userTimezone)
@@ -252,6 +255,8 @@ export function ShiftManager() {
                         (startTime ? String(startTime).slice(0, 10) : String(shift.date))
                     const normalizedStart = startTime ? String(startTime) : ""
                     const normalizedEnd = endTime ? String(endTime) : ""
+                    const recurringGroupId =
+                        shift.recurringGroupId ?? shift.recurring_group_id ?? shift.recurring_groupId
 
                     return {
                         id: String(shift.id),
@@ -260,6 +265,7 @@ export function ShiftManager() {
                         end_time: normalizedEnd,
                         status: shift.status,
                         created_at: shift.createdAt,
+                        recurringGroupId: recurringGroupId ? String(recurringGroupId) : undefined,
                         chatter: {
                             full_name:
                                 chatterNameMap[String(shift.chatterId)] || "Unknown",
@@ -510,7 +516,8 @@ export function ShiftManager() {
         )
 
         try {
-            await api.updateShift(shiftId, { status: newStatus })
+            const res = await api.updateShift(shiftId, { status: newStatus })
+            console.log(res)
             const shiftDate = targetShift.date
             if (shiftDate) {
                 // Clear cached weeks so a forced reload picks up the change everywhere.
@@ -642,22 +649,43 @@ export function ShiftManager() {
         }
     }
 
-    const confirmDeleteShift = (shiftId: string) => setConfirmDeleteId(shiftId)
-
     const performDeleteShift = async () => {
-        if (!confirmDeleteId) return
-        const shiftId = confirmDeleteId
+        if (!confirmDeleteShift) return
+        const shift = confirmDeleteShift
+        const shiftId = shift.id
+        const deleteSeries = deleteSeriesChecked && !!shift.recurringGroupId
+        const shiftDate = shift.date
 
         setDeletingIds((prev) => new Set(prev).add(shiftId))
         const prevShifts = shifts
-        setShifts((prev) => prev.filter((s) => s.id !== shiftId))
+
+        const nextShifts =
+            deleteSeries && shift.recurringGroupId && shiftDate
+                ? prevShifts.filter(
+                      (s) =>
+                          !(
+                              s.recurringGroupId &&
+                              s.recurringGroupId === shift.recurringGroupId &&
+                              new Date(`${s.date}T00:00:00`) >= new Date(`${shiftDate}T00:00:00`)
+                          ),
+                  )
+                : prevShifts.filter((s) => s.id !== shiftId)
+
+        setShifts(nextShifts)
 
         try {
-            await api.deleteShift(shiftId) // server call (204/200)
-            // success: nothing else to do
+            if (deleteSeries && shift.recurringGroupId) {
+                await api.deleteRecurringShifts(shift.recurringGroupId, shiftDate)
+                if (shiftDate) {
+                    loadedRangeKeysRef.current.clear()
+                    await loadWeek(new Date(`${shiftDate}T00:00:00`), { force: true, silent: true })
+                    await loadWeek(currentWeek, { force: true, silent: true })
+                }
+            } else {
+                await api.deleteShift(shiftId)
+            }
         } catch (error) {
             console.error("Error deleting shift:", error)
-            // rollback on failure
             setShifts(prevShifts)
         } finally {
             setDeletingIds((prev) => {
@@ -665,7 +693,8 @@ export function ShiftManager() {
                 next.delete(shiftId)
                 return next
             })
-            setConfirmDeleteId(null)
+            setConfirmDeleteShift(null)
+            setDeleteSeriesChecked(false)
         }
     }
 
@@ -817,10 +846,11 @@ export function ShiftManager() {
                                             className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 hover:bg-red-600 text-white rounded-full p-1"
                                             onClick={(e) => {
                                                 e.stopPropagation()
-                                                confirmDeleteShift(shift.id)
-                                            }}
-                                            title="Verwijder shift"
-                                        >
+                                                setConfirmDeleteShift(shift)
+                                                setDeleteSeriesChecked(false)
+                                          }}
+                                          title="Delete shift"
+                                      >
                                             <Trash2 className="h-3 w-3" />
                                         </button>
                                     </div>
@@ -871,9 +901,10 @@ export function ShiftManager() {
                                                         className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 hover:bg-red-600 text-white rounded-full p-1"
                                                         onClick={(e) => {
                                                             e.stopPropagation()
-                                                            confirmDeleteShift(shift.id)
+                                                            setConfirmDeleteShift(shift)
+                                                            setDeleteSeriesChecked(false)
                                                         }}
-                                                        title="Verwijder shift"
+                                                        title="Delete shift"
                                                     >
                                                         <Trash2 className="h-3 w-3" />
                                                     </button>
@@ -1502,7 +1533,10 @@ export function ShiftManager() {
                                             <Button
                                                 size="sm"
                                                 variant="outline"
-                                                onClick={() => confirmDeleteShift(shift.id)}
+                                                onClick={() => {
+                                                    setConfirmDeleteShift(shift)
+                                                    setDeleteSeriesChecked(false)
+                                                }}
                                                 className="text-red-600 hover:text-red-700 hover:bg-red-50"
                                             >
                                                 <Trash2 className="h-4 w-4" />
@@ -1524,18 +1558,49 @@ export function ShiftManager() {
                     )}
                 </CardContent>
             </Card>
-            <AlertDialog open={!!confirmDeleteId} onOpenChange={(open) => !open && setConfirmDeleteId(null)}>
+            <AlertDialog
+                open={!!confirmDeleteShift}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setConfirmDeleteShift(null)
+                        setDeleteSeriesChecked(false)
+                    }
+                }}
+            >
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Shift verwijderen?</AlertDialogTitle>
+                        <AlertDialogTitle>Delete shift?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Deze actie kan niet ongedaan worden gemaakt. De shift wordt permanent verwijderd.
+                            This action cannot be undone. The selected shift will be permanently removed.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
+
+                    {confirmDeleteShift?.recurringGroupId && (
+                        <div className="flex items-start gap-3 rounded-md border p-3">
+                            <Checkbox
+                                id="delete-series"
+                                checked={deleteSeriesChecked}
+                                onCheckedChange={(checked) => setDeleteSeriesChecked(Boolean(checked))}
+                            />
+                            <div className="space-y-1">
+                                <Label htmlFor="delete-series" className="font-medium">
+                                    Also delete this recurring series
+                                </Label>
+                                <p className="text-sm text-muted-foreground">
+                                    Remove this shift and all future occurrences in the same series, starting from this date.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Annuleren</AlertDialogCancel>
-                        <AlertDialogAction onClick={performDeleteShift} className="bg-red-600 text-white hover:bg-red-700">
-                            Verwijderen
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => performDeleteShift()}
+                            className="bg-red-600 text-white hover:bg-red-700"
+                            disabled={confirmDeleteShift ? deletingIds.has(confirmDeleteShift.id) : false}
+                        >
+                            Delete
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

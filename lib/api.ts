@@ -668,6 +668,13 @@ class ApiClient {
     return this.request(`/shifts/${id}`, { method: "DELETE" })
   }
 
+  deleteRecurringShifts(groupId: string, from?: string) {
+    const search = new URLSearchParams()
+    if (from) search.set("from", from)
+    const query = search.toString() ? `?${search.toString()}` : ""
+    return this.request(`/shifts/recurring/${groupId}${query}`, { method: "DELETE" })
+  }
+
   /* ---------- Time Tracking ---------- */
   getActiveTimeEntry(chatterId: string) {
     return this.request(`/shifts/time-entry/active/${chatterId}`)
@@ -678,11 +685,21 @@ class ApiClient {
     return this.request(`/settings/f2f-cookies`)
   }
 
-  updateF2FCookies(data: { cookies: string }) {
+  updateF2FCookies(
+    data: Array<{
+      cookies: string
+      modelId?: number | string | null
+      allowedEarningTypeIds?: Array<number | string>
+    }>,
+  ) {
     return this.request(`/settings/f2f-cookies`, {
       method: "PUT",
       body: JSON.stringify(data),
     })
+  }
+
+  getEarningTypes() {
+    return this.request(`/settings/earning-types`)
   }
 
   /* ---------- Company Settings ---------- */

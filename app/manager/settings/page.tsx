@@ -14,111 +14,39 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { LogoutButton } from "@/components/logout-button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { api } from "@/lib/api"
+import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/hooks/use-toast"
 import currenciesData from "@/data/currencies.json"
 import timezonesData from "@/data/timezones.json"
-const DEFAULT_F2F_COOKIES_STRING =
-  "shield_FPC=SCCw3sIA5nuudpQTWSQODJuLw7qlxzBoKg; splash=true; intercom-device-id-r1f7b1gp=aeeb0d35-2f49-492d-848a-e1b7a48c63e3; csrftoken=88vIqGRLyEADnlumGSNq9f32CzsJSy8b; sessionid=bq3qq9gbvbrmh2hjb79grpli6s7fldg4; intercom-session-r1f7b1gp=WEVrT1Z4aHFaOG5lV2tZRExDT3MyTmltcFFwN3Q5MTR1TTdZWE1Fc0RTaDFZMmdkbDNucEtrSlI2Y3YvNGFDQnUyTHN0dGNScmJ4aVAxcVBtS3Zwa1FGbExMNitVNzkzRjc5QzRUYlFlOUE9LS1NYk1YOHNIK1ZTSVFURlFscWZFSHNnPT0=--87dd43f168c18288574dc4725278bf900e6e0307"
+import { Pencil } from "lucide-react"
+type F2FAccountType = "creator" | "model"
 
-interface CookieField {
-  key: string
-  label: string
-  description?: string
-  placeholder?: string
-}
-
-type CookieValues = Record<string, string>
-
-const COOKIE_FIELDS: CookieField[] = [
-  {
-    key: "sessionid",
-    label: "Session ID",
-    description:
-      "Dit token verandert het vaakst. Als F2F verzoeken stoppen met werken, ververs dan alleen deze waarde.",
-  },
-  {
-    key: "shield_FPC",
-    label: "shield_FPC",
-  },
-  {
-    key: "csrftoken",
-    label: "csrftoken",
-  },
-]
-
-function createEmptyCookieValues(): CookieValues {
-  return COOKIE_FIELDS.reduce<CookieValues>((acc, field) => {
-    acc[field.key] = ""
-    return acc
-  }, {})
-}
-
-function cloneCookieValues(values: CookieValues): CookieValues {
-  return { ...values }
-}
-
-function parseCookieString(value: string | null | undefined): ParsedCookies {
-  const cookieValues = createEmptyCookieValues()
-  const additionalCookies: string[] = []
-
-  if (!value) {
-    return { values: cookieValues, extras: additionalCookies }
-  }
-
-  const parts = value
-    .split(";")
-    .map((part) => part.trim())
-    .filter(Boolean)
-
-  for (const part of parts) {
-    const [rawKey, ...rest] = part.split("=")
-    const key = rawKey?.trim()
-    if (!key) {
-      additionalCookies.push(part)
-      continue
-    }
-
-    const rawValue = rest.join("=")
-    const valuePart = rawValue.trim()
-
-    if (Object.prototype.hasOwnProperty.call(cookieValues, key)) {
-      cookieValues[key] = valuePart
-    } else {
-      additionalCookies.push(part)
-    }
-  }
-
-  return { values: cookieValues, extras: additionalCookies }
-}
-
-function formatCookieString(values: CookieValues, extras: string[]): string {
-  const normalizedValues = COOKIE_FIELDS.map((field) => {
-    const value = values[field.key]?.trim()
-    return value ? `${field.key}=${value}` : ""
-  }).filter(Boolean)
-
-  const combined = [...normalizedValues, ...extras.filter(Boolean)]
-
-  return combined.join("; ")
-}
-
-const DEFAULT_COOKIES_PARSED = parseCookieString(DEFAULT_F2F_COOKIES_STRING)
-const DEFAULT_COOKIE_VALUES: Readonly<CookieValues> = Object.freeze(
-  cloneCookieValues(DEFAULT_COOKIES_PARSED.values),
-)
-const DEFAULT_ADDITIONAL_COOKIES: ReadonlyArray<string> = Object.freeze([
-  ...(DEFAULT_COOKIES_PARSED.extras ?? []),
-])
-
-interface ParsedCookies {
-  values: CookieValues
-  extras: string[]
+interface F2FEntryForm {
+  localId: string
+  type: F2FAccountType
+  cookies: string
+  name?: string
+  modelId?: string
+  updatedAt?: Date | null
+  sessionid: string
+  shieldFPC: string
+  csrftoken: string
+  otherCookies: string
+  allowedEarningTypeIds: string[]
+  allowedEarningTypes?: string[]
 }
 
 interface NormalizedCookiesPayload {
-  cookies: string
+  entries: F2FEntryForm[]
   updatedAt: Date | null
+}
+
+interface EarningTypeOption {
+  id: string
+  code: string
+  label: string
 }
 
 interface CompanyFormState {
@@ -188,45 +116,235 @@ function parseDate(value: unknown): Date | null {
   return null
 }
 
-function normalizeCookiesPayload(payload: any): NormalizedCookiesPayload {
-  if (typeof payload === "string") {
-    return { cookies: payload, updatedAt: null }
+const makeLocalId = () => `entry-${Date.now()}-${Math.random().toString(16).slice(2)}`
+
+const parseCookieFields = (raw: string | undefined | null) => {
+  const base = { sessionid: "", shieldFPC: "", csrftoken: "", otherCookies: "" }
+  if (!raw) return base
+  const extras: string[] = []
+  const parts = raw.split(";").map((p) => p.trim()).filter(Boolean)
+  for (const part of parts) {
+    const [keyRaw, ...rest] = part.split("=")
+    const key = keyRaw?.trim()?.toLowerCase()
+    const value = rest.join("=").trim()
+    if (!key) continue
+    if (key === "sessionid") {
+      base.sessionid = value
+      continue
+    }
+    if (key === "shield_fpc") {
+      base.shieldFPC = value
+      continue
+    }
+    if (key === "csrftoken") {
+      base.csrftoken = value
+      continue
+    }
+    extras.push(part)
   }
+  base.otherCookies = extras.join("; ")
+  return base
+}
 
-  if (!payload) {
-    return { cookies: "", updatedAt: null }
-  }
+const buildCookieString = (entry: Pick<F2FEntryForm, "sessionid" | "shieldFPC" | "csrftoken" | "otherCookies">) => {
+  const parts: string[] = []
+  if (entry.sessionid.trim()) parts.push(`sessionid=${entry.sessionid.trim()}`)
+  if (entry.shieldFPC.trim()) parts.push(`shield_FPC=${entry.shieldFPC.trim()}`)
+  if (entry.csrftoken.trim()) parts.push(`csrftoken=${entry.csrftoken.trim()}`)
+  const otherParts = (entry.otherCookies ?? "")
+    .split(";")
+    .map((p) => p.trim())
+    .filter(Boolean)
+  parts.push(...otherParts)
+  return parts.join("; ")
+}
 
-  if (Array.isArray(payload) && payload.length > 0) {
-    return normalizeCookiesPayload(payload[0])
-  }
+const normalizeAllowedEarningTypeIds = (raw: any): string[] => {
+  if (!raw) return []
+  const source = Array.isArray(raw) ? raw : []
+  const normalized = source
+    .map((value) => {
+      if (value === null || value === undefined) return null
+      const stringValue = String(value).trim()
+      return stringValue || null
+    })
+    .filter((value): value is string => !!value)
+  const unique = Array.from(new Set(normalized))
+  unique.sort()
+  return unique
+}
 
-  const source = payload.data ?? payload
-
-  const cookiesValue =
-    typeof source?.cookies === "string"
-      ? source.cookies
-      : typeof source?.cookie === "string"
-      ? source.cookie
-      : typeof source?.cookieString === "string"
-      ? source.cookieString
-      : typeof source?.value === "string"
-      ? source.value
-      : ""
-
-  const updatedCandidate =
-    source?.updatedAt ??
-    source?.updated_at ??
-    source?.lastUpdated ??
-    source?.last_updated ??
-    source?.updatedOn ??
-    source?.updated_on ??
-    source?.updated ??
-    null
+const normalizeEntry = (raw: any): F2FEntryForm => {
+  const cookies = typeof raw?.cookies === "string" ? raw.cookies.trim() : ""
+  const hasModel = raw?.model !== null && raw?.model !== undefined
+  const name =
+    typeof raw?.name === "string"
+      ? raw.name.trim() || undefined
+      : typeof raw?.label === "string"
+        ? raw.label.trim() || undefined
+        : undefined
+  const modelIdRaw =
+    raw?.modelId ??
+    raw?.model_id ??
+    (hasModel
+      ? raw?.model?.id ??
+        raw?.model?.modelId ??
+        raw?.model?.model_id
+      : undefined)
+  const hasModelId = modelIdRaw !== null && modelIdRaw !== undefined
+  const type: F2FAccountType = hasModel || hasModelId ? "model" : "creator"
+  const modelId = hasModelId ? String(modelIdRaw).trim() : undefined
+  const updatedAt = parseDate(raw?.updatedAt ?? raw?.updated_at)
+  const allowedEarningTypeIds = normalizeAllowedEarningTypeIds(
+    raw?.allowedEarningTypeIds ?? raw?.earningTypeIds ?? raw?.allowedEarningTypesIds,
+  )
+  const allowedEarningTypes = Array.isArray(raw?.allowedEarningTypes)
+    ? raw.allowedEarningTypes
+        .map((value: any) => (value === null || value === undefined ? null : String(value).trim()))
+        .filter((value: string | null): value is string => !!value)
+    : undefined
+  const parsedFields = parseCookieFields(cookies)
+  const combined = buildCookieString(parsedFields)
 
   return {
-    cookies: cookiesValue,
-    updatedAt: parseDate(updatedCandidate),
+    localId: makeLocalId(),
+    type,
+    cookies: combined || cookies,
+    name,
+    modelId,
+    updatedAt,
+    sessionid: parsedFields.sessionid,
+    shieldFPC: parsedFields.shieldFPC,
+    csrftoken: parsedFields.csrftoken,
+    otherCookies: parsedFields.otherCookies,
+    allowedEarningTypeIds,
+    allowedEarningTypes,
+  }
+}
+
+const cloneEntry = (entry: F2FEntryForm): F2FEntryForm => ({
+  ...entry,
+  localId: makeLocalId(),
+})
+
+const createEmptyEntry = (allowedEarningTypeIds: string[] = []): F2FEntryForm => ({
+  localId: makeLocalId(),
+  type: "creator",
+  cookies: "",
+  name: "",
+  modelId: undefined,
+  updatedAt: null,
+  sessionid: "",
+  shieldFPC: "",
+  csrftoken: "",
+  otherCookies: "",
+  allowedEarningTypeIds,
+  allowedEarningTypes: [],
+})
+
+const serializeEntriesForCompare = (entries: F2FEntryForm[]) =>
+  entries
+    .map((e) => {
+      const cookies = buildCookieString(e).trim()
+      const modelId = e.type === "model" ? (e.modelId ?? "").trim() : ""
+      const name = (e.name ?? "").trim()
+      const earningTypes = (e.allowedEarningTypeIds ?? []).slice().sort().join(",")
+      return `${e.type}|${cookies}|${modelId}|${name}|${earningTypes}`
+    })
+    .join("__")
+
+const extractEntriesArray = (value: any): any[] => {
+  if (Array.isArray(value)) return value
+  if (Array.isArray(value?.entries)) return value.entries
+  if (Array.isArray(value?.data)) return value.data
+  if (Array.isArray(value?.items)) return value.items
+  if (Array.isArray(value?.results)) return value.results
+  if (Array.isArray(value?.rows)) return value.rows
+  return []
+}
+
+const normalizeEarningTypeOption = (raw: any): EarningTypeOption | null => {
+  if (!raw) return null
+  if (typeof raw === "string" || typeof raw === "number") {
+    const value = String(raw).trim()
+    if (!value) return null
+    return { id: value, code: value, label: value }
+  }
+  const idCandidate =
+    raw?.id ??
+    raw?.value ??
+    raw?.typeId ??
+    raw?.type_id ??
+    raw?.earningTypeId ??
+    raw?.earning_type_id ??
+    raw?.key ??
+    raw?.slug ??
+    raw?.code ??
+    raw?.type
+  const codeCandidate =
+    raw?.code ??
+    raw?.key ??
+    raw?.slug ??
+    raw?.type ??
+    raw?.name ??
+    raw?.label ??
+    raw?.earningType ??
+    raw?.earning_type
+  const id = idCandidate !== undefined && idCandidate !== null ? String(idCandidate).trim() : ""
+  const fallbackId = id || (codeCandidate ? String(codeCandidate).trim() : "")
+  if (!fallbackId) return null
+
+  const code = (codeCandidate ? String(codeCandidate).trim() : "") || fallbackId
+  const label =
+    (typeof raw?.label === "string" && raw.label.trim()) ||
+    (typeof raw?.name === "string" && raw.name.trim()) ||
+    (typeof raw?.description === "string" && raw.description.trim()) ||
+    code ||
+    fallbackId
+
+  return {
+    id: fallbackId,
+    code,
+    label,
+  }
+}
+
+const normalizeEarningTypes = (value: any): EarningTypeOption[] => {
+  const source = extractEntriesArray(value)
+  const seen = new Set<string>()
+  const normalized: EarningTypeOption[] = []
+
+  for (const entry of source) {
+    const option = normalizeEarningTypeOption(entry)
+    if (!option) continue
+    if (seen.has(option.id)) continue
+    seen.add(option.id)
+    normalized.push(option)
+  }
+
+  return normalized
+}
+
+function normalizeCookiesPayload(payload: any): NormalizedCookiesPayload {
+  if (!payload) {
+    return { entries: [], updatedAt: null }
+  }
+
+  const source = Array.isArray(payload) && payload.length > 0 ? payload : extractEntriesArray(payload)
+
+  const entries: F2FEntryForm[] = extractEntriesArray(source)
+    .map(normalizeEntry)
+    .filter((e) => !!e.cookies)
+
+  const updatedCandidate = entries.reduce<Date | null>((latest, entry) => {
+    if (!entry.updatedAt) return latest
+    if (!latest) return entry.updatedAt
+    return entry.updatedAt > latest ? entry.updatedAt : latest
+  }, null)
+
+  return {
+    entries,
+    updatedAt: updatedCandidate,
   }
 }
 
@@ -234,11 +352,18 @@ export default function ManagerSettingsPage() {
   const router = useRouter()
   const [isAuthorized, setIsAuthorized] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [cookieValues, setCookieValues] = useState<CookieValues>(() => createEmptyCookieValues())
-  const [initialCookieValues, setInitialCookieValues] = useState<CookieValues>(() => createEmptyCookieValues())
-  const [additionalCookies, setAdditionalCookies] = useState<string[]>([])
-  const [initialAdditionalCookies, setInitialAdditionalCookies] = useState<string[]>([])
-  const [initialCookiesString, setInitialCookiesString] = useState("")
+  const [cookieEntries, setCookieEntries] = useState<F2FEntryForm[]>([createEmptyEntry()])
+  const [initialCookieEntries, setInitialCookieEntries] = useState<F2FEntryForm[]>([])
+  const [initialEntriesKey, setInitialEntriesKey] = useState("")
+  const [models, setModels] = useState<
+    { id: string; displayName: string; username: string }[]
+  >([])
+  const [modelsLoading, setModelsLoading] = useState(false)
+  const [earningTypes, setEarningTypes] = useState<EarningTypeOption[]>([])
+  const [earningTypesLoading, setEarningTypesLoading] = useState(false)
+  const [earningTypesError, setEarningTypesError] = useState<string | null>(null)
+  const [editingNames, setEditingNames] = useState<Record<string, boolean>>({})
+  const [nameDrafts, setNameDrafts] = useState<Record<string, string>>({})
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -279,21 +404,22 @@ export default function ManagerSettingsPage() {
     setIsAuthorized(true)
     setLoading(true)
     setCompanyLoading(true)
+    setModelsLoading(true)
+    setEarningTypesLoading(true)
     setLoadError(null)
     setCompanyError(null)
+    setEarningTypesError(null)
 
     try {
       const payload = await api.getF2FCookies()
+      console.log("Fetched F2F cookies payload:", payload)
       if (isCancelled) return
       const normalized = normalizeCookiesPayload(payload)
-      const normalizedString = (normalized.cookies ?? "").trim()
-      const parsed = parseCookieString(normalizedString)
+      const entries = normalized.entries.length ? normalized.entries : [createEmptyEntry()]
 
-      setCookieValues(cloneCookieValues(parsed.values))
-      setInitialCookieValues(cloneCookieValues(parsed.values))
-      setAdditionalCookies(Array.from(parsed.extras))
-      setInitialAdditionalCookies(Array.from(parsed.extras))
-      setInitialCookiesString(formatCookieString(parsed.values, parsed.extras))
+      setCookieEntries(entries.map(cloneEntry))
+      setInitialCookieEntries(entries.map(cloneEntry))
+      setInitialEntriesKey(serializeEntriesForCompare(entries))
       setLastUpdated(normalized.updatedAt)
     } catch (error) {
       if (isCancelled) return
@@ -309,6 +435,46 @@ export default function ManagerSettingsPage() {
     } finally {
       if (!isCancelled) {
         setLoading(false)
+      }
+    }
+
+    try {
+      const earningTypesResponse = await api.getEarningTypes()
+      if (!isCancelled) {
+        const normalizedEarningTypes = normalizeEarningTypes(earningTypesResponse)
+        setEarningTypes(normalizedEarningTypes)
+      }
+    } catch (error) {
+      if (!isCancelled) {
+        console.error("[settings] Failed to load earning types", error)
+        setEarningTypesError(
+          (error as Error)?.message ?? "Could not load earning types. Defaulting to all.",
+        )
+      }
+    } finally {
+      if (!isCancelled) {
+        setEarningTypesLoading(false)
+      }
+    }
+
+    try {
+      const modelsResponse = await api.getModels()
+      if (!isCancelled) {
+        const normalizedModels =
+          (modelsResponse || []).map((m: any) => ({
+            id: String(m.id),
+            displayName: m.displayName ?? m.name ?? m.username ?? `Model ${m.id}`,
+            username: m.username ?? "",
+          })) ?? []
+        setModels(normalizedModels)
+      }
+    } catch (error) {
+      if (!isCancelled) {
+        console.error("[settings] Failed to load models", error)
+      }
+    } finally {
+      if (!isCancelled) {
+        setModelsLoading(false)
       }
     }
 
@@ -340,15 +506,49 @@ export default function ManagerSettingsPage() {
     }
   }, [router])
 
-  const currentCookieString = useMemo(
-    () => formatCookieString(cookieValues, additionalCookies),
-    [cookieValues, additionalCookies],
+  const defaultAllowedEarningTypeIds = useMemo(
+    () => earningTypes.map((type) => type.id),
+    [earningTypes],
+  )
+
+  const entriesKey = useMemo(
+    () => serializeEntriesForCompare(cookieEntries),
+    [cookieEntries],
   )
 
   const hasChanges = useMemo(
-    () => currentCookieString.trim() !== initialCookiesString.trim(),
-    [currentCookieString, initialCookiesString],
+    () => entriesKey !== initialEntriesKey,
+    [entriesKey, initialEntriesKey],
   )
+
+  useEffect(() => {
+    if (!defaultAllowedEarningTypeIds.length) return
+
+    setCookieEntries((prev) => {
+      let changed = false
+      const next = prev.map((entry) => {
+        if ((entry.allowedEarningTypeIds ?? []).length > 0) return entry
+        changed = true
+        return { ...entry, allowedEarningTypeIds: defaultAllowedEarningTypeIds }
+      })
+      return changed ? next : prev
+    })
+
+    setInitialCookieEntries((prev) => {
+      if (!prev.length) return prev
+      let changed = false
+      const next = prev.map((entry) => {
+        if ((entry.allowedEarningTypeIds ?? []).length > 0) return entry
+        changed = true
+        return { ...entry, allowedEarningTypeIds: defaultAllowedEarningTypeIds }
+      })
+      if (changed) {
+        setInitialEntriesKey(serializeEntriesForCompare(next))
+        return next
+      }
+      return prev
+    })
+  }, [defaultAllowedEarningTypeIds])
 
   const statusMessage = useMemo(() => {
     if (loading) return "Loading current F2F cookies..."
@@ -378,13 +578,114 @@ export default function ManagerSettingsPage() {
   }, [companyForm, initialCompanyForm])
 
   const handleReset = () => {
-    setCookieValues(cloneCookieValues(initialCookieValues))
-    setAdditionalCookies(Array.from(initialAdditionalCookies))
+    const resetEntries = initialCookieEntries.length
+      ? initialCookieEntries.map(cloneEntry)
+      : [createEmptyEntry(defaultAllowedEarningTypeIds)]
+    setCookieEntries(resetEntries)
   }
 
   const handleCompanyReset = () => {
     if (!initialCompanyForm) return
     setCompanyForm(initialCompanyForm)
+  }
+
+  const updateEntry = (localId: string, changes: Partial<F2FEntryForm>) => {
+    setCookieEntries((prev) =>
+      prev.map((entry) =>
+        entry.localId === localId
+          ? (() => {
+              const merged = {
+                ...entry,
+                ...changes,
+                ...(changes.type === "creator" ? { modelId: undefined } : null),
+              }
+              if ("allowedEarningTypeIds" in changes) {
+                merged.allowedEarningTypeIds = normalizeAllowedEarningTypeIds(
+                  changes.allowedEarningTypeIds ?? [],
+                )
+              }
+              return { ...merged, cookies: buildCookieString(merged) }
+            })()
+          : entry,
+      ),
+    )
+  }
+
+  const updateEntryEarningTypes = (
+    localId: string,
+    updater: (current: string[]) => string[],
+  ) => {
+    setCookieEntries((prev) =>
+      prev.map((entry) => {
+        if (entry.localId !== localId) return entry
+        const nextIds = normalizeAllowedEarningTypeIds(
+          updater(entry.allowedEarningTypeIds ?? []),
+        )
+        return { ...entry, allowedEarningTypeIds: nextIds }
+      }),
+    )
+  }
+
+  const handleToggleEarningType = (localId: string, earningTypeId: string, enabled: boolean) => {
+    updateEntryEarningTypes(localId, (current) => {
+      const set = new Set(current)
+      if (enabled) {
+        set.add(earningTypeId)
+      } else {
+        set.delete(earningTypeId)
+      }
+      return Array.from(set)
+    })
+  }
+
+  const handleSelectAllEarningTypes = (localId: string) => {
+    if (!defaultAllowedEarningTypeIds.length) return
+    updateEntryEarningTypes(localId, () => defaultAllowedEarningTypeIds)
+  }
+
+  const handleClearEarningTypes = (localId: string) => {
+    updateEntryEarningTypes(localId, () => [])
+  }
+
+  const addEntry = () => {
+    setCookieEntries((prev) => [
+      ...prev,
+      createEmptyEntry(defaultAllowedEarningTypeIds),
+    ])
+  }
+
+  const removeEntry = (localId: string) => {
+    setEditingNames((prev) => {
+      const next = { ...prev }
+      delete next[localId]
+      return next
+    })
+    setNameDrafts((prev) => {
+      const next = { ...prev }
+      delete next[localId]
+      return next
+    })
+    setCookieEntries((prev) => {
+      if (prev.length === 1) {
+        return prev.map((entry) =>
+          entry.localId === localId
+            ? {
+                ...entry,
+                cookies: "",
+                modelId: undefined,
+                type: "creator",
+                name: "",
+                sessionid: "",
+                shieldFPC: "",
+                csrftoken: "",
+                otherCookies: "",
+                allowedEarningTypeIds: defaultAllowedEarningTypeIds,
+              }
+            : entry,
+        )
+      }
+      return prev.filter((entry) => entry.localId !== localId)
+    })
   }
 
   const handleCompanySubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -434,23 +735,72 @@ export default function ManagerSettingsPage() {
     event.preventDefault()
     if (isSaving || !hasChanges) return
 
-    const payload = { cookies: currentCookieString.trim() }
+    let modelSelectionMissing = false
+    let earningTypeSelectionMissing = false
+    const cleanedEntries = cookieEntries
+      .map((entry) => {
+        const trimmedCookies = buildCookieString(entry).trim()
+        if (!trimmedCookies) return null
+        const normalized: any = {
+          cookies: trimmedCookies,
+        }
+        if (entry.name && entry.name.trim()) {
+          normalized.name = entry.name.trim()
+        }
+        const normalizedEarningTypes = normalizeAllowedEarningTypeIds(
+          entry.allowedEarningTypeIds ?? [],
+        )
+        if (!normalizedEarningTypes.length && defaultAllowedEarningTypeIds.length > 0) {
+          earningTypeSelectionMissing = true
+          return null
+        }
+        if (normalizedEarningTypes.length > 0) {
+          normalized.allowedEarningTypeIds = normalizedEarningTypes.map((value) => {
+            const numeric = Number(value)
+            return Number.isNaN(numeric) ? value : numeric
+          })
+        }
+        if (entry.type === "model") {
+          if (!entry.modelId) {
+            modelSelectionMissing = true
+            return null
+          }
+          const parsedId = Number(entry.modelId)
+          normalized.modelId = Number.isNaN(parsedId) ? entry.modelId : parsedId
+        } else {
+          normalized.modelId = null
+        }
+        return normalized
+      })
+      .filter(Boolean) as any[]
+
+    if (modelSelectionMissing) {
+      setLoadError("Select a model for each model account.")
+      return
+    }
+    if (earningTypeSelectionMissing) {
+      setLoadError("Select at least one earning type for each account.")
+      return
+    }
+
+    if (!cleanedEntries.length) {
+      setLoadError("At least one cookie entry is required.")
+      return
+    }
 
     setIsSaving(true)
     setLoadError(null)
 
     try {
-      const response = await api.updateF2FCookies(payload)
+      const response = await api.updateF2FCookies(cleanedEntries)
       const normalized = normalizeCookiesPayload(response)
-      const savedCookiesString = (normalized.cookies || payload.cookies).trim()
-      const parsedSaved = parseCookieString(savedCookiesString)
-      const formattedSaved = formatCookieString(parsedSaved.values, parsedSaved.extras)
+      const savedEntries = normalized.entries.length
+        ? normalized.entries
+        : cleanedEntries.map((entry) => normalizeEntry(entry))
 
-      setCookieValues(cloneCookieValues(parsedSaved.values))
-      setInitialCookieValues(cloneCookieValues(parsedSaved.values))
-      setAdditionalCookies(Array.from(parsedSaved.extras))
-      setInitialAdditionalCookies(Array.from(parsedSaved.extras))
-      setInitialCookiesString(formattedSaved)
+      setCookieEntries(savedEntries.map(cloneEntry))
+      setInitialCookieEntries(savedEntries.map(cloneEntry))
+      setInitialEntriesKey(serializeEntriesForCompare(savedEntries))
       setLastUpdated(normalized.updatedAt ?? new Date())
       toast({
         title: "F2F cookies saved",
@@ -709,61 +1059,282 @@ export default function ManagerSettingsPage() {
                         Cookies worden geladen...
                       </div>
                     ) : (
-                      <form onSubmit={handleSubmit} className="space-y-10">
-                        <div className="flex flex-wrap items-start justify-between gap-2">
+                      <form onSubmit={handleSubmit} className="space-y-8">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
                           <div className="max-w-xl space-y-1 text-sm">
-                            <p className="font-medium text-foreground">F2F cookies</p>
+                            <p className="font-medium text-foreground">F2F accounts</p>
                             <p className="text-xs text-muted-foreground">
-                              Fill in each cookie separately. Semicolons are added automatically when you save.
+                              Add a cookie string for each Face2Face account. Choose <span className="font-semibold">Model account</span> when the cookie belongs to a model login.
                             </p>
                           </div>
+                          <Button type="button" variant="outline" onClick={addEntry}>
+                            + Add account
+                          </Button>
                         </div>
 
-                        <div className="grid gap-5">
-                          {COOKIE_FIELDS.map((field) => {
-                            const fieldId = `cookie-${field.key}`
-                            const defaultValue = DEFAULT_COOKIE_VALUES[field.key] ?? ""
+                        <div className="space-y-4">
+                          {cookieEntries.map((entry, index) => {
+                            const modelLabel =
+                              entry.modelId &&
+                              models.find((m) => m.id === entry.modelId)?.displayName
+                            const canRemove = cookieEntries.length > 1 || entry.cookies.trim().length > 0
+                            const displayName = (entry.name ?? "").trim() || `Account ${index + 1}`
+                            const isEditingName = !!editingNames[entry.localId]
+                            const nameDraft = nameDrafts[entry.localId] ?? entry.name ?? ""
+
                             return (
-                              <div key={field.key} className="space-y-2">
-                                <Label htmlFor={fieldId} className="text-sm font-medium">
-                                  {field.label}
-                                </Label>
-                                <Input
-                                  id={fieldId}
-                                  value={cookieValues[field.key] ?? ""}
-                                  onChange={(event) =>
-                                    setCookieValues((prev) => ({
-                                      ...prev,
-                                      [field.key]: event.target.value,
-                                    }))
-                                  }
-                                  placeholder={defaultValue}
-                                  spellCheck={false}
-                                  autoComplete="off"
-                                  className="font-mono"
-                                />
-                                {field.description ? (
-                                  <p className="text-xs text-muted-foreground">{field.description}</p>
+                              <div key={entry.localId} className="space-y-4 rounded-lg border border-muted/60 p-4">
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                  <div className="space-y-1">
+                                    {isEditingName ? (
+                                      <div className="flex items-center gap-2">
+                                        <Input
+                                          value={nameDraft}
+                                          onChange={(event) =>
+                                            setNameDrafts((prev) => ({
+                                              ...prev,
+                                              [entry.localId]: event.target.value,
+                                            }))
+                                          }
+                                          placeholder={`Account ${index + 1}`}
+                                          className="h-8"
+                                        />
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          onClick={() => {
+                                            const trimmed = (nameDrafts[entry.localId] ?? "").trim()
+                                            updateEntry(entry.localId, { name: trimmed })
+                                            setEditingNames((prev) => ({ ...prev, [entry.localId]: false }))
+                                            setNameDrafts((prev) => {
+                                              const next = { ...prev }
+                                              delete next[entry.localId]
+                                              return next
+                                            })
+                                          }}
+                                        >
+                                          Save
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          variant="ghost"
+                                          onClick={() => {
+                                            setEditingNames((prev) => ({ ...prev, [entry.localId]: false }))
+                                            setNameDrafts((prev) => {
+                                              const next = { ...prev }
+                                              delete next[entry.localId]
+                                              return next
+                                            })
+                                          }}
+                                        >
+                                          Cancel
+                                        </Button>
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center gap-2">
+                                        <p className="text-sm font-semibold text-foreground">{displayName}</p>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => {
+                                            setEditingNames((prev) => ({ ...prev, [entry.localId]: true }))
+                                            setNameDrafts((prev) => ({
+                                              ...prev,
+                                              [entry.localId]: entry.name ?? "",
+                                            }))
+                                          }}
+                                        >
+                                          <Pencil className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    )}
+                                    {modelLabel ? (
+                                      <p className="text-xs text-muted-foreground">Model: {modelLabel}</p>
+                                    ) : null}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => removeEntry(entry.localId)}
+                                      disabled={!canRemove}
+                                    >
+                                      Remove
+                                    </Button>
+                                  </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label className="text-sm font-medium">Account type</Label>
+                                  <Select
+                                    value={entry.type}
+                                    onValueChange={(value) =>
+                                      updateEntry(entry.localId, { type: value as F2FAccountType })
+                                    }
+                                  >
+                                    <SelectTrigger className="w-full">
+                                      <SelectValue placeholder="Select type" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="creator">Creator (agency) account</SelectItem>
+                                      <SelectItem value="model">Model account</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                {entry.type === "model" ? (
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-medium">Linked model</Label>
+                                    <Select
+                                      value={entry.modelId ?? ""}
+                                      onValueChange={(value) =>
+                                        updateEntry(entry.localId, { modelId: value || undefined })
+                                      }
+                                      disabled={modelsLoading}
+                                    >
+                                      <SelectTrigger className="w-full">
+                                        <SelectValue placeholder={modelsLoading ? "Loading models..." : "Select model"} />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {models.map((model) => (
+                                          <SelectItem key={model.id} value={model.id}>
+                                            {model.displayName} {model.username ? `(@${model.username})` : ""}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    <p className="text-xs text-muted-foreground">
+                                      Required for model accounts so payouts link to the right model.
+                                    </p>
+                                  </div>
                                 ) : null}
+
+                                <div className="space-y-2">
+                                  <Label className="text-sm font-medium">Allowed earning types</Label>
+                                  <div className="space-y-2 rounded-md border border-muted/60 p-3">
+                                    {earningTypesLoading ? (
+                                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                                        Loading earning types...
+                                      </div>
+                                    ) : null}
+                                    {earningTypesError ? (
+                                      <p className="text-xs text-destructive">{earningTypesError}</p>
+                                    ) : null}
+                                    {!earningTypesLoading && earningTypes.length > 0 ? (
+                                      <div className="flex flex-wrap gap-2">
+                                        {earningTypes.map((earningType) => {
+                                          const checked = (entry.allowedEarningTypeIds ?? []).includes(earningType.id)
+                                          return (
+                                            <label
+                                              key={earningType.id}
+                                              className="flex cursor-pointer items-center gap-2 rounded-md border border-muted/50 px-2 py-1 text-xs font-medium hover:border-muted-foreground/40"
+                                            >
+                                              <input
+                                                type="checkbox"
+                                                className="h-4 w-4"
+                                                checked={checked}
+                                                onChange={(event) =>
+                                                  handleToggleEarningType(
+                                                    entry.localId,
+                                                    earningType.id,
+                                                    event.target.checked,
+                                                  )
+                                                }
+                                              />
+                                              <span>{earningType.label}</span>
+                                            </label>
+                                          )
+                                        })}
+                                      </div>
+                                    ) : null}
+                                    {!earningTypesLoading && earningTypes.length === 0 ? (
+                                      <p className="text-xs text-muted-foreground">
+                                        No earning types available. Saving will allow all by default.
+                                      </p>
+                                    ) : null}
+                                    <div className="flex flex-wrap gap-2">
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleSelectAllEarningTypes(entry.localId)}
+                                        disabled={earningTypes.length === 0}
+                                      >
+                                        Select all
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => handleClearEarningTypes(entry.localId)}
+                                      >
+                                        Clear
+                                      </Button>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                      Choose which earning types Face2Face may create for this account.
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="grid gap-4 md:grid-cols-2">
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-medium">Session ID</Label>
+                                    <Input
+                                      value={entry.sessionid}
+                                      onChange={(event) => updateEntry(entry.localId, { sessionid: event.target.value })}
+                                      placeholder="sessionid"
+                                      spellCheck={false}
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-medium">shield_FPC</Label>
+                                    <Input
+                                      value={entry.shieldFPC}
+                                      onChange={(event) => updateEntry(entry.localId, { shieldFPC: event.target.value })}
+                                      placeholder="shield_FPC"
+                                      spellCheck={false}
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-medium">csrftoken</Label>
+                                    <Input
+                                      value={entry.csrftoken}
+                                      onChange={(event) => updateEntry(entry.localId, { csrftoken: event.target.value })}
+                                      placeholder="csrftoken"
+                                      spellCheck={false}
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-medium">Other cookies (optional)</Label>
+                                    <Textarea
+                                      rows={3}
+                                      value={entry.otherCookies}
+                                      onChange={(event) => updateEntry(entry.localId, { otherCookies: event.target.value })}
+                                      placeholder="splash=true; intercom-session=..."
+                                      spellCheck={false}
+                                      className="font-mono"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="space-y-1 rounded-md border border-dashed border-muted/50 p-3">
+                                  <p className="text-xs font-medium text-muted-foreground">Cookie header preview</p>
+                                  <code className="block whitespace-pre-wrap break-words text-xs font-mono text-foreground">
+                                    {buildCookieString(entry) || "sessionid=...; csrftoken=...; shield_FPC=..."}
+                                  </code>
+                                </div>
                               </div>
                             )
                           })}
                         </div>
 
-                        {additionalCookies.length > 0 ? (
-                          <div className="space-y-2 rounded-md border border-dashed border-muted-foreground/40 p-3">
-                            <p className="text-xs text-muted-foreground">
-                              These additional cookies are also stored and sent automatically:
-                            </p>
-                            <code className="block whitespace-pre-wrap break-words text-xs font-mono text-muted-foreground">
-                              {additionalCookies.join("; ")}
-                            </code>
-                          </div>
-                        ) : null}
-
-                      <p className="text-xs text-muted-foreground">
-                        These values are stored in the database and shared with every F2F synchronization.
-                      </p>
+                        <p className="text-xs text-muted-foreground">
+                          These values are stored in the database and shared with every F2F synchronization.
+                        </p>
 
                         <div className="flex flex-wrap items-center gap-3">
                           <Button type="submit" disabled={isSaving || !hasChanges}>
@@ -775,11 +1346,11 @@ export default function ManagerSettingsPage() {
                               "Save cookies"
                             )}
                           </Button>
-                        {hasChanges ? (
-                          <Button type="button" variant="outline" onClick={handleReset} disabled={isSaving}>
-                            Revert changes
-                          </Button>
-                        ) : null}
+                          {hasChanges ? (
+                            <Button type="button" variant="outline" onClick={handleReset} disabled={isSaving}>
+                              Revert changes
+                            </Button>
+                          ) : null}
                         </div>
                       </form>
                     )}
