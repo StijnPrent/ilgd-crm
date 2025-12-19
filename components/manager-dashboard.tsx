@@ -457,7 +457,7 @@ export function ManagerDashboard() {
                     </div>
                     {/* Stats Overview */}
                     <div className="mb-8">
-                        <ManagerStats monthLabel={rangeLabel} monthStart={rangeStart} monthEnd={rangeEnd}/>
+                        <ManagerStats userId={user?.id} monthLabel={rangeLabel} monthStart={rangeStart} monthEnd={rangeEnd}/>
                     </div>
 
                     {/* Tabs */}

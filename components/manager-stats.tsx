@@ -30,12 +30,13 @@ interface Stats {
 }
 
 interface ManagerStatsProps {
+    userId?: string | null
     monthLabel: string
     monthStart: string
     monthEnd: string
 }
 
-export function ManagerStats({monthLabel, monthStart, monthEnd}: ManagerStatsProps) {
+export function ManagerStats({userId, monthLabel, monthStart, monthEnd}: ManagerStatsProps) {
     const userTimezone = useMemo(() => getUserTimezone(), [])
     const [stats, setStats] = useState<Stats>({
         totalChatters: 0,
@@ -46,6 +47,8 @@ export function ManagerStats({monthLabel, monthStart, monthEnd}: ManagerStatsPro
         dayLabel: "",
     })
     const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
+    const [retryCount, setRetryCount] = useState(0)
 
     const currencyFormatter = useMemo(
         () =>
@@ -108,7 +111,14 @@ export function ManagerStats({monthLabel, monthStart, monthEnd}: ManagerStatsPro
         let cancelled = false
 
         const loadStats = async () => {
+            // Wait until auth is available to avoid running before login storage is ready.
+            if (!userId) {
+                setLoading(false)
+                return
+            }
+
             setLoading(true)
+            setError(null)
             try {
                 const [chatters, onlineChatters, revenueStats] = await Promise.all([
                     api.getChatters(),
@@ -137,6 +147,13 @@ export function ManagerStats({monthLabel, monthStart, monthEnd}: ManagerStatsPro
                 setStats(statsPayload)
             } catch (err) {
                 console.error("Error loading manager stats:", err)
+                if (!cancelled && retryCount < 1) {
+                    // Retry once after a short delay to cover the case where auth just became available.
+                    setTimeout(() => setRetryCount((prev) => prev + 1), 400)
+                }
+                if (!cancelled) {
+                    setError("Kon statistieken niet laden")
+                }
             } finally {
                 if (!cancelled) {
                     setLoading(false)
@@ -149,7 +166,7 @@ export function ManagerStats({monthLabel, monthStart, monthEnd}: ManagerStatsPro
         return () => {
             cancelled = true
         }
-    }, [dateContext.fromParam, dateContext.toParam, dayLabelFormatter])
+    }, [dateContext.fromParam, dateContext.toParam, dayLabelFormatter, retryCount, userId])
 
     if (loading) {
         return (
@@ -214,6 +231,14 @@ export function ManagerStats({monthLabel, monthStart, monthEnd}: ManagerStatsPro
                     </p>
                 </CardContent>
             </Card>
+
+            {error && (
+                <Card className="md:col-span-2 lg:col-span-4 border-dashed border-red-300 bg-red-50/60">
+                    <CardContent className="py-3 text-sm text-red-700">
+                        {error}. We tonen tijdelijk 0,00; herladen of check je verbinding.
+                    </CardContent>
+                </Card>
+            )}
         </div>
     )
 }
