@@ -404,6 +404,24 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
         }))
     }, [rawTableEarnings, rawMonthlyEarnings])
 
+    const filteredTotal = useMemo(() => {
+        const source =
+            !isCompact && monthlyEarnings.length > 0 ? monthlyEarnings : visibleEarnings
+        return source.reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
+    }, [isCompact, monthlyEarnings, visibleEarnings])
+
+    const totalLabel = useMemo(() => {
+        if (selectedDate) {
+            const parsed = new Date(selectedDate)
+            if (!Number.isNaN(parsed.getTime())) {
+                return formatUserDate(parsed, {weekday: "short", month: "short", day: "numeric"})
+            }
+        }
+        return headerMonthLabel
+    }, [headerMonthLabel, selectedDate])
+
+    const totalLoading = tableLoading || (!isCompact && chartLoading)
+
     const formatCurrency = useCallback((amount: number) => {
         return new Intl.NumberFormat("nl-NL", {
             style: "currency",
@@ -914,7 +932,7 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                 <CardDescription>{headerMonthLabel}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-                <div className="flex flex-col gap-4 md:flex-row md:items-center">
+                <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-center">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button
@@ -1053,7 +1071,7 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-1 flex-wrap gap-2">
                         {filterSummary.map((item) => (
                             <Badge
                                 key={item.key}
@@ -1072,81 +1090,98 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                             </Badge>
                         ))}
                     </div>
-                    <Dialog
-                        open={syncOpen}
-                        onOpenChange={(open) => {
-                            if (syncLoading) return
-                            setSyncOpen(open)
-                        }}
-                    >
-                        <DialogTrigger asChild>
-                            <Button className="md:ml-auto">Sync Earnings</Button>
-                        </DialogTrigger>
-                        <DialogContent aria-busy={syncLoading}>
-                            {syncLoading && (
-                                <div
-                                    className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-lg bg-background/80">
-                                    <Loader2 className="h-5 w-5 animate-spin text-primary"/>
-                                    <p className="text-sm font-medium">Syncing earnings...</p>
-                                </div>
+                    <div className="flex flex-wrap items-center gap-3 md:ml-auto">
+                        <div className="flex flex-col rounded-lg border bg-muted/50 px-3 py-2">
+                            <span className="text-xs text-muted-foreground">
+                                Filtered total • {totalLabel}
+                            </span>
+                            {totalLoading ? (
+                                <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                                    <Loader2 className="h-4 w-4 animate-spin"/>
+                                    Loading
+                                </span>
+                            ) : (
+                                <span className="text-lg font-semibold leading-none">
+                                    {formatCurrency(filteredTotal)}
+                                </span>
                             )}
-                            <DialogHeader>
-                                <DialogTitle>Sync Earnings</DialogTitle>
-                                <DialogDescription>
-                                    Select the start and end date times.
-                                </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4">
-                                <div className="flex flex-col gap-2">
-                                    <Label htmlFor="sync-from">From</Label>
-                                    <Input
-                                        id="sync-from"
-                                        type="datetime-local"
-                                        value={syncFrom}
-                                        onChange={(event) => setSyncFrom(event.target.value)}
-                                        disabled={syncLoading}
-                                    />
+                        </div>
+                        <Dialog
+                            open={syncOpen}
+                            onOpenChange={(open) => {
+                                if (syncLoading) return
+                                setSyncOpen(open)
+                            }}
+                        >
+                            <DialogTrigger asChild>
+                                <Button className="md:ml-auto">Sync Earnings</Button>
+                            </DialogTrigger>
+                            <DialogContent aria-busy={syncLoading}>
+                                {syncLoading && (
+                                    <div
+                                        className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-lg bg-background/80">
+                                        <Loader2 className="h-5 w-5 animate-spin text-primary"/>
+                                        <p className="text-sm font-medium">Syncing earnings...</p>
+                                    </div>
+                                )}
+                                <DialogHeader>
+                                    <DialogTitle>Sync Earnings</DialogTitle>
+                                    <DialogDescription>
+                                        Select the start and end date times.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4">
+                                    <div className="flex flex-col gap-2">
+                                        <Label htmlFor="sync-from">From</Label>
+                                        <Input
+                                            id="sync-from"
+                                            type="datetime-local"
+                                            value={syncFrom}
+                                            onChange={(event) => setSyncFrom(event.target.value)}
+                                            disabled={syncLoading}
+                                        />
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        <Label htmlFor="sync-to">To</Label>
+                                        <Input
+                                            id="sync-to"
+                                            type="datetime-local"
+                                            value={syncTo}
+                                            onChange={(event) => setSyncTo(event.target.value)}
+                                            disabled={syncLoading}
+                                        />
+                                    </div>
                                 </div>
-                                <div className="flex flex-col gap-2">
-                                    <Label htmlFor="sync-to">To</Label>
-                                    <Input
-                                        id="sync-to"
-                                        type="datetime-local"
-                                        value={syncTo}
-                                        onChange={(event) => setSyncTo(event.target.value)}
+                                <DialogFooter>
+                                    <Button
+                                        variant="secondary"
+                                        onClick={() => setSyncOpen(false)}
                                         disabled={syncLoading}
-                                    />
-                                </div>
-                            </div>
-                            <DialogFooter>
-                                <Button
-                                    variant="secondary"
-                                    onClick={() => setSyncOpen(false)}
-                                    disabled={syncLoading}
-                                >
-                                    Cancel
-                                </Button>
-                                <Button
-                                    disabled={syncLoading || !syncFrom || !syncTo}
-                                    onClick={async () => {
-                                        const success = await handleSync()
-                                        if (success) {
-                                            setSyncOpen(false)
-                                        }
-                                    }}
-                                >
-                                    {syncLoading ? (
-                                        <span className="flex items-center gap-2">
-                                            <Loader2 className="h-4 w-4 animate-spin"/>
-                                            Syncing...
-                                        </span>
-                                    ) : (
-                                        "Sync"
-                                    )}
-                                </Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
+                                    >
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        disabled={syncLoading || !syncFrom || !syncTo}
+                                        onClick={async () => {
+                                            const success = await handleSync()
+                                            if (success) {
+                                                setSyncOpen(false)
+                                            }
+                                        }}
+                                    >
+                                        {syncLoading ? (
+                                            <span className="flex items-center gap-2">
+                                                <Loader2 className="h-4 w-4 animate-spin"/>
+                                                Syncing...
+                                            </span>
+                                        ) : (
+                                            "Sync"
+                                        )}
+                                    </Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+                    </div>
                 </div>
 
                 {chartLoading ? (

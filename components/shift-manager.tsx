@@ -179,7 +179,7 @@ export function ShiftManager() {
             }))
 
             const chatterLookup: Record<string, string> = {}
-            chattersWithNames.forEach((chatter) => {
+            chattersWithNames.forEach((chatter: Chatter) => {
                 chatterLookup[chatter.id] = chatter.full_name || "Unknown"
             })
 
@@ -189,7 +189,7 @@ export function ShiftManager() {
             }))
 
             const modelLookup: Record<string, string> = {}
-            modelsList.forEach((model) => {
+            modelsList.forEach((model: Model) => {
                 modelLookup[model.id] = model.display_name || "Unknown Model"
             })
 
@@ -272,7 +272,7 @@ export function ShiftManager() {
                         },
                         model_ids: modelIds,
                         model_names: modelIds.map(
-                            (modelId) => modelNameMap[modelId] || "Unknown Model",
+                            (modelId: string) => modelNameMap[modelId] || "Unknown Model",
                         ),
                         date: dateKey,
                     }
@@ -282,8 +282,8 @@ export function ShiftManager() {
                     const base = force
                         ? prev.filter((shift) => shift.date < from || shift.date > to)
                         : prev
-                    const merged = new Map(base.map((shift) => [shift.id, shift]))
-                    formattedShifts.forEach((shift) => merged.set(shift.id, shift))
+                    const merged = new Map(base.map((shift: Shift) => [shift.id, shift]))
+                    formattedShifts.forEach((shift: Shift) => merged.set(shift.id, shift))
                     return Array.from(merged.values())
                 })
 
