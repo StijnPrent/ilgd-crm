@@ -22,6 +22,7 @@ import currenciesData from "@/data/currencies.json"
 import timezonesData from "@/data/timezones.json"
 import { Pencil } from "lucide-react"
 type F2FAccountType = "creator" | "model"
+type AllowedUserRelationship = "fan" | "follower"
 
 interface F2FEntryForm {
   localId: string
@@ -36,6 +37,7 @@ interface F2FEntryForm {
   otherCookies: string
   allowedEarningTypeIds: string[]
   allowedEarningTypes?: string[]
+  allowedUserRelationships: AllowedUserRelationship[]
 }
 
 interface NormalizedCookiesPayload {
@@ -174,6 +176,23 @@ const normalizeAllowedEarningTypeIds = (raw: any): string[] => {
   return unique
 }
 
+const normalizeAllowedUserRelationships = (raw: any): AllowedUserRelationship[] => {
+  if (!raw) return []
+  const source = Array.isArray(raw) ? raw : []
+  const normalized = source
+    .map((value) => (typeof value === "string" ? value.trim().toLowerCase() : null))
+    .map((value) => {
+      if (value === "fan" || value === "fans") return "fan"
+      if (value === "follower" || value === "followers") return "follower"
+      return null
+    })
+    .filter((value): value is AllowedUserRelationship => !!value)
+  const unique = Array.from(new Set(normalized))
+  // Empty array means "both" to match the backend contract
+  if (unique.length === 2) return []
+  return unique
+}
+
 const normalizeEntry = (raw: any): F2FEntryForm => {
   const cookies = typeof raw?.cookies === "string" ? raw.cookies.trim() : ""
   const hasModel = raw?.model !== null && raw?.model !== undefined
@@ -195,7 +214,7 @@ const normalizeEntry = (raw: any): F2FEntryForm => {
   const type: F2FAccountType = hasModel || hasModelId ? "model" : "creator"
   const modelId = hasModelId ? String(modelIdRaw).trim() : undefined
   const updatedAt = parseDate(raw?.updatedAt ?? raw?.updated_at)
-  const allowedEarningTypeIds = normalizeAllowedEarningTypeIds(
+  let allowedEarningTypeIds = normalizeAllowedEarningTypeIds(
     raw?.allowedEarningTypeIds ?? raw?.earningTypeIds ?? raw?.allowedEarningTypesIds,
   )
   const allowedEarningTypes = Array.isArray(raw?.allowedEarningTypes)
@@ -203,6 +222,12 @@ const normalizeEntry = (raw: any): F2FEntryForm => {
         .map((value: any) => (value === null || value === undefined ? null : String(value).trim()))
         .filter((value: string | null): value is string => !!value)
     : undefined
+  if (allowedEarningTypeIds.length === 0 && Array.isArray(allowedEarningTypes) && allowedEarningTypes.length > 0) {
+    allowedEarningTypeIds = normalizeAllowedEarningTypeIds(allowedEarningTypes)
+  }
+  const allowedUserRelationships = normalizeAllowedUserRelationships(
+    raw?.allowedUserRelationships ?? raw?.userRelationships,
+  )
   const parsedFields = parseCookieFields(cookies)
   const combined = buildCookieString(parsedFields)
 
@@ -219,6 +244,7 @@ const normalizeEntry = (raw: any): F2FEntryForm => {
     otherCookies: parsedFields.otherCookies,
     allowedEarningTypeIds,
     allowedEarningTypes,
+    allowedUserRelationships,
   }
 }
 
@@ -240,6 +266,7 @@ const createEmptyEntry = (allowedEarningTypeIds: string[] = []): F2FEntryForm =>
   otherCookies: "",
   allowedEarningTypeIds,
   allowedEarningTypes: [],
+  allowedUserRelationships: [],
 })
 
 const serializeEntriesForCompare = (entries: F2FEntryForm[]) =>
@@ -249,7 +276,8 @@ const serializeEntriesForCompare = (entries: F2FEntryForm[]) =>
       const modelId = e.type === "model" ? (e.modelId ?? "").trim() : ""
       const name = (e.name ?? "").trim()
       const earningTypes = (e.allowedEarningTypeIds ?? []).slice().sort().join(",")
-      return `${e.type}|${cookies}|${modelId}|${name}|${earningTypes}`
+      const relationships = (e.allowedUserRelationships ?? []).slice().sort().join(",") || "all"
+      return `${e.type}|${cookies}|${modelId}|${name}|${earningTypes}|${relationships}`
     })
     .join("__")
 
@@ -597,11 +625,18 @@ export default function ManagerSettingsPage() {
               const merged = {
                 ...entry,
                 ...changes,
-                ...(changes.type === "creator" ? { modelId: undefined } : null),
+                ...(changes.type === "creator"
+                  ? { modelId: undefined, allowedUserRelationships: [] }
+                  : null),
               }
               if ("allowedEarningTypeIds" in changes) {
                 merged.allowedEarningTypeIds = normalizeAllowedEarningTypeIds(
                   changes.allowedEarningTypeIds ?? [],
+                )
+              }
+              if ("allowedUserRelationships" in changes) {
+                merged.allowedUserRelationships = normalizeAllowedUserRelationships(
+                  changes.allowedUserRelationships ?? [],
                 )
               }
               return { ...merged, cookies: buildCookieString(merged) }
@@ -680,6 +715,7 @@ export default function ManagerSettingsPage() {
                 csrftoken: "",
                 otherCookies: "",
                 allowedEarningTypeIds: defaultAllowedEarningTypeIds,
+                allowedUserRelationships: [],
               }
             : entry,
         )
@@ -767,6 +803,10 @@ export default function ManagerSettingsPage() {
           }
           const parsedId = Number(entry.modelId)
           normalized.modelId = Number.isNaN(parsedId) ? entry.modelId : parsedId
+          const normalizedRelationships = normalizeAllowedUserRelationships(
+            entry.allowedUserRelationships,
+          )
+          normalized.allowedUserRelationships = normalizedRelationships
         } else {
           normalized.modelId = null
         }
@@ -1081,6 +1121,11 @@ export default function ManagerSettingsPage() {
                             const displayName = (entry.name ?? "").trim() || `Account ${index + 1}`
                             const isEditingName = !!editingNames[entry.localId]
                             const nameDraft = nameDrafts[entry.localId] ?? entry.name ?? ""
+                            const relationshipSelection =
+                              entry.allowedUserRelationships.length === 0 ||
+                              entry.allowedUserRelationships.length > 1
+                                ? "all"
+                                : entry.allowedUserRelationships[0]
 
                             return (
                               <div key={entry.localId} className="space-y-4 rounded-lg border border-muted/60 p-4">
@@ -1208,6 +1253,35 @@ export default function ManagerSettingsPage() {
                                     </Select>
                                     <p className="text-xs text-muted-foreground">
                                       Required for model accounts so payouts link to the right model.
+                                    </p>
+                                  </div>
+                                ) : null}
+
+                                {entry.type === "model" ? (
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-medium">Allowed follower types</Label>
+                                    <Select
+                                      value={relationshipSelection}
+                                      onValueChange={(value) =>
+                                        updateEntry(entry.localId, {
+                                          allowedUserRelationships:
+                                            value === "all"
+                                              ? []
+                                              : [value as AllowedUserRelationship],
+                                        })
+                                      }
+                                    >
+                                      <SelectTrigger className="w-full">
+                                        <SelectValue placeholder="Select follower types" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="all">Fans and followers</SelectItem>
+                                        <SelectItem value="fan">Fans only</SelectItem>
+                                        <SelectItem value="follower">Followers only</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    <p className="text-xs text-muted-foreground">
+                                      Limit transactions to specific relationships for this model account.
                                     </p>
                                   </div>
                                 ) : null}
