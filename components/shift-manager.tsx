@@ -63,6 +63,31 @@ const normalizeDate = (date: Date) => {
     return normalized
 }
 
+const normalizeBuyerRelationship = (value: any): "fan" | "follower" | "both" | null => {
+    if (!value && value !== "") return null
+    const lowered = String(value).trim().toLowerCase()
+    if (!lowered) return null
+    if (lowered === "fan" || lowered === "fans") return "fan"
+    if (lowered === "follower" || lowered === "followers") return "follower"
+    if (lowered === "both" || lowered === "all" || lowered === "any") return "both"
+    return null
+}
+
+const buyerRelationshipLabel = (value?: "fan" | "follower" | "both") => {
+    if (value === "fan") return "Fans"
+    if (value === "follower") return "Followers"
+    return "Fans & Followers"
+}
+
+const mergeModelRelationship = (
+    base: "fan" | "follower" | "both" | undefined,
+    overrides: Record<string, "fan" | "follower" | "both"> | undefined,
+    modelId: string,
+) => {
+    if (overrides && overrides[modelId]) return overrides[modelId]
+    return base ?? "both"
+}
+
 interface Shift {
     id: string
     chatter_id: string
@@ -71,6 +96,8 @@ interface Shift {
     status: string
     created_at: string
     recurringGroupId?: string | null
+    buyerRelationship?: "fan" | "follower" | "both"
+    modelBuyerRelationships?: Record<string, "fan" | "follower" | "both">
     chatter: {
         full_name: string
     }
@@ -87,6 +114,7 @@ interface Chatter {
 interface Model {
     id: string
     display_name: string
+    supportsBuyerRelationship: boolean
 }
 
 export function ShiftManager() {
@@ -104,6 +132,7 @@ export function ShiftManager() {
     const [newShift, setNewShift] = useState({
         chatter_id: "",
         model_ids: [] as string[],
+        modelBuyerRelationships: {} as Record<string, "fan" | "follower" | "both">,
         date: "",
         start_hour: "",
         start_minute: "",
@@ -111,17 +140,20 @@ export function ShiftManager() {
         end_minute: "",
         repeatWeekly: false,
         repeatWeeks: "",
+        buyerRelationship: "both" as "fan" | "follower" | "both",
     })
     const [isModelPopoverOpen, setIsModelPopoverOpen] = useState(false)
     const [editingShift, setEditingShift] = useState<Shift | null>(null)
     const [editShiftValues, setEditShiftValues] = useState({
         chatter_id: "",
         model_ids: [] as string[],
+        modelBuyerRelationships: {} as Record<string, "fan" | "follower" | "both">,
         date: "",
         start_hour: "",
         start_minute: "",
         end_hour: "",
         end_minute: "",
+        buyerRelationship: "both" as "fan" | "follower" | "both",
     })
     const [isEditModelPopoverOpen, setIsEditModelPopoverOpen] = useState(false)
     const loadedRangeKeysRef = useRef<Set<string>>(new Set())
@@ -186,6 +218,11 @@ export function ShiftManager() {
             const modelsList = (modelsData || []).map((m: any) => ({
                 id: String(m.id),
                 display_name: m.displayName,
+                supportsBuyerRelationship: Boolean(
+                    m.supportsBuyerRelationship ??
+                    m.supports_buyer_relationship ??
+                    m.supports_buyerRelationship,
+                ),
             }))
 
             const modelLookup: Record<string, string> = {}
@@ -257,6 +294,23 @@ export function ShiftManager() {
                     const normalizedEnd = endTime ? String(endTime) : ""
                     const recurringGroupId =
                         shift.recurringGroupId ?? shift.recurring_group_id ?? shift.recurring_groupId
+                    const buyerRelationship =
+                        normalizeBuyerRelationship(
+                            shift.buyerRelationship ?? shift.buyer_relationship ?? shift.buyer_relationships,
+                        ) ?? "both"
+                    const modelBuyerRelationships: Record<string, "fan" | "follower" | "both"> =
+                        typeof shift.modelBuyerRelationships === "object" && shift.modelBuyerRelationships
+                            ? Object.entries(shift.modelBuyerRelationships).reduce(
+                                (acc: Record<string, "fan" | "follower" | "both">, [modelId, rel]) => {
+                                    const normalized = normalizeBuyerRelationship(rel)
+                                    if (normalized) {
+                                        acc[String(modelId)] = normalized
+                                    }
+                                    return acc
+                                },
+                                {},
+                            )
+                            : {}
 
                     return {
                         id: String(shift.id),
@@ -266,6 +320,8 @@ export function ShiftManager() {
                         status: shift.status,
                         created_at: shift.createdAt,
                         recurringGroupId: recurringGroupId ? String(recurringGroupId) : undefined,
+                        buyerRelationship,
+                        modelBuyerRelationships,
                         chatter: {
                             full_name:
                                 chatterNameMap[String(shift.chatterId)] || "Unknown",
@@ -474,6 +530,23 @@ export function ShiftManager() {
                 date: dateKey,
                 status: "scheduled",
             }
+            const normalizedRelationship = normalizeBuyerRelationship(newShift.buyerRelationship)
+            if (normalizedRelationship && normalizedRelationship !== "both") {
+                payload.buyerRelationship = normalizedRelationship
+            }
+            const modelBuyerRelationships = newShift.model_ids
+                .map((id) => {
+                    const model = models.find((m) => m.id === id)
+                    const supports = model?.supportsBuyerRelationship
+                    const rel = newShift.modelBuyerRelationships[id]
+                    const normalized = normalizeBuyerRelationship(rel)
+                    if (!supports || !normalized || normalized === "both") return null
+                    return { modelId: Number.isNaN(Number(id)) ? id : Number(id), buyerRelationship: normalized }
+                })
+                .filter(Boolean)
+            if (modelBuyerRelationships.length > 0) {
+                payload.modelBuyerRelationships = modelBuyerRelationships
+            }
 
             if (newShift.repeatWeekly) {
                 payload.repeatWeekly = true
@@ -494,6 +567,8 @@ export function ShiftManager() {
                 end_minute: "",
                 repeatWeekly: false,
                 repeatWeeks: "",
+                buyerRelationship: "both",
+                modelBuyerRelationships: {},
             })
             setIsModelPopoverOpen(false)
             setIsAddDialogOpen(false)
@@ -548,11 +623,13 @@ export function ShiftManager() {
         setEditShiftValues({
             chatter_id: shift.chatter_id,
             model_ids: [...shift.model_ids],
+            modelBuyerRelationships: { ...(shift.modelBuyerRelationships ?? {}) },
             date: dateKey,
             start_hour: pad(startParts?.hour ?? start.getHours()),
             start_minute: pad(startParts?.minute ?? start.getMinutes()),
             end_hour: pad(endParts?.hour ?? end.getHours()),
             end_minute: pad(endParts?.minute ?? end.getMinutes()),
+            buyerRelationship: shift.buyerRelationship ?? "both",
         })
         setEditingShift(shift)
         setIsEditModelPopoverOpen(false)
@@ -563,11 +640,13 @@ export function ShiftManager() {
         setEditShiftValues({
             chatter_id: "",
             model_ids: [],
+            modelBuyerRelationships: {},
             date: "",
             start_hour: "",
             start_minute: "",
             end_hour: "",
             end_minute: "",
+            buyerRelationship: "both",
         })
         setIsEditModelPopoverOpen(false)
     }
@@ -606,26 +685,40 @@ export function ShiftManager() {
             const shiftId = editingShift.id
             const previousDate = editingShift.date
             const dateKey = getUserDateKey(startDateTime, userTimezone) ?? editShiftValues.date
+            const normalizedRelationship = normalizeBuyerRelationship(editShiftValues.buyerRelationship)
+            const normalizedModelRelationships = editShiftValues.model_ids.reduce<
+                Record<string, "fan" | "follower" | "both">
+            >((acc, id) => {
+                const model = models.find((m) => m.id === id)
+                if (!model?.supportsBuyerRelationship) return acc
+                const rel = normalizeBuyerRelationship(editShiftValues.modelBuyerRelationships[id])
+                if (rel && rel !== "both") {
+                    acc[id] = rel
+                }
+                return acc
+            }, {})
 
             setShifts((prev) =>
                 prev.map((shift) =>
                     shift.id === shiftId
                         ? {
-                              ...shift,
-                              chatter_id: editShiftValues.chatter_id,
-                              chatter: {
-                                  full_name:
-                                      chatterNameMap[editShiftValues.chatter_id] ||
-                                      shift.chatter.full_name,
-                              },
-                              model_ids: [...editShiftValues.model_ids],
-                              model_names: editShiftValues.model_ids.map(
-                                  (modelId) => modelNameMap[modelId] || "Unknown Model",
-                              ),
-                              start_time: startDateTime,
-                              end_time: endDateTime,
-                              date: dateKey,
-                          }
+                            ...shift,
+                            chatter_id: editShiftValues.chatter_id,
+                            chatter: {
+                                full_name:
+                                    chatterNameMap[editShiftValues.chatter_id] ||
+                                    shift.chatter.full_name,
+                            },
+                            model_ids: [...editShiftValues.model_ids],
+                            model_names: editShiftValues.model_ids.map(
+                                (modelId) => modelNameMap[modelId] || "Unknown Model",
+                            ),
+                            start_time: startDateTime,
+                            end_time: endDateTime,
+                            date: dateKey,
+                            buyerRelationship: normalizedRelationship ?? "both",
+                            modelBuyerRelationships: normalizedModelRelationships,
+                        }
                         : shift,
                 ),
             )
@@ -636,6 +729,19 @@ export function ShiftManager() {
                 start_time: startDateTime,
                 end_time: endDateTime,
                 date: dateKey,
+                ...(normalizedRelationship && normalizedRelationship !== "both"
+                    ? { buyerRelationship: normalizedRelationship }
+                    : { buyerRelationship: null }),
+                ...(Object.keys(normalizedModelRelationships).length > 0
+                    ? {
+                        modelBuyerRelationships: Object.entries(normalizedModelRelationships).map(
+                            ([modelId, rel]) => ({
+                                modelId: Number.isNaN(Number(modelId)) ? modelId : Number(modelId),
+                                buyerRelationship: rel,
+                            }),
+                        ),
+                    }
+                    : { modelBuyerRelationships: null }),
             })
 
             await loadWeek(new Date(`${dateKey}T00:00:00`), { force: true, silent: true })
@@ -662,13 +768,13 @@ export function ShiftManager() {
         const nextShifts =
             deleteSeries && shift.recurringGroupId && shiftDate
                 ? prevShifts.filter(
-                      (s) =>
-                          !(
-                              s.recurringGroupId &&
-                              s.recurringGroupId === shift.recurringGroupId &&
-                              new Date(`${s.date}T00:00:00`) >= new Date(`${shiftDate}T00:00:00`)
-                          ),
-                  )
+                    (s) =>
+                        !(
+                            s.recurringGroupId &&
+                            s.recurringGroupId === shift.recurringGroupId &&
+                            new Date(`${s.date}T00:00:00`) >= new Date(`${shiftDate}T00:00:00`)
+                        ),
+                )
                 : prevShifts.filter((s) => s.id !== shiftId)
 
         setShifts(nextShifts)
@@ -784,9 +890,9 @@ export function ShiftManager() {
                                 <ChevronLeft className="h-4 w-4" />
                             </Button>
                             <span className="text-sm font-medium min-w-[120px] text-center">
-                Week {formatUserDate(weekDays[0], {day: "numeric", month: "short"})} -{" "}
-                                {formatUserDate(weekDays[6], {day: "numeric", month: "short"})}
-              </span>
+                                Week {formatUserDate(weekDays[0], { day: "numeric", month: "short" })} -{" "}
+                                {formatUserDate(weekDays[6], { day: "numeric", month: "short" })}
+                            </span>
                             <Button variant="outline" size="sm" onClick={() => navigateWeek("next")}>
                                 <ChevronRight className="h-4 w-4" />
                             </Button>
@@ -802,7 +908,7 @@ export function ShiftManager() {
                                 </Button>
                                 <div className="text-center">
                                     <div className="text-sm font-medium">
-                                        {formatUserDate(selectedDate, {weekday: "long"})}
+                                        {formatUserDate(selectedDate, { weekday: "long" })}
                                     </div>
                                     <div className="text-xs text-muted-foreground">
                                         {formatUserDate(selectedDate, {
@@ -848,9 +954,9 @@ export function ShiftManager() {
                                                 e.stopPropagation()
                                                 setConfirmDeleteShift(shift)
                                                 setDeleteSeriesChecked(false)
-                                          }}
-                                          title="Delete shift"
-                                      >
+                                            }}
+                                            title="Delete shift"
+                                        >
                                             <Trash2 className="h-3 w-3" />
                                         </button>
                                     </div>
@@ -1000,11 +1106,22 @@ export function ShiftManager() {
                                                                             setNewShift({
                                                                                 ...newShift,
                                                                                 model_ids: newShift.model_ids.filter((id) => id !== model.id),
+                                                                                modelBuyerRelationships: Object.fromEntries(
+                                                                                    Object.entries(newShift.modelBuyerRelationships).filter(
+                                                                                        ([id]) => id !== model.id,
+                                                                                    ),
+                                                                                ),
                                                                             })
                                                                         } else {
                                                                             setNewShift({
                                                                                 ...newShift,
                                                                                 model_ids: [...newShift.model_ids, model.id],
+                                                                                modelBuyerRelationships: {
+                                                                                    ...newShift.modelBuyerRelationships,
+                                                                                    ...(model.supportsBuyerRelationship
+                                                                                        ? { [model.id]: newShift.modelBuyerRelationships[model.id] ?? "both" }
+                                                                                        : {}),
+                                                                                },
                                                                             })
                                                                         }
                                                                     }}
@@ -1024,170 +1141,209 @@ export function ShiftManager() {
                                             </PopoverContent>
                                         </Popover>
                                         {newShift.model_ids.length > 0 && (
-                                            <div className="flex flex-wrap gap-1 mt-2">
-                                                {newShift.model_ids.map((modelId) => {
-                                                    const model = models.find((m) => m.id === modelId)
-                                                    return (
-                                                        <Badge key={modelId} variant="secondary" className="text-xs">
-                                                            {model?.display_name}
-                                                            <button
-                                                                type="button"
-                                                                className="ml-1 hover:bg-muted-foreground/20 rounded-full"
-                                                                onClick={() => {
-                                                                    setNewShift({
-                                                                        ...newShift,
-                                                                        model_ids: newShift.model_ids.filter((id) => id !== modelId),
-                                                                    })
-                                                                }}
+                                            <div className="mt-2 flex flex-col gap-2">
+                                                <div className="flex flex-wrap gap-1">
+                                                    {newShift.model_ids.map((modelId) => {
+                                                        const model = models.find((m) => m.id === modelId)
+                                                        return (
+                                                            <Badge key={modelId} variant="secondary" className="text-xs">
+                                                                {model?.display_name}
+                                                                <button
+                                                                    type="button"
+                                                                    className="ml-1 hover:bg-muted-foreground/20 rounded-full"
+                                                                    onClick={() => {
+                                                                        setNewShift({
+                                                                            ...newShift,
+                                                                            model_ids: newShift.model_ids.filter((id) => id !== modelId),
+                                                                            modelBuyerRelationships: Object.fromEntries(
+                                                                                Object.entries(newShift.modelBuyerRelationships).filter(
+                                                                                    ([id]) => id !== modelId,
+                                                                                ),
+                                                                            ),
+                                                                        })
+                                                                    }}
+                                                                >
+                                                                    x
+                                                                </button>
+                                                            </Badge>
+                                                        )
+                                                    })}
+                                                </div>
+
+                                                {newShift.model_ids
+                                                    .map((modelId) => models.find((m) => m.id === modelId))
+                                                    .filter((model): model is Model => Boolean(model?.supportsBuyerRelationship))
+                                                    .map((model) => (
+                                                        <div key={`rel-${model.id}`} className="space-y-1">
+                                                            <Label className="text-xs font-medium">
+                                                                {model.display_name}: Chatter handles
+                                                            </Label>
+                                                            <Select
+                                                                value={newShift.modelBuyerRelationships[model.id] ?? "both"}
+                                                                onValueChange={(value) =>
+                                                                    setNewShift((prev) => ({
+                                                                        ...prev,
+                                                                        modelBuyerRelationships: {
+                                                                            ...prev.modelBuyerRelationships,
+                                                                            [model.id]: (value as "fan" | "follower" | "both") ?? "both",
+                                                                        },
+                                                                    }))
+                                                                }
                                                             >
-                                                                ×
-                                                            </button>
-                                                        </Badge>
-                                                    )
-                                                })}
+                                                                <SelectTrigger className="w-full">
+                                                                    <SelectValue placeholder="Fans en followers" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="fan">Fans</SelectItem>
+                                                                    <SelectItem value="follower">Followers</SelectItem>
+                                                                    <SelectItem value="both">Fans en followers</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                    ))}
                                             </div>
                                         )}
-                                    </div>
-
-                                    <div>
-                                        <Label htmlFor="date">Datum</Label>
-                                        <Input
-                                            id="date"
-                                            type="date"
-                                            value={newShift.date}
-                                            onChange={(e) => setNewShift({ ...newShift, date: e.target.value })}
-                                            required
-                                        />
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <Label>Start Tijd</Label>
-                                            <div className="flex gap-2">
-                                                <Select
-                                                    value={newShift.start_hour}
-                                                    onValueChange={(value) => setNewShift({ ...newShift, start_hour: value })}
-                                                >
-                                                    <SelectTrigger className="flex-1">
-                                                        <SelectValue placeholder="Uur" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {generateTimeOptions("hour").map((option) => (
-                                                            <SelectItem key={option.value} value={option.value}>
-                                                                {option.value}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                                <Select
-                                                    value={newShift.start_minute}
-                                                    onValueChange={(value) => setNewShift({ ...newShift, start_minute: value })}
-                                                >
-                                                    <SelectTrigger className="flex-1">
-                                                        <SelectValue placeholder="Min" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {generateTimeOptions("minute").map((option) => (
-                                                            <SelectItem key={option.value} value={option.value}>
-                                                                {option.value}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                        </div>
 
                                         <div>
-                                            <Label>Eind Tijd</Label>
-                                            <div className="flex gap-2">
-                                                <Select
-                                                    value={newShift.end_hour}
-                                                    onValueChange={(value) => setNewShift({ ...newShift, end_hour: value })}
-                                                >
-                                                    <SelectTrigger className="flex-1">
-                                                        <SelectValue placeholder="Uur" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {generateTimeOptions("hour").map((option) => (
-                                                            <SelectItem key={option.value} value={option.value}>
-                                                                {option.value}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                                <Select
-                                                    value={newShift.end_minute}
-                                                    onValueChange={(value) => setNewShift({ ...newShift, end_minute: value })}
-                                                >
-                                                    <SelectTrigger className="flex-1">
-                                                        <SelectValue placeholder="Min" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {generateTimeOptions("minute").map((option) => (
-                                                            <SelectItem key={option.value} value={option.value}>
-                                                                {option.value}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-start justify-between gap-4 rounded-md border p-3">
-                                        <div>
-                                            <p className="text-sm font-medium">Wekelijks herhalen</p>
-                                            <p className="text-xs text-muted-foreground">
-                                                Plan deze shift automatisch voor meerdere weken.
-                                            </p>
-                                        </div>
-                                        <Switch
-                                            checked={newShift.repeatWeekly}
-                                            onCheckedChange={(checked) =>
-                                                setNewShift((prev) => ({
-                                                    ...prev,
-                                                    repeatWeekly: checked,
-                                                    repeatWeeks: checked ? prev.repeatWeeks || "1" : "",
-                                                }))
-                                            }
-                                        />
-                                    </div>
-
-                                    {newShift.repeatWeekly && (
-                                        <div>
-                                            <Label htmlFor="repeat-weeks">Aantal weken</Label>
+                                            <Label htmlFor="date">Datum</Label>
                                             <Input
-                                                id="repeat-weeks"
-                                                type="number"
-                                                min={1}
-                                                value={newShift.repeatWeeks}
-                                                onChange={(e) =>
-                                                    setNewShift({ ...newShift, repeatWeeks: e.target.value })
-                                                }
-                                                required={newShift.repeatWeekly}
+                                                id="date"
+                                                type="date"
+                                                value={newShift.date}
+                                                onChange={(e) => setNewShift({ ...newShift, date: e.target.value })}
+                                                required
                                             />
-                                            <p className="mt-1 text-xs text-muted-foreground">
-                                                Including this week. Specify how many consecutive weeks the shift is scheduled.
-                                            </p>
                                         </div>
-                                    )}
 
-                                    <Button
-                                        type="submit"
-                                        className="w-full"
-                                        disabled={
-                                            newShift.model_ids.length === 0 ||
-                                            !newShift.chatter_id ||
-                                            !newShift.date ||
-                                            !newShift.start_hour ||
-                                            !newShift.start_minute ||
-                                            !newShift.end_hour ||
-                                            !newShift.end_minute ||
-                                            (newShift.repeatWeekly && (!newShift.repeatWeeks || Number(newShift.repeatWeeks) < 1))
-                                        }
-                                    >
-                                        Shift Inplannen
-                                    </Button>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <Label>Start Tijd</Label>
+                                                <div className="flex gap-2">
+                                                    <Select
+                                                        value={newShift.start_hour}
+                                                        onValueChange={(value) => setNewShift({ ...newShift, start_hour: value })}
+                                                    >
+                                                        <SelectTrigger className="flex-1">
+                                                            <SelectValue placeholder="Uur" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {generateTimeOptions("hour").map((option) => (
+                                                                <SelectItem key={option.value} value={option.value}>
+                                                                    {option.value}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <Select
+                                                        value={newShift.start_minute}
+                                                        onValueChange={(value) => setNewShift({ ...newShift, start_minute: value })}
+                                                    >
+                                                        <SelectTrigger className="flex-1">
+                                                            <SelectValue placeholder="Min" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {generateTimeOptions("minute").map((option) => (
+                                                                <SelectItem key={option.value} value={option.value}>
+                                                                    {option.value}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <Label>Eind Tijd</Label>
+                                                <div className="flex gap-2">
+                                                    <Select
+                                                        value={newShift.end_hour}
+                                                        onValueChange={(value) => setNewShift({ ...newShift, end_hour: value })}
+                                                    >
+                                                        <SelectTrigger className="flex-1">
+                                                            <SelectValue placeholder="Uur" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {generateTimeOptions("hour").map((option) => (
+                                                                <SelectItem key={option.value} value={option.value}>
+                                                                    {option.value}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <Select
+                                                        value={newShift.end_minute}
+                                                        onValueChange={(value) => setNewShift({ ...newShift, end_minute: value })}
+                                                    >
+                                                        <SelectTrigger className="flex-1">
+                                                            <SelectValue placeholder="Min" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {generateTimeOptions("minute").map((option) => (
+                                                                <SelectItem key={option.value} value={option.value}>
+                                                                    {option.value}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-start justify-between gap-4 rounded-md border p-3">
+                                            <div>
+                                                <p className="text-sm font-medium">Wekelijks herhalen</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    Plan deze shift automatisch voor meerdere weken.
+                                                </p>
+                                            </div>
+                                            <Switch
+                                                checked={newShift.repeatWeekly}
+                                                onCheckedChange={(checked) =>
+                                                    setNewShift((prev) => ({
+                                                        ...prev,
+                                                        repeatWeekly: checked,
+                                                        repeatWeeks: checked ? prev.repeatWeeks || "1" : "",
+                                                    }))
+                                                }
+                                            />
+                                        </div>
+
+                                        {newShift.repeatWeekly && (
+                                            <div>
+                                                <Label htmlFor="repeat-weeks">Aantal weken</Label>
+                                                <Input
+                                                    id="repeat-weeks"
+                                                    type="number"
+                                                    min={1}
+                                                    value={newShift.repeatWeeks}
+                                                    onChange={(e) =>
+                                                        setNewShift({ ...newShift, repeatWeeks: e.target.value })
+                                                    }
+                                                    required={newShift.repeatWeekly}
+                                                />
+                                                <p className="mt-1 text-xs text-muted-foreground">
+                                                    Including this week. Specify how many consecutive weeks the shift is scheduled.
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        <Button
+                                            type="submit"
+                                            className="w-full"
+                                            disabled={
+                                                newShift.model_ids.length === 0 ||
+                                                !newShift.chatter_id ||
+                                                !newShift.date ||
+                                                !newShift.start_hour ||
+                                                !newShift.start_minute ||
+                                                !newShift.end_hour ||
+                                                !newShift.end_minute ||
+                                                (newShift.repeatWeekly && (!newShift.repeatWeeks || Number(newShift.repeatWeeks) < 1))
+                                            }
+                                        >
+                                            Shift Inplannen
+                                        </Button>
+                                    </div>
                                 </form>
                             </DialogContent>
                         </Dialog>
@@ -1235,9 +1391,8 @@ export function ShiftManager() {
                                                     className="w-full justify-between bg-transparent"
                                                 >
                                                     {editShiftValues.model_ids.length > 0
-                                                        ? `${editShiftValues.model_ids.length} model${
-                                                              editShiftValues.model_ids.length > 1 ? "s" : ""
-                                                          } geselecteerd`
+                                                        ? `${editShiftValues.model_ids.length} model${editShiftValues.model_ids.length > 1 ? "s" : ""
+                                                        } geselecteerd`
                                                         : "Selecteer models..."}
                                                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                                 </Button>
@@ -1260,11 +1415,26 @@ export function ShiftManager() {
                                                                                 model_ids: editShiftValues.model_ids.filter(
                                                                                     (id) => id !== model.id,
                                                                                 ),
+                                                                                modelBuyerRelationships: Object.fromEntries(
+                                                                                    Object.entries(editShiftValues.modelBuyerRelationships).filter(
+                                                                                        ([id]) => id !== model.id,
+                                                                                    ),
+                                                                                ),
                                                                             })
                                                                         } else {
                                                                             setEditShiftValues({
                                                                                 ...editShiftValues,
                                                                                 model_ids: [...editShiftValues.model_ids, model.id],
+                                                                                modelBuyerRelationships: {
+                                                                                    ...editShiftValues.modelBuyerRelationships,
+                                                                                    ...(model.supportsBuyerRelationship
+                                                                                        ? {
+                                                                                            [model.id]:
+                                                                                                editShiftValues.modelBuyerRelationships[model.id] ??
+                                                                                                "both",
+                                                                                        }
+                                                                                        : {}),
+                                                                                },
                                                                             })
                                                                         }
                                                                     }}
@@ -1433,6 +1603,7 @@ export function ShiftManager() {
                             <TableRow>
                                 <TableHead>Chatter</TableHead>
                                 <TableHead className="hidden md:table-cell">Models</TableHead>
+                                <TableHead className="hidden md:table-cell">Model handles</TableHead>
                                 <TableHead>Start Tijd</TableHead>
                                 <TableHead className="hidden md:table-cell">Eind Tijd</TableHead>
                                 <TableHead className="hidden md:table-cell">Status</TableHead>
@@ -1489,6 +1660,38 @@ export function ShiftManager() {
                                                         </div>
                                                     </PopoverContent>
                                                 </Popover>
+                                            )}
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="hidden md:table-cell">
+                                        <div className="flex flex-wrap gap-1">
+                                            {shift.model_ids.length === 0 ? (
+                                                <Badge variant="outline" className="text-xs">
+                                                    {buyerRelationshipLabel(shift.buyerRelationship)}
+                                                </Badge>
+                                            ) : (
+                                                shift.model_ids.map((modelId, idx) => {
+                                                    const label = mergeModelRelationship(
+                                                        shift.buyerRelationship,
+                                                        shift.modelBuyerRelationships,
+                                                        modelId,
+                                                    )
+                                                    const name = shift.model_names[idx] ?? modelId
+                                                    return (
+                                                        <Badge
+                                                            key={`${shift.id}-rel-${modelId}-${idx}`}
+                                                            variant="outline"
+                                                            className="text-xs"
+                                                        >
+                                                            {name}:{" "}
+                                                            {label === "fan"
+                                                                ? "Fans"
+                                                                : label === "follower"
+                                                                    ? "Followers"
+                                                                    : "Fans & Followers"}
+                                                        </Badge>
+                                                    )
+                                                })
                                             )}
                                         </div>
                                     </TableCell>
