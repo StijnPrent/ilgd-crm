@@ -690,6 +690,8 @@ class ApiClient {
       cookies: string
       modelId?: number | string | null
       allowedEarningTypeIds?: Array<number | string>
+      allowedEarningTypes?: Array<string>
+      allowedUserRelationships?: Array<string>
     }>,
   ) {
     return this.request(`/settings/f2f-cookies`, {
