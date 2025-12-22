@@ -15,6 +15,22 @@ const normalizeDate = (date: Date) => {
     return normalized
 }
 
+const buyerRelationshipLabel = (value?: "fan" | "follower" | "both") => {
+    if (value === "fan") return "Fans"
+    if (value === "follower") return "Followers"
+    return "Fans & Followers"
+}
+
+const normalizeBuyerRelationship = (value: any): "fan" | "follower" | "both" | undefined => {
+    if (value === null || value === undefined) return "both"
+    const lowered = String(value).trim().toLowerCase()
+    if (!lowered) return "both"
+    if (lowered === "fan" || lowered === "fans") return "fan"
+    if (lowered === "follower" || lowered === "followers") return "follower"
+    if (lowered === "both" || lowered === "all" || lowered === "any") return "both"
+    return "both"
+}
+
 interface Shift {
     id: string
     chatter_id: string
@@ -25,6 +41,7 @@ interface Shift {
     start_time: string
     end_time: string
     status: "scheduled" | "active" | "completed" | "cancelled"
+    buyerRelationship?: "fan" | "follower" | "both"
 }
 
 interface WeeklyCalendarProps {
@@ -214,6 +231,9 @@ export function WeeklyCalendar({
                         start_time: startTime,
                         end_time: endTime,
                         status: shift.status || "scheduled",
+                        buyerRelationship: normalizeBuyerRelationship(
+                            shift.buyerRelationship ?? shift.buyer_relationship ?? shift.buyer_relationships,
+                        ),
                     }
                 })
 
@@ -454,6 +474,12 @@ export function WeeklyCalendar({
                                         </div>
                                     )}
 
+                                    <div className="mt-1">
+                                        <Badge variant="secondary" className="text-[11px]">
+                                            {buyerRelationshipLabel(shift.buyerRelationship)}
+                                        </Badge>
+                                    </div>
+
                                     {compact && (
                                         <Badge variant="secondary" className="text-xs mt-1">
                                             {shift.status}
@@ -515,6 +541,12 @@ export function WeeklyCalendar({
                                                         <span className="truncate">{shift.chatter_name}</span>
                                                     </div>
                                                 )}
+
+                                                <div className="mt-1">
+                                                    <Badge variant="secondary" className="text-[11px]">
+                                                        {buyerRelationshipLabel(shift.buyerRelationship)}
+                                                    </Badge>
+                                                </div>
 
                                                 {compact && (
                                                     <Badge variant="secondary" className="text-xs mt-1">
