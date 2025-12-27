@@ -680,7 +680,7 @@ class ApiClient {
     return this.request(`/shifts/time-entry/active/${chatterId}`)
   }
 
-  /* ---------- Face2Face Automation Settings ---------- */
+  /* ---------- F2F Automation Settings ---------- */
   getF2FCookies() {
     return this.request(`/settings/f2f-cookies`)
   }

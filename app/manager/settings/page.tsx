@@ -1063,7 +1063,7 @@ export default function ManagerSettingsPage() {
                           <div className="max-w-xl space-y-1 text-sm">
                             <p className="font-medium text-foreground">F2F accounts</p>
                             <p className="text-xs text-muted-foreground">
-                              Add a cookie string for each Face2Face account. Choose <span className="font-semibold">Model account</span> when the cookie belongs to a model login.
+                              Add a cookie string for each F2F account. Choose <span className="font-semibold">Model account</span> when the cookie belongs to a model login.
                             </p>
                           </div>
                           <Button type="button" variant="outline" onClick={addEntry}>
@@ -1274,7 +1274,7 @@ export default function ManagerSettingsPage() {
                                       </Button>
                                     </div>
                                     <p className="text-xs text-muted-foreground">
-                                      Choose which earning types Face2Face may create for this account.
+                                      Choose which earning types F2F may create for this account.
                                     </p>
                                   </div>
                                 </div>

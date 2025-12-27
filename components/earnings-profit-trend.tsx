@@ -8,6 +8,8 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { Skeleton } from "@/components/ui/skeleton"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { api } from "@/lib/api"
+import { useF2FAuth } from "@/hooks/use-f2f-auth"
+import { parseF2FAuthError } from "@/lib/f2f-auth"
 import { formatUserDate } from "@/lib/timezone"
 
 const RANGE_OPTIONS = [
@@ -144,6 +146,7 @@ export function EarningsProfitTrend({ monthStart, monthEnd, monthLabel }: Earnin
   const [chartData, setChartData] = useState<ChartPoint[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const { requireAuth, clearRequirement } = useF2FAuth()
 
   const currencyFormatter = useMemo(
     () => new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" }),
@@ -245,8 +248,15 @@ export function EarningsProfitTrend({ monthStart, monthEnd, monthLabel }: Earnin
         }
 
         setChartData([...bucketMap.values()])
+        clearRequirement()
       } catch (err) {
         console.error("Failed to load earnings/profit trend", err)
+        const f2fError = parseF2FAuthError(err)
+        if (f2fError.required) {
+          requireAuth(f2fError.message)
+          if (!cancelled) setError("F2F cookies verlopen. Update ze in Settings.")
+          return
+        }
         if (!cancelled) setError("Unable to load trend data")
       } finally {
         if (!cancelled) setLoading(false)

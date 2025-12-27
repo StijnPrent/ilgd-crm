@@ -56,6 +56,8 @@ import {
     ChartTooltipContent,
 } from "@/components/ui/chart"
 import {api} from "@/lib/api"
+import {useF2FAuth} from "@/hooks/use-f2f-auth"
+import {parseF2FAuthError} from "@/lib/f2f-auth"
 import {formatUserDate, formatUserTime, getStartOfDayInTimezone, getUserTimezone} from "@/lib/timezone"
 import {
     Select,
@@ -239,6 +241,7 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
     const [totalCount, setTotalCount] = useState(0)
     const [tableLoading, setTableLoading] = useState(true)
     const [chartLoading, setChartLoading] = useState(!isCompact)
+    const {requireAuth, clearRequirement} = useF2FAuth()
     const pageSize = DEFAULT_PAGE_SIZE
     const fallbackDate = useMemo(() => {
         const today = new Date()
@@ -584,8 +587,13 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
             const items = Array.isArray(itemsResponse) ? itemsResponse : itemsResponse?.data || []
             const monthData = items.filter((item: any) => item.date?.startsWith(monthKey))
             setRawMonthlyEarnings(dedupeItems(monthData))
+            clearRequirement()
         } catch (error) {
             console.error("Error loading chart data:", error)
+            const f2fError = parseF2FAuthError(error)
+            if (f2fError.required) {
+                requireAuth(f2fError.message)
+            }
             setRawMonthlyEarnings([])
         } finally {
             setChartLoading(false)
@@ -609,6 +617,7 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                     : listResponse?.data || []
                 setRawTableEarnings(dedupeItems(listItems))
                 setTotalCount(parseTotalCount(totalResponse))
+                clearRequirement()
                 return
             }
 
@@ -622,6 +631,7 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                 const deduped = dedupeItems(listItems)
                 setRawTableEarnings(deduped)
                 setTotalCount(deduped.length)
+                clearRequirement()
                 return
             }
 
@@ -638,8 +648,13 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                 : listResponse?.data || []
             setRawTableEarnings(dedupeItems(listItems))
             setTotalCount(parseTotalCount(totalResponse))
+            clearRequirement()
         } catch (error) {
             console.error("Error loading earnings:", error)
+            const f2fError = parseF2FAuthError(error)
+            if (f2fError.required) {
+                requireAuth(f2fError.message)
+            }
             setRawTableEarnings([])
             setTotalCount(0)
         } finally {

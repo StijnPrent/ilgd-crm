@@ -6,6 +6,8 @@ import {Users, Clock, TrendingUp} from "lucide-react"
 
 import {Card, CardContent, CardHeader, CardTitle} from "@/components/ui/card"
 import {api} from "@/lib/api"
+import {useF2FAuth} from "@/hooks/use-f2f-auth"
+import {parseF2FAuthError} from "@/lib/f2f-auth"
 import {getStartOfDayInTimezone, getUserTimezone} from "@/lib/timezone"
 
 const parseIsoDateOnly = (value: string | null | undefined) => {
@@ -38,6 +40,7 @@ interface ManagerStatsProps {
 
 export function ManagerStats({userId, monthLabel, monthStart, monthEnd}: ManagerStatsProps) {
     const userTimezone = useMemo(() => getUserTimezone(), [])
+    const {requireAuth, clearRequirement} = useF2FAuth()
     const [stats, setStats] = useState<Stats>({
         totalChatters: 0,
         currentlyOnline: 0,
@@ -145,8 +148,17 @@ export function ManagerStats({userId, monthLabel, monthStart, monthEnd}: Manager
                 }
 
                 setStats(statsPayload)
+                clearRequirement()
             } catch (err) {
                 console.error("Error loading manager stats:", err)
+                const f2fError = parseF2FAuthError(err)
+                if (f2fError.required) {
+                    requireAuth(f2fError.message)
+                    if (!cancelled) {
+                        setError("F2F cookies verlopen. Update ze in Settings om statistieken te laden.")
+                    }
+                    return
+                }
                 if (!cancelled && retryCount < 1) {
                     // Retry once after a short delay to cover the case where auth just became available.
                     setTimeout(() => setRetryCount((prev) => prev + 1), 400)

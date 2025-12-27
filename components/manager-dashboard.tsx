@@ -18,6 +18,7 @@ import {ModelsList} from "@/components/models-list"
 import {ModelsEarningsLeaderboard} from "@/components/models-earnings-leaderboard"
 import {EarningsOverview} from "@/components/earnings-overview"
 import {EarningsProfitTrend} from "@/components/earnings-profit-trend"
+import {F2FAuthBanner} from "@/components/f2f-auth-banner"
 import {ShiftManager} from "@/components/shift-manager"
 import {ShiftRequestInbox} from "@/components/shift-request-inbox"
 import {CommissionCalculator} from "@/components/commission-calculator"
@@ -25,6 +26,7 @@ import {Leaderboard} from "@/components/leaderboard"
 import {CreateChatterForm} from "@/components/create-chatter-form"
 import {WeeklyCalendar} from "@/components/weekly-calendar"
 import {EmployeeEarningsProvider} from "@/hooks/use-employee-earnings"
+import {F2FAuthProvider} from "@/hooks/use-f2f-auth"
 import {RevenueOverview} from "@/components/revenue-overview"
 import {
     Users,
@@ -333,53 +335,57 @@ export function ManagerDashboard() {
     }
 
     return (
-        <div className="min-h-screen bg-background">
-            {/* Header */}
-            <header className="border-b bg-card">
-                <div className="container mx-auto px-4 p2-4">
-                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                        <div className="flex items-center">
-                            <Image src="/logo.png" alt="Logo" width={90} height={90}/>
-                            <div className="ml-4">
-                                <h1 className="text-2xl font-bold text-foreground">Manager Dashboard</h1>
-                                <p className="text-muted-foreground">Welcome back, {user?.profile?.full_name}</p>
+        <F2FAuthProvider>
+            <div className="min-h-screen bg-background">
+                {/* Header */}
+                <header className="border-b bg-card">
+                    <div className="container mx-auto px-4 p2-4">
+                        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                            <div className="flex items-center">
+                                <Image src="/logo.png" alt="Logo" width={90} height={90}/>
+                                <div className="ml-4">
+                                    <h1 className="text-2xl font-bold text-foreground">Manager Dashboard</h1>
+                                    <p className="text-muted-foreground">Welcome back, {user?.profile?.full_name}</p>
+                                </div>
+                            </div>
+                            <div className="hidden items-center gap-3 md:flex">
+                                <Badge variant="secondary" className="bg-green-100 text-green-800">
+                                    <Settings className="mr-1 h-3 w-3"/>
+                                    Manager
+                                </Badge>
+                                <Button asChild variant="outline" size="sm">
+                                    <Link href="/manager/settings">
+                                        <Settings className="h-4 w-4"/>
+                                        Settings
+                                    </Link>
+                                </Button>
+                                <LogoutButton/>
                             </div>
                         </div>
-                        <div className="hidden items-center gap-3 md:flex">
+                        <div className="flex items-center justify-between md:hidden">
                             <Badge variant="secondary" className="bg-green-100 text-green-800">
                                 <Settings className="mr-1 h-3 w-3"/>
                                 Manager
                             </Badge>
-                            <Button asChild variant="outline" size="sm">
-                                <Link href="/manager/settings">
-                                    <Settings className="h-4 w-4"/>
-                                    Settings
-                                </Link>
-                            </Button>
-                            <LogoutButton/>
+                            <div className="flex items-center gap-2">
+                                <Button asChild variant="outline" size="sm">
+                                    <Link href="/manager/settings">
+                                        <Settings className="h-4 w-4"/>
+                                        F2F cookies
+                                    </Link>
+                                </Button>
+                                <LogoutButton/>
+                            </div>
                         </div>
                     </div>
-                    <div className="flex items-center justify-between md:hidden">
-                        <Badge variant="secondary" className="bg-green-100 text-green-800">
-                            <Settings className="mr-1 h-3 w-3"/>
-                            Manager
-                        </Badge>
-                        <div className="flex items-center gap-2">
-                            <Button asChild variant="outline" size="sm">
-                                <Link href="/manager/settings">
-                                    <Settings className="h-4 w-4"/>
-                                    F2F cookies
-                                </Link>
-                            </Button>
-                            <LogoutButton/>
-                        </div>
-                    </div>
-                </div>
-            </header>
+                </header>
 
-            {/* Main Content */}
-            <main className="container mx-auto px-4 py-6">
-                <EmployeeEarningsProvider from={rangeStart} to={rangeEnd}>
+                {/* Main Content */}
+                <main className="container mx-auto px-4 py-6">
+                    <div className="mb-4">
+                        <F2FAuthBanner />
+                    </div>
+                    <EmployeeEarningsProvider from={rangeStart} to={rangeEnd}>
                     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-8">
                         <div>
                             <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
@@ -625,8 +631,9 @@ export function ManagerDashboard() {
                         </TabsContent>
                     </Tabs>
                 </EmployeeEarningsProvider>
-            </main>
-        </div>
+                </main>
+            </div>
+        </F2FAuthProvider>
     )
 }
 
