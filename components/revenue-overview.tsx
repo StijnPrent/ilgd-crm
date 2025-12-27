@@ -29,6 +29,8 @@ import {
     ChartTooltipContent,
 } from "@/components/ui/chart"
 import {api} from "@/lib/api"
+import {useF2FAuth} from "@/hooks/use-f2f-auth"
+import {parseF2FAuthError} from "@/lib/f2f-auth"
 import {formatUserDate, getDateInTimezone, getUserTimezone} from "@/lib/timezone"
 
 interface RevenueEntry {
@@ -62,6 +64,7 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
     const [hoveredBar, setHoveredBar] = useState<number | null>(null)
     const [awardCostsByDate, setAwardCostsByDate] = useState<Record<string, number>>({})
     const [awardTotal, setAwardTotal] = useState(0)
+    const {requireAuth, clearRequirement} = useF2FAuth()
     const userTimezone = useMemo(() => getUserTimezone(), [])
 
     const readMoney = (entry: any, keys: string[], fallback = 0) => {
@@ -159,8 +162,16 @@ export function RevenueOverview({monthStart, monthEnd, monthLabel}: RevenueOverv
                         ? awardTotalFromMeta
                         : awardTotalFallback,
                 )
+                clearRequirement()
             } catch (err) {
                 console.error("Failed to load revenue earnings:", err)
+                const f2fError = parseF2FAuthError(err)
+                if (f2fError.required) {
+                    requireAuth(f2fError.message)
+                    setEntries([])
+                    setAwardCostsByDate({})
+                    setAwardTotal(0)
+                }
             } finally {
                 setLoading(false)
             }
