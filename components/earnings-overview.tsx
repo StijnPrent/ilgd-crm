@@ -106,6 +106,24 @@ const ITEM_LABELS: Record<string, string> = {
     payperpost: "Pay per post",
 }
 
+type BuyerRelationshipFilter = "fan" | "follower"
+
+const buyerRelationshipLabel = (value: BuyerRelationshipFilter | "both") => {
+    if (value === "fan") return "Fans"
+    if (value === "follower") return "Followers"
+    return "Fans & Followers"
+}
+
+const normalizeBuyerRelationship = (value: any): "fan" | "follower" | "both" | null => {
+    if (value === null || value === undefined) return null
+    const lowered = String(value).trim().toLowerCase()
+    if (!lowered) return null
+    if (lowered === "fan" || lowered === "fans") return "fan"
+    if (lowered === "follower" || lowered === "followers") return "follower"
+    if (lowered === "both" || lowered === "all" || lowered === "any") return "both"
+    return null
+}
+
 const formatItemLabel = (value: string) => {
     const fromMap = ITEM_LABELS[value]
     if (fromMap) return fromMap
@@ -194,6 +212,7 @@ interface EarningsData {
     amount: number
     description: string | null
     type: string
+    buyerRelationship: "fan" | "follower" | "both" | null
     chatterId: string | null
     chatter: {
         full_name: string
@@ -213,6 +232,7 @@ interface FilterState {
     modelId: string | null
     chatterId: string | null
     items: string[]
+    buyerRelationships: BuyerRelationshipFilter[]
 }
 
 export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart, monthEnd}: EarningsOverviewProps) {
@@ -220,16 +240,18 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
     const [rawTableEarnings, setRawTableEarnings] = useState<any[]>([])
     const [rawMonthlyEarnings, setRawMonthlyEarnings] = useState<any[]>([])
     const [chatters, setChatters] = useState<{ id: string; full_name: string }[]>([])
-    const [models, setModels] = useState<{ id: string; display_name: string }[]>([])
+    const [models, setModels] = useState<{ id: string; display_name: string; supportsBuyerRelationship: boolean }[]>([])
     const [shifts, setShifts] = useState<{ id: string; label: string }[]>([])
     const [chatterMap, setChatterMap] = useState<Map<unknown, unknown>>(new Map())
     const [modelMap, setModelMap] = useState<Map<string, string>>(new Map())
+    const [modelSupportsMap, setModelSupportsMap] = useState<Map<string, boolean>>(new Map())
     const [shiftMap, setShiftMap] = useState<Map<unknown, unknown>>(new Map())
     const [filters, setFilters] = useState<FilterState>({
         shiftId: null,
         modelId: null,
         chatterId: null,
         items: [],
+        buyerRelationships: [],
     })
     const [selectedDate, setSelectedDate] = useState<string | null>(null)
     const [hoveredBar, setHoveredBar] = useState<number | null>(null)
@@ -272,6 +294,11 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
     const month = baseMonthDate.getMonth()
 
     const userTimezone = useMemo(() => getUserTimezone(), [])
+
+    const selectedModelSupportsBuyerRelationship = useMemo(() => {
+        if (!filters.modelId) return false
+        return Boolean(modelSupportsMap.get(filters.modelId))
+    }, [filters.modelId, modelSupportsMap])
 
     const dateKeyFormatter = useMemo(
         () =>
@@ -330,6 +357,9 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                 amount: Number(earning.amount),
                 description: earning.description,
                 type: earning.type,
+                buyerRelationship: normalizeBuyerRelationship(
+                    earning.buyerRelationship ?? earning.buyer_relationship ?? earning.buyer_relationships,
+                ),
                 chatterId,
                 chatter: chatterId ? {full_name: chatterName} : null,
                 modelId,
@@ -491,12 +521,25 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                 const modelEntries = (modelsData || []).map((model: any) => ({
                     id: String(model.id),
                     display_name: model.displayName || model.name || "Unknown",
+                    supportsBuyerRelationship: Boolean(
+                        model.supportsBuyerRelationship ??
+                        model.supports_buyer_relationship ??
+                        model.supports_buyerRelationship,
+                    ),
                 }))
                 const modelLookup: Map<string, string> = new Map(
                     modelEntries.map((entry) => [entry.id, entry.display_name]),
                 )
                 setModels(modelEntries)
                 setModelMap(modelLookup)
+                setModelSupportsMap(
+                    new Map(
+                        modelEntries.map((entry) => [
+                            entry.id,
+                            entry.supportsBuyerRelationship,
+                        ]),
+                    ),
+                )
 
                 const shiftsList = (shiftsData || []).map((shift: any) => ({
                     id: String(shift.id),
@@ -526,6 +569,7 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                 date?: string
                 from?: string
                 to?: string
+                buyerRelationship?: string | string[]
             } = {}
 
             if (filters.chatterId) {
@@ -539,6 +583,9 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
             }
             if (filters.items.length > 0) {
                 params.types = filters.items
+            }
+            if (selectedModelSupportsBuyerRelationship && filters.buyerRelationships.length > 0) {
+                params.buyerRelationship = filters.buyerRelationships
             }
             const includeSelectedDate = options?.includeDate && selectedDateRange
             if (includeSelectedDate && selectedDateRange) {
@@ -555,8 +602,14 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
 
             return params
         },
-        [filters, rangeEnd, rangeStart, selectedDateRange],
+        [filters, rangeEnd, rangeStart, selectedDateRange, selectedModelSupportsBuyerRelationship],
     )
+
+    useEffect(() => {
+        if (!selectedModelSupportsBuyerRelationship && filters.buyerRelationships.length > 0) {
+            setFilters((current) => ({ ...current, buyerRelationships: [] }))
+        }
+    }, [filters.buyerRelationships.length, selectedModelSupportsBuyerRelationship])
 
     const fetchChartData = useCallback(async () => {
         if (isCompact) return
@@ -683,6 +736,7 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
         filters.modelId,
         filters.shiftId,
         filters.items.join("|"),
+        filters.buyerRelationships.join("|"),
         rangeEnd,
         rangeStart,
         selectedDate,
@@ -738,6 +792,7 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
         if (filters.modelId) count += 1
         if (filters.chatterId) count += 1
         if (filters.items.length > 0) count += 1
+        if (filters.buyerRelationships.length > 0) count += 1
         return count
     }, [filters])
 
@@ -746,7 +801,7 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
     }, [])
 
     const clearModelFilter = useCallback(() => {
-        setFilters((current) => ({...current, modelId: null}))
+        setFilters((current) => ({...current, modelId: null, buyerRelationships: []}))
     }, [])
 
     const clearChatterFilter = useCallback(() => {
@@ -755,6 +810,10 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
 
     const clearItemsFilter = useCallback(() => {
         setFilters((current) => ({...current, items: []}))
+    }, [])
+
+    const clearBuyerRelationshipFilter = useCallback(() => {
+        setFilters((current) => ({ ...current, buyerRelationships: [] }))
     }, [])
 
     const filterSummary = useMemo(() => {
@@ -777,6 +836,16 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                     onRemove: clearModelFilter,
                 })
         }
+        if (filters.buyerRelationships.length > 0) {
+            const labels = filters.buyerRelationships
+                .map((value) => buyerRelationshipLabel(value))
+                .join(", ")
+            items.push({
+                key: "buyer-relationships",
+                label: `Buyer: ${labels}`,
+                onRemove: clearBuyerRelationshipFilter,
+            })
+        }
         if (filters.chatterId) {
             const label = chatterMap.get(filters.chatterId)
             if (label)
@@ -797,6 +866,7 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
         chatterMap,
         clearChatterFilter,
         clearItemsFilter,
+        clearBuyerRelationshipFilter,
         clearModelFilter,
         clearShiftFilter,
         filters,
@@ -908,9 +978,16 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                                         })()}
                                     </TableCell>
                                     <TableCell>
-                                        <div className="flex items-center gap-2">
-                                            <UserCircle className="h-4 w-4 text-muted-foreground"/>
-                                            {earning.model?.display_name ?? "Unknown"}
+                                        <div className="flex flex-col gap-1">
+                                            <div className="flex items-center gap-2">
+                                                <UserCircle className="h-4 w-4 text-muted-foreground"/>
+                                                {earning.model?.display_name ?? "Unknown"}
+                                            </div>
+                                            {earning.buyerRelationship && (
+                                                <Badge variant="outline" className="w-fit text-[11px]">
+                                                    {buyerRelationshipLabel(earning.buyerRelationship)}
+                                                </Badge>
+                                            )}
                                         </div>
                                     </TableCell>
                                     <TableCell>
@@ -999,12 +1076,17 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                                     <DropdownMenuSubContent className="w-64">
                                         <DropdownMenuRadioGroup
                                             value={filters.modelId ?? "all"}
-                                            onValueChange={(value) =>
+                                            onValueChange={(value) => {
+                                                const nextModelId = value === "all" ? null : value
+                                                const supports = nextModelId
+                                                    ? Boolean(modelSupportsMap.get(nextModelId))
+                                                    : false
                                                 setFilters((current) => ({
                                                     ...current,
-                                                    modelId: value === "all" ? null : value,
+                                                    modelId: nextModelId,
+                                                    buyerRelationships: supports ? current.buyerRelationships : [],
                                                 }))
-                                            }
+                                            }}
                                         >
                                             <DropdownMenuRadioItem value="all">
                                                 All models
@@ -1018,6 +1100,47 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                                     </DropdownMenuSubContent>
                                 </DropdownMenuPortal>
                             </DropdownMenuSub>
+                            {selectedModelSupportsBuyerRelationship && (
+                                <DropdownMenuSub>
+                                    <DropdownMenuSubTrigger>Buyer relationship</DropdownMenuSubTrigger>
+                                    <DropdownMenuPortal>
+                                        <DropdownMenuSubContent className="w-64">
+                                            <DropdownMenuItem
+                                                onSelect={(event) => {
+                                                    event.preventDefault()
+                                                    setFilters((current) => ({
+                                                        ...current,
+                                                        buyerRelationships: [],
+                                                    }))
+                                                }}
+                                            >
+                                                Clear selection
+                                            </DropdownMenuItem>
+                                            <DropdownMenuSeparator />
+                                            {(["fan", "follower"] as BuyerRelationshipFilter[]).map((value) => (
+                                                <DropdownMenuCheckboxItem
+                                                    key={value}
+                                                    checked={filters.buyerRelationships.includes(value)}
+                                                    onCheckedChange={(checked) =>
+                                                        setFilters((current) => ({
+                                                            ...current,
+                                                            buyerRelationships: checked
+                                                                ? Array.from(
+                                                                    new Set([...current.buyerRelationships, value]),
+                                                                )
+                                                                : current.buyerRelationships.filter(
+                                                                    (entry) => entry !== value,
+                                                                ),
+                                                        }))
+                                                    }
+                                                >
+                                                    {buyerRelationshipLabel(value)}
+                                                </DropdownMenuCheckboxItem>
+                                            ))}
+                                        </DropdownMenuSubContent>
+                                    </DropdownMenuPortal>
+                                </DropdownMenuSub>
+                            )}
                             <DropdownMenuSub>
                                 <DropdownMenuSubTrigger>Chatter</DropdownMenuSubTrigger>
                                 <DropdownMenuPortal>
@@ -1079,7 +1202,13 @@ export function EarningsOverview({limit, monthLabel: monthLabelProp, monthStart,
                             <DropdownMenuItem
                                 onSelect={(event) => {
                                     event.preventDefault()
-                                    setFilters({shiftId: null, modelId: null, chatterId: null, items: []})
+                                    setFilters({
+                                        shiftId: null,
+                    modelId: null,
+                    chatterId: null,
+                    items: [],
+                    buyerRelationships: [],
+                })
                                 }}
                             >
                                 Clear all filters

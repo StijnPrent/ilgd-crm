@@ -133,6 +133,32 @@ class ApiClient {
     return token ? { Authorization: `Bearer ${token}` } : {}
   }
 
+  private normalizeBuyerRelationships(params?: { buyerRelationship?: string | string[]; buyerRelationships?: string[] }) {
+    const values = new Set<string>()
+
+    const addValue = (input: any) => {
+      if (!input && input !== "") return
+      if (Array.isArray(input)) {
+        input.forEach(addValue)
+        return
+      }
+      const parts = String(input)
+        .split(",")
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean)
+      parts.forEach((value) => {
+        if (value === "fan" || value === "follower") {
+          values.add(value)
+        }
+      })
+    }
+
+    addValue(params?.buyerRelationship)
+    addValue(params?.buyerRelationships)
+
+    return Array.from(values)
+  }
+
   private async request(
     endpoint: string,
     options: RequestInit & { cacheTtlMs?: number; dedupe?: boolean } = {},
@@ -379,6 +405,8 @@ class ApiClient {
     date?: string
     from?: string
     to?: string
+    buyerRelationship?: string | string[]
+    buyerRelationships?: string[]
   }) {
     const search = new URLSearchParams()
     if (params?.limit !== undefined) search.set("limit", String(params.limit))
@@ -394,6 +422,10 @@ class ApiClient {
     if (params?.date) search.set("date", params.date)
     if (params?.from) search.set("from", params.from)
     if (params?.to) search.set("to", params.to)
+    const buyerRelationships = this.normalizeBuyerRelationships(params)
+    if (buyerRelationships.length) {
+      search.set("buyerRelationship", buyerRelationships.join(","))
+    }
     console.log(params?.to)
     const query = search.toString() ? `?${search.toString()}` : ""
     return this.request(`/employee-earnings${query}`)
@@ -410,6 +442,8 @@ class ApiClient {
     date?: string
     from?: string
     to?: string
+    buyerRelationship?: string | string[]
+    buyerRelationships?: string[]
   }) {
     const search = new URLSearchParams()
     search.set("limit", String(params.limit))
@@ -425,6 +459,10 @@ class ApiClient {
     if (params.date) search.set("date", params.date)
     if (params.from) search.set("from", params.from)
     if (params.to) search.set("to", params.to)
+    const buyerRelationships = this.normalizeBuyerRelationships(params)
+    if (buyerRelationships.length) {
+      search.set("buyerRelationship", buyerRelationships.join(","))
+    }
     const query = `?${search.toString()}`
 
     const response = await fetch(`${API_BASE_URL}/employee-earnings${query}`, {
@@ -452,6 +490,8 @@ class ApiClient {
     date?: string
     from?: string
     to?: string
+    buyerRelationship?: string | string[]
+    buyerRelationships?: string[]
   }) {
     const { pageSize, ...rest } = params ?? {}
     return fetchAllPages<any>(
@@ -491,6 +531,8 @@ class ApiClient {
     date?: string
     from?: string
     to?: string
+    buyerRelationship?: string | string[]
+    buyerRelationships?: string[]
   }) {
     const search = new URLSearchParams()
     if (params?.chatterId) search.set("chatterId", params.chatterId)
@@ -504,6 +546,10 @@ class ApiClient {
     if (params?.date) search.set("date", params.date)
     if (params?.from) search.set("from", params.from)
     if (params?.to) search.set("to", params.to)
+    const buyerRelationships = this.normalizeBuyerRelationships(params)
+    if (buyerRelationships.length) {
+      search.set("buyerRelationship", buyerRelationships.join(","))
+    }
     const query = search.toString() ? `?${search.toString()}` : ""
     return this.request(`/employee-earnings/totalCount${query}`)
   }
